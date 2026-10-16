@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """
-Repare les headers safetensors du checkpoint Jainius (standard HuggingFace).
+DEPRECIE — conserve uniquement pour reparer d'anciens checkpoints corrompus
+(header double-prefix / padding / dtype U16).
+
+Le merge (merge_jainius.py) sauvegarde deja en BF16 canonique via
+torch.bfloat16 : ne PAS l'inclure dans le workflow courant.
+Voir README.md / AGENTS.md (etape verify uniquement).
+
 
 Corrections appliquees (reesriture complete via fichier temporaire + replace
 atomique, jamais de patch binaire en place qui decale les donnees) :
@@ -157,7 +163,9 @@ def repair_one_file(fpath):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Repare les headers safetensors (BF16)")
+    print("DEPRECIE: le merge sauvegarde deja en BF16 canonique. "
+          "Reserve aux anciens checkpoints corrompus.")
+    parser = argparse.ArgumentParser(description="Repare les headers safetensors (BF16) [DEPRECIE]")
     parser.add_argument("--checkpoint", required=True, help="Path to Jainius checkpoint directory")
     args = parser.parse_args()
 

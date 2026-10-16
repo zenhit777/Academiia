@@ -22,8 +22,12 @@ Academiia/
 ├── scripts/               # Scripts reproductibles (Python)
 │   ├── download_models.py
 │   ├── compute_tau_a.py
+│   ├── measure_effect.py    # effet reel post-BF16 + balayage α (CPU)
 │   ├── merge_jainius.py
-│   └── fix_dtype.py
+│   ├── verify_checkpoint.py # + --check-values NaN/Inf
+│   ├── smoke_int8.py        # test rapide INT8 (iteration, pas preuve)
+│   ├── _common.py           # helpers partages (mappings, manifest)
+│   └── fix_dtype.py         # DEPRECIE (legacy uniquement)
 ├── checkpoints/           # Checkpoints binaires (~245 Go, non partagés)
 │   ├── gemma4_base/       (A_b — Gemma 4 AR base)
 │   ├── gemma4_it/         (A_p — Gemma 4 IT post-trained)
@@ -40,7 +44,7 @@ Academiia/
 4. **`checkpoints/` est à la racine** — ignoré par git, contient les modèles binaires (~245 Go). Ne jamais le modifier directement.
 5. **`_artefact/` est un dossier temporaire agents** — tous les fichiers générés par les agents qui n'ont pas vocation à être partagés (logs, exports intermédiaires, résultats de tests) doivent y être placés. Ce dossier est ignoré par git et ne doit jamais être commité.
 
-### Pipeline A2D (référence rapide)
+### Pipeline Dp + ατA (ablation inspirée A2D — PAS le A2D-Merge complet)
 
 ```bash
 # 1. Télécharger les modèles (~165 Go)
@@ -52,22 +56,30 @@ python scripts/compute_tau_a.py \
     --posttrained checkpoints/gemma4_it \
     --output-dir _artefact/tau_a
 
-# 3. Merge A2D: Jainius = D_p + 0.8 * tau_A (~15 min, ~5 GB RAM)
+# 3. Mesurer l'effet reel apres arrondi BF16 (CPU seul, recommande)
+python scripts/measure_effect.py \
+    --diffusiongemma checkpoints/diffusiongemma_it \
+    --tau-dir _artefact/tau_a \
+    --alphas 0.05,0.1,0.2,0.3,0.5,0.8
+
+# 4. Merge: Jainius = D_p + alpha * tau_A (~15 min, ~5 GB RAM)
 python scripts/merge_jainius.py \
     --diffusiongemma checkpoints/diffusiongemma_it \
     --tau-dir _artefact/tau_a \
-    --output checkpoints/Jainius
+    --output checkpoints/Jainius \
+    --alpha 0.3
 
-# 4. Convertir en BF16 (format HuggingFace)
-python scripts/fix_dtype.py --checkpoint checkpoints/Jainius
+# 5. Verifier (HuggingFace strict)
+python scripts/verify_checkpoint.py --checkpoint checkpoints/Jainius
 ```
+(`scripts/fix_dtype.py` deprecie : conserve pour anciens checkpoints uniquement.)
 
-### Contexte A2D
+### Contexte Dp + ατA (ne pas appeler "A2D" seul)
 
 - **Source** : Qin et al., "Enhancing Diffusion Language Models with Autoregressive Post-Training Weights", arXiv:2610.08108, 2026 (EPFL)
-- **Principe** : τ_A = A_p − A_b est ajouté aux couches decoder de DiffusionGemma (mapping par nom de tenseur).
-- **α=0.8** : poids d'interpolation utilisé dans le merge.
-- **656 tenseurs** fusionnés, **391 tenseurs** inchangés (encoder vision).
+- **Principe** : τ_A = A_p − A_b ajouté aux couches decoder de DiffusionGemma (mapping par nom). Ablation « Dp + ατA » (Tab. 9), PAS `D_p + λ(τ_A − τ_D)` (τ_D inexistant publiquement).
+- **α=0.3** par défaut (balayage 0.05–0.5 via `measure_effect.py`). L'ancien défaut 0.8 dégradait SLAKE (83.1 → 79.3).
+- **656 tenseurs** fusionnés max, **391 tenseurs** inchangés (encoder vision). Variante papier `--exclude-norms-embed` (embeddings/norms inchangés).
 
 ### Outils disponibles
 

@@ -8,11 +8,12 @@
 - [ ] Aucun fichier `.safetensors` ne renvoie de JSONDecodeError au parsing
 
 ### 2. Cohérence des scripts
-- [ ] `python -c "import ast; [ast.parse(open(f'scripts/{f}').read()) for f in ['download_models.py','compute_tau_a.py','merge_jainius.py','fix_dtype.py','verify_checkpoint.py']]"` → OK
+- [ ] `python -c "import ast,glob; [ast.parse(open(f,encoding='utf-8').read()) for f in sorted(glob.glob('scripts/*.py'))]"` → OK
 - [ ] Les chemins par défaut pointent vers `checkpoints/` et `_artefact/tau_a` (pas `/tmp/`)
+- [ ] `scripts/merge_jainius.py --help` : défaut `--alpha 0.3`, `--on-shape-mismatch error`, manifest `merge_config.json` écrit
 
 ### 3. État du repo git
-- [ ] `git status --short` est vide (working tree clean)
+- [ ] `git status --short` est vide (working tree clean — `.gitignore` couvre `__pycache__/`, `*.pyc`, `.venv/`, `*.npy`)
 - [ ] `checkpoints/` et `_artefact/` sont bien dans `.gitignore`
 
 ### 4. Structure HuggingFace

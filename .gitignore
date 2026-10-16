@@ -8,3 +8,16 @@ _artefact/
 **/.env
 # ... mais toujours versionner les templates (valeurs d'exemple, sans secret).
 !**/.env.template
+
+# Python / tooling (ne jamais commiter) :
+__pycache__/
+*.py[cod]
+*.npy
+.venv/
+.venv*/
+venv/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/

@@ -100,7 +100,7 @@ def verify_safetensors_file(fpath):
     return (len(issues) == 0), {"issues": issues, **infos}
 
 
-def verify_checkpoint(checkpoint_dir):
+def verify_checkpoint(checkpoint_dir, check_values=False):
     print(f"Verifying checkpoint: {checkpoint_dir}\n")
 
     if not os.path.isdir(checkpoint_dir):
@@ -112,6 +112,9 @@ def verify_checkpoint(checkpoint_dir):
         "tokenizer.json",
         "tokenizer_config.json",
         "model.safetensors.index.json",
+        "generation_config.json",
+        "chat_template.jinja",
+        "processor_config.json",
     ]
     missing = [f for f in required_files if not os.path.exists(os.path.join(checkpoint_dir, f))]
     if missing:
@@ -139,6 +142,7 @@ def verify_checkpoint(checkpoint_dir):
     print("Checking safetensors headers (strict)...")
     all_ok = True
     total_tensors = 0
+    header_names = {}  # tensor name -> fname (detecte doublons / mauvais fichier)
     for fname in sorted(os.listdir(checkpoint_dir)):
         if not fname.endswith(".safetensors"):
             continue
@@ -150,6 +154,21 @@ def verify_checkpoint(checkpoint_dir):
                 print(f"  [WARN] {issue}")
         else:
             print(f"  [OK] {fname}: {infos.get('tensors')} tenseurs {infos.get('dtypes')}")
+        # Releve les noms depuis le header pour controler l'index
+        try:
+            with open(os.path.join(checkpoint_dir, fname), "rb") as f:
+                hlen = struct.unpack("<Q", f.read(8))[0]
+                header = json.loads(f.read(hlen).decode("utf-8"))
+            for tname, meta in header.items():
+                if tname == "__metadata__" or not isinstance(meta, dict) or "shape" not in meta:
+                    continue
+                if tname in header_names:
+                    print(f"[FAIL] tenseur duplique: {tname} dans {header_names[tname]} et {fname}")
+                    all_ok = False
+                header_names[tname] = fname
+        except Exception as e:
+            print(f"[FAIL] relecture header {fname}: {e}")
+            all_ok = False
 
     # Couverture index vs fichiers
     indexed_files = set(weight_map.values())
@@ -158,21 +177,57 @@ def verify_checkpoint(checkpoint_dir):
         print(f"[FAIL] weight_map mismatch: index={len(indexed_files)} fichiers, disque={len(actual_files)}")
         all_ok = False
     if len(weight_map) != total_tensors:
-        print(f"[WARN] index: {len(weight_map)} tenseurs, headers: {total_tensors}")
+        print(f"[FAIL] index: {len(weight_map)} tenseurs, headers: {total_tensors} (exige egalite)")
+        all_ok = False
+    # Chaque tenseur de l'index doit etre dans le bon fichier
+    for tname, expected_file in weight_map.items():
+        actual_file = header_names.get(tname)
+        if actual_file is None:
+            print(f"[FAIL] tenseur indexe introuvable dans les headers: {tname}")
+            all_ok = False
+        elif actual_file != expected_file:
+            print(f"[FAIL] mauvais fichier pour {tname}: index={expected_file}, header={actual_file}")
+            all_ok = False
+
+    # Provenance du merge (avertissement pour anciens checkpoints pre-manifest)
+    if not os.path.exists(os.path.join(checkpoint_dir, "merge_config.json")):
+        print("[WARN] merge_config.json absent (checkpoint pre-manifest, provenance non tracee)")
+
+    if check_values:
+        print("Checking tensor values (NaN/Inf, lent ~15min)...")
+        try:
+            from safetensors import safe_open
+            import torch
+            n_checked = 0
+            for tname, fname in sorted(weight_map.items(), key=lambda kv: (kv[1], kv[0])):
+                with safe_open(os.path.join(checkpoint_dir, fname), framework="pt") as f:
+                    t = f.get_tensor(tname).to(torch.float32)
+                if not torch.isfinite(t).all():
+                    print(f"[FAIL] NaN/Inf dans {tname} ({fname})")
+                    all_ok = False
+                n_checked += 1
+                if n_checked % 200 == 0:
+                    print(f"  ... {n_checked}/{len(weight_map)}")
+            print(f"  valeurs OK: {n_checked} tenseurs finis")
+        except ImportError as e:
+            print(f"[FAIL] --check-values requiert torch+safetensors: {e}")
+            all_ok = False
 
     print("=" * 50)
     if all_ok:
         print(f"[OK] All checks passed ({total_tensors} tenseurs). Checkpoint valide.")
         return True
-    print("[FAIL] Issues found. Run 'python scripts/fix_dtype.py' or re-merge truncated files.")
+    print("[FAIL] Issues found. Re-merger les fichiers concernes (fix_dtype.py est deprecie).")
     return False
 
 
 def main():
     parser = argparse.ArgumentParser(description="Verify Jainius checkpoint integrity")
     parser.add_argument("--checkpoint", default="checkpoints/Jainius", help="Path to Jainius checkpoint")
+    parser.add_argument("--check-values", action="store_true",
+                        help="Charge chaque tenseur et refuse NaN/Inf (lent, ~15min, ~5 Go RAM)")
     args = parser.parse_args()
-    success = verify_checkpoint(args.checkpoint)
+    success = verify_checkpoint(args.checkpoint, check_values=args.check_values)
     sys.exit(0 if success else 1)
 
 

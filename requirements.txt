@@ -1,6 +1,12 @@
-# Pinned runtime for the A2D pipeline (voir AGENTS.md — Outils disponibles)
+# Pinned runtime for the pipeline (voir AGENTS.md — Outils disponibles)
+# Python >= 3.12 requis (f-strings 3.12+ dans verify_checkpoint.py).
 huggingface_hub==1.18.0
 transformers==5.10.2
 safetensors>=0.4
 torch>=2.4
 numpy>=1.26
+# Inference / eval :
+# - accelerate : device_map auto + offload disque (smoke_int8, eval perplexite)
+# - bitsandbytes : chargement 8-bit (test rapide 31 Go VRAM, relatif uniquement)
+accelerate>=0.30
+bitsandbytes>=0.43

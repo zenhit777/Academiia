@@ -20,9 +20,11 @@ Projet de recherche sur l'application A2D (AR-to-Diffusion Transfer) à Diffusio
 - [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) → anomalies connues (header corrompu, dtype U16/BF16)
 ## Règles
 
-- Ne jamais modifier directement les fichiers `.safetensors` dans `checkpoints/`. Utiliser `scripts/fix_dtype.py` pour les conversions.
+- Ne jamais modifier directement les fichiers `.safetensors` dans `checkpoints/`. Le merge sauvegarde déjà en BF16 canonique (`fix_dtype.py` déprécié, legacy uniquement).
+- Lire les safetensors via `safetensors.safe_open` (bits exacts). Parseur maison `SafetensorsMmapLoader` interdit pour tout nouveau code (dette en cours de retrait de `compute_tau_a.py` / `merge_jainius.py`).
 - Les checkpoints sont volumineux (~210 Go total). Ne pas les lister ou scanner en masse.
-- Pour toute modification du pipeline A2D, lire d'abord `AGENTS.md` et les scripts dans `scripts/`.
+- Pour toute modification du pipeline Dp+ατA, lire d'abord `AGENTS.md` et les scripts dans `scripts/`. Ne pas appeler la méthode "A2D" seule : c'est l'ablation `Dp + ατA` (pas de τ_D public).
+- Mesurer avant de merger : `scripts/measure_effect.py` (effet réel après arrondi BF16, balayage α 0.05–0.5, défaut 0.3). L'ancien défaut 0.8 est déprécié.
 - Le checkpoint Jainius est le résultat final — ne pas le recréer sauf si explicitement demandé.
 
 ## Workflow typique

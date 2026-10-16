@@ -1,0 +1,32 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install safetensors torch numpy
+      - run: python -c "import ast, glob; [ast.parse(open(f, encoding='utf-8').read()) for f in sorted(glob.glob('scripts/*.py'))]; print('syntax OK')"
+      - run: |
+          python - <<'EOF'
+          import json, os
+          import torch
+          from safetensors.torch import save_file
+          os.makedirs("/tmp/dummy_dg", exist_ok=True)
+          os.makedirs("/tmp/dummy_tau", exist_ok=True)
+          save_file({"model.decoder.layers.0.self_attn.q_proj.weight": torch.ones(8, 8, dtype=torch.bfloat16)},
+                      "/tmp/dummy_dg/model-00001-of-00001.safetensors")
+          json.dump({"metadata": {}, "weight_map": {"model.decoder.layers.0.self_attn.q_proj.weight": "model-00001-of-00001.safetensors"}},
+                    open("/tmp/dummy_dg/model.safetensors.index.json", "w"))
+          json.dump({"architectures": ["DiffusionGemmaForBlockDiffusion"]}, open("/tmp/dummy_dg/config.json", "w"))
+          for f in ["tokenizer.json", "tokenizer_config.json", "generation_config.json", "chat_template.jinja", "processor_config.json"]:
+              open(f"/tmp/dummy_dg/{f}", "w").write("{}")
+          import numpy as np
+          np.save("/tmp/dummy_tau/model_language_model_layers_0_self_attn_q_proj_weight.npy", np.full((8, 8), 0.001, dtype=np.float32))
+          EOF
+          python scripts/merge_jainius.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --output /tmp/dummy_out --alpha 0.3
+          python scripts/verify_checkpoint.py --checkpoint /tmp/dummy_out
+          python scripts/measure_effect.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --alphas 0.3 --output /tmp/measure.json

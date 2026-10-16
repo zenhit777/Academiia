@@ -1,13 +1,20 @@
 # Inference Jainius via l'image vLLM officielle (support natif DiffusionGemma).
 # Lancer depuis WSL : `cd vLLM && docker compose up`
 # (Docker Desktop/Engine avec runtime NVIDIA requis, GPU visible via `nvidia-smi` sous WSL.)
+#
+# Image : le support DiffusionGemma (blog vLLM 2026-06-10, PR #45163) est
+# fourni par le tag `gemma`, PAS par `latest` (non reproductible).
+# Voir vLLM recipe diffusiongemma-26B-A4B-it (2026-09-23) : `docker pull vllm/vllm-openai:gemma`.
+# Surcharger via VLLM_IMAGE uniquement pour tester une image plus recente.
 
 name: jainius-vllm
 
 services:
   vllm:
-    image: ${VLLM_IMAGE:-vllm/vllm-openai:latest}
+    image: ${VLLM_IMAGE:-vllm/vllm-openai:gemma}
     container_name: jainius-vllm
+    # vLLM recommande `ipc: host` (ou shm_size eleve) pour les conteneurs.
+    ipc: host
     # Acces GPU (runtime NVIDIA sous WSL2).
     deploy:
       resources:
@@ -30,21 +37,22 @@ services:
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     # Pas de restart auto : un OOM doit se voir, pas boucler.
     restart: "no"
-    command:
-      - serve
-      - /data/Jainius
-      - --served-model-name
-      - ${VLLM_SERVED_MODEL_NAME:-jainius}
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8000"
-      - --dtype
-      - ${VLLM_DTYPE:-bfloat16}
-      # Jainius ~51.6 Go BF16 pour ~31 Go de VRAM : delestage MoE vers la RAM.
-      - --cpu-offload-gb
-      - ${VLLM_CPU_OFFLOAD_GB:-30}
-      - ${VLLM_EXTRA_ARGS:-}
+    # Forme shell (string) volontaire : permet a VLLM_EXTRA_ARGS de contenir
+    # plusieurs flags separes par espaces. En forme liste YAML, Compose
+    # passerait tout le contenu comme UN seul argument (ou un arg vide),
+    # rejete par `vllm serve` ("unrecognized arguments").
+    # Ne JAMAIS repasser en forme liste sans wrapper shell.
+    # Les ${...:-defaut} sont interpoles par Compose depuis le .env.
+    command: >-
+      bash -c 'exec vllm serve /data/Jainius
+      --served-model-name "${VLLM_SERVED_MODEL_NAME:-jainius}"
+      --host 0.0.0.0 --port 8000
+      --dtype "${VLLM_DTYPE:-bfloat16}"
+      --cpu-offload-gb "${VLLM_CPU_OFFLOAD_GB:-30}"
+      --max-model-len "${VLLM_MAX_MODEL_LEN:-4096}"
+      --max-num-seqs "${VLLM_MAX_NUM_SEQS:-1}"
+      --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.90}"
+      ${VLLM_EXTRA_ARGS:-}'
 
 volumes:
   vllm-hf-cache:

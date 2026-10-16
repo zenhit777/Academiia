@@ -12,7 +12,7 @@ Chiffres du Technical Report (1× H100, FP8, batch 1) : ~1500 tok/s,
 ## Prérequis
 
 - WSL2 + Docker avec runtime NVIDIA (`nvidia-smi` OK sous WSL).
-- Image `${VLLM_IMAGE}` postérieure au 2026-06-10, CUDA ≥ 12.9 (Blackwell/5090).
+- Image `${VLLM_IMAGE}` = `vllm/vllm-openai:gemma` (support natif DiffusionGemma, blog vLLM 2026-06-10). CUDA ≥ 12.9 (Blackwell/5090).
 - Checkpoint présent (`VLLM_MODEL_HOST_PATH`, défaut : `../checkpoints/Jainius`).
 
 ## Démarrage
@@ -31,14 +31,17 @@ modèle `${VLLM_SERVED_MODEL_NAME}`, défaut `jainius`).
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `VLLM_IMAGE` | `vllm/vllm-openai:latest` | Image officielle (doit inclure le support dLLM) |
+| `VLLM_IMAGE` | `vllm/vllm-openai:gemma` | Image officielle epinglee (support dLLM). `latest` interdit (non reproductible) |
 | `VLLM_MODEL_HOST_PATH` | `../checkpoints/Jainius` | Checkpoint hôte vu depuis WSL |
 | `VLLM_SERVED_MODEL_NAME` | `jainius` | Nom exposé à l'API |
 | `VLLM_PORT` | `8000` | Port hôte |
 | `HF_TOKEN` | (vide) | Optionnel, contenus gatés uniquement |
 | `VLLM_DTYPE` | `bfloat16` | `fp8` exige un checkpoint pré-quantifié (non fourni) |
 | `VLLM_CPU_OFFLOAD_GB` | `30` | MoE délestés en RAM (51.6 Go vs ~31 Go VRAM) |
-| `VLLM_EXTRA_ARGS` | (vide) | Passés tels quels à `vllm serve` |
+| `VLLM_MAX_MODEL_LEN` | `4096` | Contexte max (baisser à 2048 si OOM) |
+| `VLLM_MAX_NUM_SEQS` | `1` | 1 pour l'eval reproductible |
+| `VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | Marge VRAM pour sampler diffusion |
+| `VLLM_EXTRA_ARGS` | (vide) | Flags supplementaires, decoupes par shell (multi-flags OK) |
 
 ## Notes
 

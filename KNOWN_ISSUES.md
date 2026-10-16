@@ -1,5 +1,14 @@
 # KNOWN_ISSUES.md — Anomalies du checkpoint Jainius (rebuild v2 en place, 2026-10-16)
 
+## ✅ Suite audit Sonnet 2026-10-16 (appliquée, en attente du balayage α)
+
+- **Méthode renommée :** ce n'est PAS le A2D-Merge (`D_p + λ(τ_A − τ_D)`, τ_D inexistant publiquement) mais l'ablation `D_p + ατ_A` (Tab. 9). README/AGENTS corrigés, défaut **α=0.3** (0.8 déprécié : −3.8 pts SLAKE dans le papier).
+- **Parseur maison en retrait :** `compute_tau_a.py` + `merge_jainius.py` lisent via `safe_open`, helpers partagés `scripts/_common.py`. `fix_dtype.py` déprécié (merge direct BF16).
+- **Merge durci :** shape mismatch → erreur par défaut, manifest `merge_config.json`, écriture atomique, nettoyage shards obsolètes (`--overwrite` exigé), recopie de TOUS les sidecars (LICENSE...), `total_size` dans l'index. `verify_checkpoint.py` : égalité index/headers exigée, contrôle bon-fichier par tenseur, `--check-values` NaN/Inf, HF files requis.
+- **Serving :** compose en forme shell (multi-flags `VLLM_EXTRA_ARGS` OK), image épinglée `vllm/vllm-openai:gemma`, `ipc: host`, `VLLM_MAX_MODEL_LEN=4096`, `MAX_NUM_SEQS=1`, `GPU_MEMORY_UTILIZATION=0.90`. `.gitignore` : `__pycache__/`, `*.pyc`, `.venv/`, `*.npy`.
+- **Mesure poids (résultats 2026-10-16) :** `scripts/measure_effect.py` sur les 656 tenseurs (25.2B éléments) — % réellement modifiés après arrondi BF16 : α=0.05→94.8%, 0.1→97.3%, 0.2→98.5%, **0.3→99.1%**, 0.5→99.4%, 0.8→99.6%. Variante sans norms/embed (355 tenseurs) quasi identique. Par famille à 0.3 : attn 99.4%, mlp/experts 99.1%, norms 76.6%, routeur 0.1% (τ≈0). Conclusion : la quantification n'absorbe presque rien — α pilote réellement le merge, d'où l'importance du balayage et de l'éval vs `D_p`. JSON : `_artefact/measure_effect*.json`.
+- **Reste :** balayage α + perplexité/bench vs `D_p` (mesure fond en cours : `_artefact/measure_effect*.json`) ; test d'inférence GPU ; pas de `LICENSE` (poids sous conditions Gemma).
+
 ## ✅ Resolu dans les scripts (2026-10-16)
 
 ### 1. `fix_dtype.py` cassé (corrige)
