@@ -1,11 +1,9 @@
 # AGENTS.md — Instructions pour les agents IA de codage
-## ⚠️ Fichiers critiques (lus automatiquement par les agents)
-- `CLAUDE.md` → Anomalies connues + instructions critiques (Claude Code / Anthropic)
-- `.cursorrules` → Règles Cursor IDE
-- `CHECKLIST.md` → Vérifications obligatoires avant "prêt"
-- `KNOWN_ISSUES.md` → Anomalies détaillées du checkpoint Jainius
+## ⚠️ Fichiers à lire OBLIGATOIREMENT avant toute action
+- [`CHECKLIST.md`](CHECKLIST.md) → vérifications obligatoires avant de considérer le projet "prêt"
+- [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) → anomalies connues du checkpoint Jainius (header corrompu, dtype U16/BF16)
 
-**Toujours lire CLAUDE.md et KNOWN_ISSUES.md en premier.** Ils contiennent les anomalies qui ne sont pas visibles par un simple `ls`.
+**Ces deux fichiers contiennent des informations invisibles par un simple `ls`. Ne jamais push/upload sans les avoir lus.**
 
 ## Contexte du projet
 
