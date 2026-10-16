@@ -1,4 +1,4 @@
-# KNOWN_ISSUES.md — Anomalies du checkpoint Jainius (etat apres correctifs scripts)
+# KNOWN_ISSUES.md — Anomalies du checkpoint Jainius (rebuild v2 en place, 2026-10-16)
 
 ## ✅ Resolu dans les scripts (2026-10-16)
 
@@ -9,7 +9,7 @@
 
 ### 2. Decodage BF16 faux + offset de lecture faux (corriges)
 - **Cause decode :** `np.frombuffer(raw, uint16).astype(float32)` donne la valeur entiere du bit-pattern (ex. `0x3F80` → `16256.0` au lieu de `1.0`).
-- **Cause offset (critique, ratee au premier passage) :** `f.seek(offset)` utilisait l'offset relatif aux donnees comme position absolue, sans ajouter `8 + header_len`. Toutes les lectures etaient decalees (~8 Ko), y compris le tenseur a offset 0 (header lu comme donnees). Le rebuild v1 (`_artefact/Jainius_rebuild` initial) est donc invalide (ex. layernorm 17.32 → 0.00019 au lieu de ~17.3246) et doit etre refait.
+- **Cause offset (critique, ratee au premier passage) :** `f.seek(offset)` utilisait l'offset relatif aux donnees comme position absolue, sans ajouter `8 + header_len`. Toutes les lectures etaient decalees (~8 Ko), y compris le tenseur a offset 0 (header lu comme donnees). Le rebuild v1 (`_artefact/Jainius_rebuild` initial) etait donc invalide (ex. layernorm 17.32 → 0.00019 au lieu de ~17.3246) ; refait en rebuild v2 (voir ci-dessous).
 - **Fix :** `bf16_bits_to_fp32` (`u16.astype(uint32)<<16` puis `view(float32)`), `data_start = 8 + header_len` stocke par fichier, `f.seek(data_start + offset)`, support `BF16`/`U16`/`F32`/`F16`, defaut portable `_artefact/tau_a`.
 - **Verification :** test dummy dans `_artefact/` + comparaison D_p vs Jainius apres rebuild.
 
