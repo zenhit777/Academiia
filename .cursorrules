@@ -1,0 +1,26 @@
+# .cursorrules — Règles pour Cursor / Claude Code
+
+## Contexte
+
+Projet de recherche sur l'application A2D (AR-to-Diffusion Transfer) à DiffusionGemma.
+
+## Fichiers clés
+
+- `AGENTS.md` → Instructions complètes pour les agents IA
+- `scripts/merge_jainius.py` → Script principal du merge A2D
+- `scripts/compute_tau_a.py` → Calcul du vecteur tâche τ_A
+- `_artefact/checkpoints/Jainius/` → Checkpoint final (BF16, prêt HuggingFace)
+
+## Règles
+
+- Ne jamais modifier directement les fichiers `.safetensors` dans `_artefact/`. Utiliser `scripts/fix_dtype.py` pour les conversions.
+- Les checkpoints sont volumineux (~210 Go total). Ne pas les lister ou scanner en masse.
+- Pour toute modification du pipeline A2D, lire d'abord `AGENTS.md` et les scripts dans `scripts/`.
+- Le checkpoint Jainius est le résultat final — ne pas le recréer sauf si explicitement demandé.
+
+## Workflow typique
+
+1. L'utilisateur demande une modification → lire `AGENTS.md` pour comprendre le contexte.
+2. Si modification du merge : éditer `scripts/merge_jainius.py`.
+3. Si modification du calcul τ_A : éditer `scripts/compute_tau_a.py`.
+4. Relancer le pipeline via les scripts (pas de commandes inline).
