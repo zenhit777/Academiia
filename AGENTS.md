@@ -1,4 +1,11 @@
 # AGENTS.md — Instructions pour les agents IA de codage
+## ⚠️ Fichiers critiques (lus automatiquement par les agents)
+- `CLAUDE.md` → Anomalies connues + instructions critiques (Claude Code / Anthropic)
+- `.cursorrules` → Règles Cursor IDE
+- `CHECKLIST.md` → Vérifications obligatoires avant "prêt"
+- `KNOWN_ISSUES.md` → Anomalies détaillées du checkpoint Jainius
+
+**Toujours lire CLAUDE.md et KNOWN_ISSUES.md en premier.** Ils contiennent les anomalies qui ne sont pas visibles par un simple `ls`.
 
 ## Contexte du projet
 
