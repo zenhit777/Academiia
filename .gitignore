@@ -2,8 +2,5 @@
 checkpoints/
 _artefact/
 
-# Fichiers temporaires de calcul A2D
-/tmp/a2d_jainius/
-
 # Env local (ne pas commiter les secrets)
 .env

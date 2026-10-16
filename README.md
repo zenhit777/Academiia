@@ -22,26 +22,27 @@ python scripts/download_models.py --output-dir ./checkpoints
 python scripts/compute_tau_a.py \
     --base ./checkpoints/gemma4_base \
     --posttrained ./checkpoints/gemma4_it \
-    --output-dir /tmp/a2d_jainius
+    --output-dir _artefact/tau_a
 
 # 3. Appliquer le merge A2D (~15 min, ~5 GB RAM peak)
 python scripts/merge_jainius.py \
     --diffusiongemma ./checkpoints/diffusiongemma_it \
-    --tau-dir /tmp/a2d_jainius \
-    --output ./Jainius
+    --tau-dir _artefact/tau_a \
+    --output ./checkpoints/Jainius
 
-# 4. Convertir en BF16 (format HuggingFace standard)
+# 4. Verifier les headers (format HuggingFace strict)
 python scripts/fix_dtype.py --checkpoint ./checkpoints/Jainius
+python scripts/verify_checkpoint.py --checkpoint ./checkpoints/Jainius
 ```
 
 ## Résultats
 
-| | DiffusionGemma original | Jainius |
+| | DiffusionGemma original | Jainius (rebuild v2 2026-10-16) |
 |--|---|---|
 | Tenseurs | 1047 (11 fichiers) | 1047 (11 fichiers) |
-| Taille | ~52 Go | ~48 Go |
-| Format | BF16 | **BF16** ✓ |
-| A2D appliqué | — | **656 tenseurs** |
+| Taille | ~52 Go | ~51.6 Go |
+| Format | BF16 | **BF16** ✓ (strict, vérifié) |
+| A2D appliqué | — | **656 tenseurs** (391 inchangés, bit-identiques) |
 
 ## Limites
 

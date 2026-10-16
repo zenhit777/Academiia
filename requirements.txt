@@ -1,0 +1,6 @@
+# Pinned runtime for the A2D pipeline (voir AGENTS.md — Outils disponibles)
+huggingface_hub==1.18.0
+transformers==5.10.2
+safetensors>=0.4
+torch>=2.4
+numpy>=1.26

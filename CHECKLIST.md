@@ -8,13 +8,12 @@
 - [ ] Aucun fichier `.safetensors` ne renvoie de JSONDecodeError au parsing
 
 ### 2. Cohérence des scripts
-- [ ] `python -c "import ast; [ast.parse(open(f'scripts/{f}').read()) for f in ['download_models.py','compute_tau_a.py','merge_jainius.py','fix_dtype.py']]"` → OK
-- [ ] Les chemins par défaut pointent vers `checkpoints/` (pas `./checkpoints/`)
+- [ ] `python -c "import ast; [ast.parse(open(f'scripts/{f}').read()) for f in ['download_models.py','compute_tau_a.py','merge_jainius.py','fix_dtype.py','verify_checkpoint.py']]"` → OK
+- [ ] Les chemins par défaut pointent vers `checkpoints/` et `_artefact/tau_a` (pas `/tmp/`)
 
 ### 3. État du repo git
 - [ ] `git status --short` est vide (working tree clean)
-- [ ] Dernier commit : `8dc0dee docs: add AI agent workflow...`
-- [ ] `checkpoints/` est bien dans `.gitignore`
+- [ ] `checkpoints/` et `_artefact/` sont bien dans `.gitignore`
 
 ### 4. Structure HuggingFace
 - [ ] `checkpoints/Jainius/README.md` existe (model card)

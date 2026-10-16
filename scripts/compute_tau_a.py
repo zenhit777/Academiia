@@ -8,7 +8,7 @@ Usage:
     python compute_tau_a.py \
         --base /path/to/gemma4_base \
         --posttrained /path/to/gemma4_it \
-        --output-dir /tmp/a2d_jainius
+        --output-dir _artefact/tau_a
 """
 
 import argparse
@@ -17,6 +17,18 @@ import os
 import struct
 from pathlib import Path
 import numpy as np
+
+
+def bf16_bits_to_fp32(arr_u16):
+    """Convert BF16 bit-pattern (uint16) to float32 values.
+
+    BF16 = [sign(1)][exp(8)][mantissa(7)] = high 16 bits of FP32.
+    Correct: shift left 16 then view as FP32.
+    WRONG (ancien bug): arr_u16.astype(float32) donne la valeur entiere
+    du bit-pattern (ex. 0x3F80 -> 16256.0 au lieu de 1.0).
+    """
+    u32 = arr_u16.astype(np.uint32) << np.uint32(16)
+    return u32.view(np.float32)
 
 
 class SafetensorsMmapLoader:
@@ -28,13 +40,14 @@ class SafetensorsMmapLoader:
         with open(index_path) as f:
             self.index = json.load(f)
 
-        self.tensor_info = {}  # name -> (fname, dtype, offset, size, shape)
+        self.tensor_info = {}  # name -> (fname, kind, data_start, offset, size, shape)
         for fname in set(self.index["weight_map"].values()):
             fpath = self.directory / fname
             with open(fpath, "rb") as f:
                 header_len = struct.unpack("<Q", f.read(8))[0]
                 header_bytes = f.read(header_len)
                 header = json.loads(header_bytes.decode("utf-8"))
+            data_start = 8 + header_len
 
             for name, meta in header.items():
                 if name == "__metadata__" or not isinstance(meta, dict):
@@ -46,28 +59,36 @@ class SafetensorsMmapLoader:
                 size = meta["data_offsets"][1] - meta["data_offsets"][0]
                 shape = tuple(meta["shape"])
 
-                if dtype_str == "BF16":
-                    self.tensor_info[name] = (fname, np.dtype("float32"), offset, size, shape)
+                if dtype_str in ("BF16", "U16"):
+                    # U16 legacy = bits BF16 mal etiquetes (voir KNOWN_ISSUES.md)
+                    self.tensor_info[name] = (fname, "BF16", data_start, offset, size, shape)
+                elif dtype_str == "F32":
+                    self.tensor_info[name] = (fname, "F32", data_start, offset, size, shape)
+                elif dtype_str == "F16":
+                    self.tensor_info[name] = (fname, "F16", data_start, offset, size, shape)
                 else:
-                    self.tensor_info[name] = (fname, {"F32": np.float32}[dtype_str], offset, size, shape)
+                    raise ValueError(f"dtype non supporte: {dtype_str} pour {name}")
 
     def load_tensor(self, name):
-        fname, dtype, offset, size, shape = self.tensor_info[name]
+        fname, kind, data_start, offset, size, shape = self.tensor_info[name]
         with open(self.directory / fname, "rb") as f:
-            f.seek(offset)
+            # offset est RELATIF au debut des donnees (apres header) — ne pas oublier data_start
+            f.seek(data_start + offset)
             raw = f.read(size)
-            if dtype == np.dtype("float32"):  # BF16 stored as uint16
-                arr = np.frombuffer(raw, dtype=np.uint16).astype(np.float32)
-                return arr.reshape(shape)
-            else:
-                return np.frombuffer(raw, dtype=dtype).reshape(shape)
+            if kind == "BF16":
+                arr = np.frombuffer(raw, dtype=np.uint16)
+                return bf16_bits_to_fp32(arr).reshape(shape)
+            elif kind == "F32":
+                return np.frombuffer(raw, dtype=np.float32).reshape(shape)
+            else:  # F16
+                return np.frombuffer(raw, dtype=np.float16).astype(np.float32).reshape(shape)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Compute tau_A = A_p - A_b")
     parser.add_argument("--base", required=True, help="Path to AR base model (A_b)")
     parser.add_argument("--posttrained", required=True, help="Path to AR post-trained model (A_p)")
-    parser.add_argument("--output-dir", default="/tmp/a2d_jainius", help="Output directory for tau_A files")
+    parser.add_argument("--output-dir", default="_artefact/tau_a", help="Output directory for tau_A files")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)

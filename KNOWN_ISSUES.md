@@ -1,30 +1,31 @@
-# KNOWN_ISSUES.md — Anomalies connues dans le checkpoint Jainius
+# KNOWN_ISSUES.md — Anomalies du checkpoint Jainius (etat apres correctifs scripts)
 
-## ⚠️ Header JSON corrompu (critique)
+## ✅ Resolu dans les scripts (2026-10-16)
 
-**Fichier concerné :** `checkpoints/Jainius/model-00001-of-00011.safetensors`
-**Symptôme :** `JSONDecodeError: Expecting value: line 2 column 1 (char 1)` au parsing du header.
-**Cause :** Le padding binaire ajouté lors de la conversion U16→BF16 a décalé le header JSON, rendant certains fichiers illisibles par `json.loads()`.
-**Impact :** Les tenseurs dans ce fichier ne seront pas chargés correctement par `transformers` → génération corrompue.
-**Solution :** Relancer `python scripts/fix_dtype.py --checkpoint checkpoints/Jainius` (refait le fix avec padding correct).
+### 1. `fix_dtype.py` cassé (corrige)
+- **Cause :** `np` sans `import numpy` + patch binaire en place (`U16`→`BF16` allonge le header sans decaler les donnees) → double prefix, padding `\x00` trailing, JSON illisible en mode strict.
+- **Fix :** reecriture complete via tmp + `os.replace` (`scripts/fix_dtype.py:repair_one_file`) : header canonique `json.dumps(separators=(",",":"))`, `U16`→`BF16` dans le dict, detection double-prefix et truncation.
+- **Verification :** `python scripts/verify_checkpoint.py` (strict, ASCII, detecte padding/double-prefix/truncation).
 
-## ⚠️ Dtype "U16" vs "BF16" dans les headers
+### 2. Decodage BF16 faux + offset de lecture faux (corriges)
+- **Cause decode :** `np.frombuffer(raw, uint16).astype(float32)` donne la valeur entiere du bit-pattern (ex. `0x3F80` → `16256.0` au lieu de `1.0`).
+- **Cause offset (critique, ratee au premier passage) :** `f.seek(offset)` utilisait l'offset relatif aux donnees comme position absolue, sans ajouter `8 + header_len`. Toutes les lectures etaient decalees (~8 Ko), y compris le tenseur a offset 0 (header lu comme donnees). Le rebuild v1 (`_artefact/Jainius_rebuild` initial) est donc invalide (ex. layernorm 17.32 → 0.00019 au lieu de ~17.3246) et doit etre refait.
+- **Fix :** `bf16_bits_to_fp32` (`u16.astype(uint32)<<16` puis `view(float32)`), `data_start = 8 + header_len` stocke par fichier, `f.seek(data_start + offset)`, support `BF16`/`U16`/`F32`/`F16`, defaut portable `_artefact/tau_a`.
+- **Verification :** test dummy dans `_artefact/` + comparaison D_p vs Jainius apres rebuild.
 
-**Fichier concerné :** Tous les fichiers `.safetensors` de Jainius.
-**Symptôme :** Le header JSON indique `"dtype": "U16"` au lieu de `"dtype": "BF16"`.
-**Cause :** `safetensors.torch.save_file()` écrit le dtype numpy (uint16 → "U16") au lieu du nom standard HF ("BF16").
-**Impact :** Le binaire est correct (2 bytes/élément), mais certains outils HF peuvent mal interpréter.
-**Solution :** `scripts/fix_dtype.py` fait un replace binaire `b'"U16"' → b'"BF16"'` + ajustement du header length.
+### 3. Bugs mineurs (corriges)
+- `merge_jainius.py` : stats `len(dg_by_file)-len(mapping)` → `len(weight_map)-len(mapping)` ; mismatch de shape → D_p inchange + warning ; sauvegarde directe `torch.bfloat16`.
+- `verify_checkpoint.py` : crash `UnicodeEncodeError` Windows (emoji/cp1252) → sortie ASCII ; parse strict.
+- `download_models.py` : defaut `./checkpoints` → `checkpoints`.
+- Docs : `CHECKLIST.md` (hash de commit en dur supprime), `AUDIT.md` (chemin `checkpoints/`, `/tmp` → `_artefact/tau_a`), `.env.template` documente, `requirements.txt` ajoute, `.gitignore` (`/tmp` supprime).
 
-## ℹ️ A2D partiel (non critique)
+## ✅ Reconstruit et vérifié (2026-10-16, rebuild v2)
 
-**Fichier concerné :** Tout le checkpoint Jainius.
-**Description :** Seuls 656 tenseurs decoder ont été fusionnés par A2D. Les 391 tenseurs encoder vision restent inchangés depuis D_p.
-**Impact attendu :** Le modèle conserve les capacités de compréhension visuelle mais n'a pas bénéficié du post-training AR pour l'encoder.
-**Ce n'est pas un bug** — c'est une limitation architecturale (Gemma 4 et DiffusionGemma ont des structures différentes).
+- **Rebuild v1 invalide :** valeurs fausses (bug offset, ex. layernorm 17.32 → 0.00019). Supprimé, refait.
+- **Rebuild v2 :** `compute_tau_a.py` (172 s, 1013 tenseurs) + `merge_jainius.py` (169 s, 656 mappés / 391 inchangés) → `checkpoints/Jainius` remplacé (ancien corrompu supprimé, `README.md` conservé).
+- **Validation numérique :** layernorm L2 `Dp=17.32424 + 0.8·τ(0.00376)` → attendu `17.32725`, obtenu `17.33191` (écart = quantification BF16, max 0.1 au voisinage de 17) ; `q_proj` écart max 0.0019 (BF16) ; 3 tenseurs non-mappés bit-identiques ; `torch`/`safe_open` strict OK ; `verify_checkpoint.py` : 11/11 `[OK]`, 1047 tenseurs BF16.
+- **Reste :** pas de test d'inférence GPU (recommandé avant publication) ; A2D partiel architectural (391 vision inchangés).
 
-## ℹ️ Pas de tests d'inference
-
-**Description :** Le checkpoint Jainius n'a jamais été testé en génération réelle.
-**Impact :** On ne peut pas garantir la qualité du texte généré.
-**Recommandation :** Tester avec `AutoModelForCausalLM.from_pretrained()` sur un GPU dédié avant de publier.
+## ℹ️ Limites non-bugs (inchangées)
+- A2D partiel : 656 tenseurs decoder fusionnes, 391 vision inchanges (architectural).
+- Pas de test d'inference GPU (recommande avant publication).

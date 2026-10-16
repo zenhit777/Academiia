@@ -50,12 +50,12 @@ python scripts/download_models.py --output-dir ./checkpoints
 python scripts/compute_tau_a.py \
     --base checkpoints/gemma4_base \
     --posttrained checkpoints/gemma4_it \
-    --output-dir /tmp/a2d_jainius
+    --output-dir _artefact/tau_a
 
 # 3. Merge A2D: Jainius = D_p + 0.8 * tau_A (~15 min, ~5 GB RAM)
 python scripts/merge_jainius.py \
     --diffusiongemma checkpoints/diffusiongemma_it \
-    --tau-dir /tmp/a2d_jainius \
+    --tau-dir _artefact/tau_a \
     --output checkpoints/Jainius
 
 # 4. Convertir en BF16 (format HuggingFace)

@@ -2,7 +2,7 @@
 
 **Date :** 2026-10-16  
 **Statut du repo :** clean (dernier commit `9d90a41 docs: integrate .cursorrules...`)  
-**Checkpoints :** ~242 Go dans `_artefact/checkpoints/`
+**Checkpoints :** ~242 Go dans `checkpoints/` (racine, ignoré par git)
 
 ---
 
@@ -46,8 +46,8 @@ Le `verify_checkpoint.py` existe mais n'est **jamais exécuté automatiquement**
 ### 10. "A2D partiel" minimisé
 Les 391 tenseurs encoder vision inchangés sont documentés comme *"ce n'est pas un bug"*. C'est une **limitation scientifique majeure** : le modèle garde les capacités visuelles mais sans post-training AR sur l'encoder. Ça devrait être plus visible, pas relégué en note de bas de page.
 
-### 11. Chemin `/tmp/a2d_jainius` non portable
-Par défaut dans `compute_tau_a.py`, c'est un chemin Linux. Sur Windows (environnement actuel), ça pointe vers `C:\Windows\Temp\a2d_jainius`. Ça fonctionne mais c'est un piège pour les contributeurs cross-platform.
+### 11. Chemin tau_A non portable (corrige)
+Ancien defaut `/tmp/a2d_jainius` (chemin Linux). Corrige : defaut `_artefact/tau_a` (portable, ignore par git).
 
 ---
 

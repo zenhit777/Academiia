@@ -15,7 +15,7 @@ MODELS = {
 
 def main():
     parser = argparse.ArgumentParser(description="Download model checkpoints")
-    parser.add_argument("--output-dir", default="./checkpoints", help="Output directory")
+    parser.add_argument("--output-dir", default="checkpoints", help="Output directory")
     args = parser.parse_args()
 
     import os

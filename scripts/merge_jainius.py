@@ -7,7 +7,7 @@ Memory-efficient: writes output files incrementally (~5GB max in RAM).
 Usage:
     python merge_jainius.py \
         --diffusiongemma /path/to/diffusiongemma_it \
-        --tau-dir /tmp/a2d_jainius \
+        --tau-dir _artefact/tau_a \
         --output /path/to/Jainius \
         [--alpha 0.8]
 """
@@ -23,6 +23,12 @@ import torch
 from safetensors.torch import save_file
 
 
+def bf16_bits_to_fp32(arr_u16):
+    """Convert BF16 bit-pattern (uint16) to float32 values (voir compute_tau_a.py)."""
+    u32 = arr_u16.astype(np.uint32) << np.uint32(16)
+    return u32.view(np.float32)
+
+
 class SafetensorsMmapLoader:
     """Memory-mapped loader for multi-file safetensors files."""
 
@@ -32,13 +38,14 @@ class SafetensorsMmapLoader:
         with open(index_path) as f:
             self.index = json.load(f)
 
-        self.tensor_info = {}  # name -> (fname, dtype, offset, size, shape)
+        self.tensor_info = {}  # name -> (fname, kind, data_start, offset, size, shape)
         for fname in set(self.index["weight_map"].values()):
             fpath = self.directory / fname
             with open(fpath, "rb") as f:
                 header_len = struct.unpack("<Q", f.read(8))[0]
                 header_bytes = f.read(header_len)
                 header = json.loads(header_bytes.decode("utf-8"))
+            data_start = 8 + header_len
 
             for name, meta in header.items():
                 if name == "__metadata__" or not isinstance(meta, dict):
@@ -50,21 +57,28 @@ class SafetensorsMmapLoader:
                 size = meta["data_offsets"][1] - meta["data_offsets"][0]
                 shape = tuple(meta["shape"])
 
-                if dtype_str == "BF16":
-                    self.tensor_info[name] = (fname, np.dtype("float32"), offset, size, shape)
+                if dtype_str in ("BF16", "U16"):
+                    self.tensor_info[name] = (fname, "BF16", data_start, offset, size, shape)
+                elif dtype_str == "F32":
+                    self.tensor_info[name] = (fname, "F32", data_start, offset, size, shape)
+                elif dtype_str == "F16":
+                    self.tensor_info[name] = (fname, "F16", data_start, offset, size, shape)
                 else:
-                    self.tensor_info[name] = (fname, {"F32": np.float32}[dtype_str], offset, size, shape)
+                    raise ValueError(f"dtype non supporte: {dtype_str} pour {name}")
 
     def load_tensor(self, name):
-        fname, dtype, offset, size, shape = self.tensor_info[name]
+        fname, kind, data_start, offset, size, shape = self.tensor_info[name]
         with open(self.directory / fname, "rb") as f:
-            f.seek(offset)
+            # offset est RELATIF au debut des donnees (apres header)
+            f.seek(data_start + offset)
             raw = f.read(size)
-            if dtype == np.dtype("float32"):  # BF16 stored as uint16
-                arr = np.frombuffer(raw, dtype=np.uint16).astype(np.float32)
-                return arr.reshape(shape)
-            else:
-                return np.frombuffer(raw, dtype=dtype).reshape(shape)
+            if kind == "BF16":
+                arr = np.frombuffer(raw, dtype=np.uint16)
+                return bf16_bits_to_fp32(arr).reshape(shape)
+            elif kind == "F32":
+                return np.frombuffer(raw, dtype=np.float32).reshape(shape)
+            else:  # F16
+                return np.frombuffer(raw, dtype=np.float16).astype(np.float32).reshape(shape)
 
 
 def gemma4_to_diffusiongemma(name):
@@ -80,7 +94,7 @@ def gemma4_to_diffusiongemma(name):
 def main():
     parser = argparse.ArgumentParser(description="A2D merge: Jainius = D_p + alpha * tau_A")
     parser.add_argument("--diffusiongemma", required=True, help="Path to DiffusionGemma IT checkpoint (D_p)")
-    parser.add_argument("--tau-dir", default="/tmp/a2d_jainius", help="Directory with tau_A numpy files")
+    parser.add_argument("--tau-dir", default="_artefact/tau_a", help="Directory with tau_A numpy files")
     parser.add_argument("--output", required=True, help="Output directory for Jainius checkpoint")
     parser.add_argument("--alpha", type=float, default=0.8, help="A2D interpolation weight (default: 0.8)")
     args = parser.parse_args()
@@ -119,7 +133,7 @@ def main():
 
     # Group DiffusionGemma tensors by output file
     dg_by_file = {}
-    for dg_name, (fname, _, _, _, _) in loader_d.tensor_info.items():
+    for dg_name, (fname, _, _, _, _, _) in loader_d.tensor_info.items():
         if fname not in dg_by_file:
             dg_by_file[fname] = []
         dg_by_file[fname].append(dg_name)
@@ -143,14 +157,18 @@ def main():
                 d_p_tensor = loader_d.load_tensor(dg_name)
 
                 if tau_a.shape != d_p_tensor.shape:
-                    print(f"  SHAPE ERROR: {dg_name}: tau_A={tau_a.shape} vs D_p={d_p_tensor.shape}")
-
-                jainius_tensor = d_p_tensor + args.alpha * tau_a
+                    print(f"  SHAPE ERROR: {dg_name}: tau_A={tau_a.shape} vs D_p={d_p_tensor.shape} — D_p inchange")
+                    jainius_tensor = d_p_tensor
+                else:
+                    jainius_tensor = d_p_tensor + args.alpha * tau_a
             else:
                 # Unmapped: keep D_p unchanged
                 jainius_tensor = loader_d.load_tensor(dg_name)
 
-            tensor_dict[dg_name] = torch.from_numpy(jainius_tensor)
+            # Sauvegarde directe en BF16 (standard HuggingFace).
+            # load_tensor retourne du float32 (conversion exacte BF16->F32),
+            # .to(bfloat16) retrouve les bits d'origine pour les tenseurs inchanges.
+            tensor_dict[dg_name] = torch.from_numpy(np.ascontiguousarray(jainius_tensor)).to(torch.bfloat16)
 
         # Save this file immediately (releases memory for next file)
         out_path = os.path.join(args.output, fname)
@@ -199,7 +217,7 @@ def main():
     print(f"\nJainius checkpoint saved to: {args.output}")
     print(f"  Total tensors: {len(weight_map)}")
     print(f"  Mapped (A2D applied): {len(mapping)}")
-    print(f"  Unchanged (DiffusionGemma-only): {len(dg_by_file) - len(mapping)}")
+    print(f"  Unchanged (DiffusionGemma-only): {len(weight_map) - len(mapping)}")
     print(f"  Time: {t1-t0:.1f}s")
 
 
