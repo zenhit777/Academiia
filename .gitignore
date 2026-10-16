@@ -2,5 +2,9 @@
 checkpoints/
 _artefact/
 
-# Env local (ne pas commiter les secrets)
-.env
+# Secrets locaux (ne pas commiter) :
+# - `.env` à TOUS les niveaux (racine, vLLM/, futurs dossiers...).
+# - `**` = récursif ; un `git add -A` n'ajoutera jamais ces fichiers.
+**/.env
+# ... mais toujours versionner les templates (valeurs d'exemple, sans secret).
+!**/.env.template

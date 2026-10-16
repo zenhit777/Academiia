@@ -1,0 +1,50 @@
+# Inference Jainius via l'image vLLM officielle (support natif DiffusionGemma).
+# Lancer depuis WSL : `cd vLLM && docker compose up`
+# (Docker Desktop/Engine avec runtime NVIDIA requis, GPU visible via `nvidia-smi` sous WSL.)
+
+name: jainius-vllm
+
+services:
+  vllm:
+    image: ${VLLM_IMAGE:-vllm/vllm-openai:latest}
+    container_name: jainius-vllm
+    # Acces GPU (runtime NVIDIA sous WSL2).
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    ports:
+      - "${VLLM_PORT:-8000}:8000"
+    volumes:
+      # Checkpoint Jainius local (lecture seule). Chemin HOTE vu depuis WSL.
+      - "${VLLM_MODEL_HOST_PATH:-../checkpoints/Jainius}:/data/Jainius:ro"
+      # Cache HF persistant (evite de re-telecharger tokenizer/configs).
+      - vllm-hf-cache:/root/.cache/huggingface
+    environment:
+      # Optionnel : seulement pour contenus gates sur le Hub.
+      - HF_TOKEN=${HF_TOKEN:-}
+      # Evite les surprises d'allocation memoire PyTorch dans le conteneur.
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    # Pas de restart auto : un OOM doit se voir, pas boucler.
+    restart: "no"
+    command:
+      - serve
+      - /data/Jainius
+      - --served-model-name
+      - ${VLLM_SERVED_MODEL_NAME:-jainius}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --dtype
+      - ${VLLM_DTYPE:-bfloat16}
+      # Jainius ~51.6 Go BF16 pour ~31 Go de VRAM : delestage MoE vers la RAM.
+      - --cpu-offload-gb
+      - ${VLLM_CPU_OFFLOAD_GB:-30}
+      - ${VLLM_EXTRA_ARGS:-}
+
+volumes:
+  vllm-hf-cache:
