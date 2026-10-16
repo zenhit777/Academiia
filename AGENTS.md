@@ -24,12 +24,12 @@ Academiia/
 │   ├── compute_tau_a.py
 │   ├── merge_jainius.py
 │   └── fix_dtype.py
-└── _artefact/             # Checkpoints binaires (~210 Go, non partagés)
-    └── checkpoints/
-        ├── gemma4_base/       (A_b — Gemma 4 AR base)
-        ├── gemma4_it/         (A_p — Gemma 4 IT post-trained)
-        ├── diffusiongemma_it/ (D_p — DiffusionGemma IT)
-        └── Jainius/           (Checkpoint final A2D)
+├── checkpoints/           # Checkpoints binaires (~245 Go, non partagés)
+│   ├── gemma4_base/       (A_b — Gemma 4 AR base)
+│   ├── gemma4_it/         (A_p — Gemma 4 IT post-trained)
+│   ├── diffusiongemma_it/ (D_p — DiffusionGemma IT)
+│   └── Jainius/           (Checkpoint final A2D)
+├── _artefact/             # Dossier temporaire agents (non partagé)
 ```
 
 ### Règles de travail
@@ -37,7 +37,8 @@ Academiia/
 1. **Toujours lire les scripts dans `scripts/` avant d'agir** — ils contiennent la logique exacte du pipeline A2D.
 2. **Les checkpoints sont dans `checkpoints/`** — ne jamais les modifier directement, utiliser les scripts pour recréer.
 3. **Le checkpoint final est `Jainius`** — c'est le résultat de l'application A2D sur DiffusionGemma.
-4. **Ne pas commiter `_artefact/`** — il est dans `.gitignore`. Pour partager, uploader sur HuggingFace via `huggingface-cli upload`.
+4. **`checkpoints/` est à la racine** — ignoré par git, contient les modèles binaires (~245 Go). Ne jamais le modifier directement.
+5. **`_artefact/` est un dossier temporaire agents** — tous les fichiers générés par les agents qui n'ont pas vocation à être partagés (logs, exports intermédiaires, résultats de tests) doivent y être placés. Ce dossier est ignoré par git et ne doit jamais être commité.
 
 ### Pipeline A2D (référence rapide)
 

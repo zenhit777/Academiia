@@ -9,12 +9,18 @@ Projet de recherche sur l'application A2D (AR-to-Diffusion Transfer) à Diffusio
 - `AGENTS.md` → Instructions complètes pour les agents IA
 - `scripts/merge_jainius.py` → Script principal du merge A2D
 - `scripts/compute_tau_a.py` → Calcul du vecteur tâche τ_A
-- `checkpoints/Jainius/` → Checkpoint final (BF16, prêt HuggingFace)
+- `./checkpoints/Jainius/` → Checkpoint final (BF16, prêt HuggingFace)
+
+## Dossiers temporaires
+
+- `_artefact/` → dossier temporaire agents (non partagé). Tous les fichiers générés par les agents sans vocation de partage doivent y être placés.
+## Fichiers de référence
+
 - [`CHECKLIST.md`](CHECKLIST.md) → vérifications obligatoires avant "prêt"
 - [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) → anomalies connues (header corrompu, dtype U16/BF16)
 ## Règles
 
-- Ne jamais modifier directement les fichiers `.safetensors` dans `_artefact/`. Utiliser `scripts/fix_dtype.py` pour les conversions.
+- Ne jamais modifier directement les fichiers `.safetensors` dans `checkpoints/`. Utiliser `scripts/fix_dtype.py` pour les conversions.
 - Les checkpoints sont volumineux (~210 Go total). Ne pas les lister ou scanner en masse.
 - Pour toute modification du pipeline A2D, lire d'abord `AGENTS.md` et les scripts dans `scripts/`.
 - Le checkpoint Jainius est le résultat final — ne pas le recréer sauf si explicitement demandé.
