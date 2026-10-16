@@ -1,9 +1,10 @@
 # AGENTS.md — Instructions pour les agents IA de codage
 ## ⚠️ Fichiers à lire OBLIGATOIREMENT avant toute action
+- [`.cursorrules`](.cursorrules) → règles Cursor IDE (lu automatiquement par l'IDE)
 - [`CHECKLIST.md`](CHECKLIST.md) → vérifications obligatoires avant de considérer le projet "prêt"
 - [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) → anomalies connues du checkpoint Jainius (header corrompu, dtype U16/BF16)
 
-**Ces deux fichiers contiennent des informations invisibles par un simple `ls`. Ne jamais push/upload sans les avoir lus.**
+**Ces trois fichiers contiennent des informations invisibles par un simple `ls`. Ne jamais push/upload sans les avoir lus.**
 
 ## Contexte du projet
 
