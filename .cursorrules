@@ -9,7 +9,7 @@ Projet de recherche sur l'application A2D (AR-to-Diffusion Transfer) à Diffusio
 - `AGENTS.md` → Instructions complètes pour les agents IA
 - `scripts/merge_jainius.py` → Script principal du merge A2D
 - `scripts/compute_tau_a.py` → Calcul du vecteur tâche τ_A
-- `_artefact/checkpoints/Jainius/` → Checkpoint final (BF16, prêt HuggingFace)
+- `checkpoints/Jainius/` → Checkpoint final (BF16, prêt HuggingFace)
 - [`CHECKLIST.md`](CHECKLIST.md) → vérifications obligatoires avant "prêt"
 - [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) → anomalies connues (header corrompu, dtype U16/BF16)
 ## Règles

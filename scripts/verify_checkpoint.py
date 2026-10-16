@@ -4,7 +4,7 @@ Verify the integrity of the Jainius checkpoint.
 Checks: header dtype, JSON parseability, tensor shapes consistency.
 
 Usage:
-    python scripts/verify_checkpoint.py [--checkpoint ./_artefact/checkpoints/Jainius]
+    python scripts/verify_checkpoint.py [--checkpoint ./checkpoints/Jainius]
 """
 
 import argparse
@@ -114,7 +114,7 @@ def main():
     parser = argparse.ArgumentParser(description="Verify Jainius checkpoint integrity")
     parser.add_argument(
         "--checkpoint",
-        default="./_artefact/checkpoints/Jainius",
+        default="./checkpoints/Jainius",
         help="Path to Jainius checkpoint directory"
     )
     args = parser.parse_args()

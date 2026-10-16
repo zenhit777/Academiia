@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Download Gemma 4 and DiffusionGemma checkpoints from HuggingFace.
-Usage: python download_models.py [--output-dir ./_artefact/checkpoints]
+Usage: python download_models.py [--output-dir ./checkpoints]
 """
 
 import argparse
@@ -15,7 +15,7 @@ MODELS = {
 
 def main():
     parser = argparse.ArgumentParser(description="Download model checkpoints")
-    parser.add_argument("--output-dir", default="./_artefact/checkpoints", help="Output directory")
+    parser.add_argument("--output-dir", default="./checkpoints", help="Output directory")
     args = parser.parse_args()
 
     import os

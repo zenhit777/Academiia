@@ -1,5 +1,5 @@
 # Artefacts non partagés (checkpoints ~210 Go)
-_artefact/checkpoints/
+checkpoints/
 
 # Fichiers temporaires de calcul A2D
 /tmp/a2d_jainius/

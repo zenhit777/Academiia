@@ -9,15 +9,15 @@
 
 ### 2. Cohérence des scripts
 - [ ] `python -c "import ast; [ast.parse(open(f'scripts/{f}').read()) for f in ['download_models.py','compute_tau_a.py','merge_jainius.py','fix_dtype.py']]"` → OK
-- [ ] Les chemins par défaut pointent vers `_artefact/checkpoints/` (pas `./checkpoints/`)
+- [ ] Les chemins par défaut pointent vers `checkpoints/` (pas `./checkpoints/`)
 
 ### 3. État du repo git
 - [ ] `git status --short` est vide (working tree clean)
 - [ ] Dernier commit : `8dc0dee docs: add AI agent workflow...`
-- [ ] `_artefact/checkpoints/` est bien dans `.gitignore`
+- [ ] `checkpoints/` est bien dans `.gitignore`
 
 ### 4. Structure HuggingFace
-- [ ] `_artefact/checkpoints/Jainius/README.md` existe (model card)
+- [ ] `checkpoints/Jainius/README.md` existe (model card)
 - [ ] `config.json` contient `"architectures": ["DiffusionGemmaForBlockDiffusion"]`
 - [ ] Tous les fichiers de l'original DiffusionGemma sont présents
 

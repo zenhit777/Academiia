@@ -31,7 +31,7 @@ python scripts/merge_jainius.py \
     --output ./Jainius
 
 # 4. Convertir en BF16 (format HuggingFace standard)
-python scripts/fix_dtype.py --checkpoint ./Jainius
+python scripts/fix_dtype.py --checkpoint ./checkpoints/Jainius
 ```
 
 ## Résultats

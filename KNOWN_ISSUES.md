@@ -2,11 +2,11 @@
 
 ## ⚠️ Header JSON corrompu (critique)
 
-**Fichier concerné :** `_artefact/checkpoints/Jainius/model-00001-of-00011.safetensors`
+**Fichier concerné :** `checkpoints/Jainius/model-00001-of-00011.safetensors`
 **Symptôme :** `JSONDecodeError: Expecting value: line 2 column 1 (char 1)` au parsing du header.
 **Cause :** Le padding binaire ajouté lors de la conversion U16→BF16 a décalé le header JSON, rendant certains fichiers illisibles par `json.loads()`.
 **Impact :** Les tenseurs dans ce fichier ne seront pas chargés correctement par `transformers` → génération corrompue.
-**Solution :** Relancer `python scripts/fix_dtype.py --checkpoint _artefact/checkpoints/Jainius` (refait le fix avec padding correct).
+**Solution :** Relancer `python scripts/fix_dtype.py --checkpoint checkpoints/Jainius` (refait le fix avec padding correct).
 
 ## ⚠️ Dtype "U16" vs "BF16" dans les headers
 
