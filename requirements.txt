@@ -1,7 +1,7 @@
 # Pinned runtime for the pipeline (voir AGENTS.md — Outils disponibles)
 # Python >= 3.12 requis (f-strings 3.12+ dans verify_checkpoint.py).
 huggingface_hub==1.18.0
-transformers==5.10.2
+transformers>=5.10
 safetensors>=0.4
 torch>=2.4
 numpy>=1.26
