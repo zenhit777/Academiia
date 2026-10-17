@@ -47,7 +47,7 @@ services:
       # Evite les surprises d'allocation memoire PyTorch dans le conteneur.
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
       # Fix WSL2 : le moteur V1 de vLLM requiert UVA, indisponible sous WSL.
-      - VLLM_V1_ENABLED=0
+      - VLLM_USE_UVA=0
     # Pas de restart auto : un OOM doit se voir, pas boucler.
     restart: "no"
     # `command` = liste d'UN SEUL element = le script entier passe a `bash -c`
