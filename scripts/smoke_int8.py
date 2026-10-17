@@ -10,6 +10,7 @@ Usage :
     python scripts/smoke_int8.py --checkpoint checkpoints/diffusiongemma_it
     python scripts/smoke_int8.py --checkpoint checkpoints/Jainius --no-generate
 """
+ # Prérequis : pip install pillow (AutoProcessor/Gemma4Processor en dépend).
 
 import argparse
 import os
@@ -46,7 +47,7 @@ def main():
                 args.checkpoint,
                 load_in_8bit=True,
                 device_map="auto",
-                max_memory={"cuda:0": args.max_memory_gpu, "cpu": args.max_memory_cpu},
+                max_memory={0: args.max_memory_gpu, "cpu": args.max_memory_cpu},
                 offload_folder=args.offload_folder,
                 llm_int8_skip_modules=["router", "norm", "layernorm", "embed"],
                 llm_int8_threshold=6.0,
@@ -59,7 +60,7 @@ def main():
                 args.checkpoint,
                 torch_dtype=torch.bfloat16,
                 device_map="auto",
-                max_memory={"cuda:0": args.max_memory_gpu, "cpu": args.max_memory_cpu},
+                max_memory={0: args.max_memory_gpu, "cpu": args.max_memory_cpu},
                 offload_folder=args.offload_folder,
             )
             mode = "BF16"
@@ -71,7 +72,7 @@ def main():
                 trust_remote_code=False,
                 load_in_8bit=True,
                 device_map="auto",
-                max_memory={"cuda:0": args.max_memory_gpu, "cpu": args.max_memory_cpu},
+                max_memory={0: args.max_memory_gpu, "cpu": args.max_memory_cpu},
                 offload_folder=args.offload_folder,
                 llm_int8_skip_modules=["router", "norm", "layernorm", "embed", "lm_head"],
                 llm_int8_threshold=6.0,
@@ -85,7 +86,7 @@ def main():
                 trust_remote_code=False,
                 torch_dtype=torch.bfloat16,
                 device_map="auto",
-                max_memory={"cuda:0": args.max_memory_gpu, "cpu": args.max_memory_cpu},
+                max_memory={0: args.max_memory_gpu, "cpu": args.max_memory_cpu},
                 offload_folder=args.offload_folder,
             )
             mode = "BF16"

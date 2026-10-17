@@ -6,6 +6,7 @@ safetensors>=0.4
 torch>=2.4
 numpy>=1.26
 # Inference / eval :
+pillow>=10.0  # AutoProcessor / Gemma4Processor en dépend
 # - accelerate : device_map auto + offload disque (smoke_int8, eval perplexite)
 # - bitsandbytes : chargement 8-bit (test rapide 31 Go VRAM, relatif uniquement)
 accelerate>=0.30
