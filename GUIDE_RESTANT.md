@@ -28,6 +28,7 @@ Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipelin
  ```
 
  > **Note** : le `--cpu-offload-gb 303` est configuré dans `docker-compose.yml`. Jainius fait ~52 Go et la RAM hôte (~67 Go) absorbe le reste via swap disque.
+ > **WSL2** : `VLLM_V1_ENABLED=0` est configuré dans `docker-compose.yml`. Sans cela, vLLM V1 plante avec `RuntimeError: UVA is not available` (UVA indisponible sous WSL).
 
  # Méthode alternative (sans docker-compose, pour debug) :
  ```bash
@@ -35,6 +36,7 @@ Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipelin
  docker run --rm -it \
      --gpus all \
      --ipc host \
+     -e VLLM_V1_ENABLED=0 \
      -v "$(pwd)/../checkpoints/Jainius:/data/Jainius:ro" \
      vllm/vllm-openai:gemma bash -c 'exec vllm serve /data/Jainius \
          --served-model-name "jainius" \
