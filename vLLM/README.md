@@ -43,6 +43,31 @@ modèle `${VLLM_SERVED_MODEL_NAME}`, défaut `jainius`).
 | `VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | Marge VRAM pour sampler diffusion |
 | `VLLM_EXTRA_ARGS` | (vide) | Flags supplementaires, decoupes par shell (multi-flags OK) |
 
+## Entrypoint (pourquoi `entrypoint: ["bash","-c"]`)
+
+L'image `vllm/vllm-openai` définit `ENTRYPOINT ["vllm","serve"]`. Un `command:`
+simple serait donc **concaténé** à cet entrypoint (`vllm serve bash -c '…'`) et
+vLLM rejetterait ces arguments. Le compose neutralise l'entrypoint avec
+`entrypoint: ["bash","-c"]` et fournit tout le script comme **UN SEUL élément**
+de `command` (avec `bash -c`, seul le premier argument est lu comme script).
+
+Vérification de l'entrypoint de l'image :
+
+```bash
+docker image inspect vllm/vllm-openai:gemma --format '{{json .Config.Entrypoint}}'
+# -> ["vllm","serve"]
+```
+
+C'est cette forme qui permet à `VLLM_EXTRA_ARGS` de contenir **plusieurs** flags
+(découpés par le shell du conteneur). Attention : avec cet entrypoint,
+`docker compose run --rm vllm --version` **ne fonctionne pas** (bash reçoit
+`--version` comme script) — pour un smoke du conteneur, passer une commande
+complète en un seul argument, p.ex. :
+
+```bash
+docker compose run --rm -T --no-deps vllm 'echo OK; vllm --version'
+```
+
 ## Notes
 
 - **VRAM** : pas de `load_in_8bit` ici (dépannage `transformers` uniquement).

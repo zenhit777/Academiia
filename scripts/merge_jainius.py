@@ -11,7 +11,7 @@ Usage:
         --diffusiongemma /path/to/diffusiongemma_it \
         --tau-dir _artefact/tau_a \
         --output /path/to/Jainius \
-        [--alpha 0.3] [--exclude-norms-embed]
+        [--alpha 0.3] [--include-norms-embed]
 """
 
 import argparse
@@ -23,13 +23,14 @@ import sys
 import tempfile
 
 import numpy as np
+import safetensors
 import torch
 from safetensors import safe_open
 from safetensors.torch import save_file
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import (diffusiongemma_to_gemma4, git_commit, is_norm_or_embed,
-                     list_source_sidecar_files, tau_filename)
+from _common import (check_tau_manifest, diffusiongemma_to_gemma4, git_commit,
+                     is_norm_or_embed, list_source_sidecar_files, tau_filename)
 
 
 def main():
@@ -38,8 +39,11 @@ def main():
     parser.add_argument("--tau-dir", default="_artefact/tau_a", help="Directory with tau_A numpy files")
     parser.add_argument("--output", required=True, help="Output directory for Jainius checkpoint")
     parser.add_argument("--alpha", type=float, default=0.3, help="Interpolation weight (default: 0.3, 0.8 deprecie)")
-    parser.add_argument("--exclude-norms-embed", action="store_true",
-                        help="Exclut embeddings/normalisations (variante papier A2D)")
+    parser.add_argument("--include-norms-embed", action="store_true",
+                        help="INCLUT embeddings/normalisations dans le merge "
+                             "(defaut : exclus, variante papier A2D)")
+    parser.add_argument("--allow-missing-tau-manifest", action="store_true",
+                        help="Autorise un tau sans tau_manifest.json (provenance non verifiable)")
     parser.add_argument("--on-shape-mismatch", choices=["error", "warn"], default="error",
                         help="Comportement si tau_A et D_p ont des shapes differentes (defaut: error)")
     parser.add_argument("--overwrite", action="store_true",
@@ -58,30 +62,39 @@ def main():
               f"ou vers un dossier vide. Pas de merge partiel.")
         raise SystemExit(2)
 
+    # Supprime index/manifest perimes de la sortie : un crash en cours de merge
+    # ne doit jamais laisser un ancien index/ manifeste qui parait valide.
+    for stale in ("model.safetensors.index.json", "merge_config.json"):
+        stale_path = os.path.join(args.output, stale)
+        if os.path.exists(stale_path):
+            os.remove(stale_path)
+            print(f"  Suppression de l'ancien {stale} (reecrit en fin de merge).")
+
     index_path = os.path.join(args.diffusiongemma, "model.safetensors.index.json")
     with open(index_path) as f:
         dg_index = json.load(f)
     dg_weight_map = dg_index["weight_map"]
 
-    # Exige le manifest tau (traçabilite : pas de tau perime/incomplet silencieux)
-    tau_manifest_path = os.path.join(args.tau_dir, "tau_manifest.json")
-    tau_manifest = None
-    if os.path.exists(tau_manifest_path):
-        with open(tau_manifest_path) as f:
-            tau_manifest = json.load(f)
-    else:
-        print(f"ATTENTION: {tau_manifest_path} absent (tau calcule avec "
-              f"l'ancien script ?). Mapping base sur l'existence des .npy, "
-              f"sans controle de provenance.")
+    # Controle du manifest tau (traçabilite : pas de tau perime/incomplet silencieux)
+    tau_manifest, tau_err = check_tau_manifest(
+        args.tau_dir, allow_missing=args.allow_missing_tau_manifest)
+    if tau_err:
+        print(f"ERREUR: {tau_err}")
+        raise SystemExit(2)
+    if tau_manifest is None:
+        print("ATTENTION: tau_manifest.json absent et --allow-missing-tau-manifest "
+              "fourni : mapping base sur l'existence des .npy, provenance non verifiee.")
 
     # Build mapping dg_name -> g4_name (+ detection collision fichier tau)
     mapping = {}
     seen_files = {}
+    n_skipped_norms_embed = 0
     for dg_name in dg_weight_map:
         g4_name = diffusiongemma_to_gemma4(dg_name)
         if g4_name is None:
             continue
-        if args.exclude_norms_embed and is_norm_or_embed(dg_name):
+        if not args.include_norms_embed and is_norm_or_embed(dg_name):
+            n_skipped_norms_embed += 1
             continue
         tau_path = os.path.join(args.tau_dir, tau_filename(g4_name))
         if os.path.exists(tau_path):
@@ -93,7 +106,8 @@ def main():
             mapping[dg_name] = g4_name
 
     print(f"Mapped tensors (Gemma4 -> DiffusionGemma): {len(mapping)}"
-          + (" (variante sans norms/embed)" if args.exclude_norms_embed else ""))
+          + (" (variante AVEC norms/embed)" if args.include_norms_embed
+             else f" ({n_skipped_norms_embed} norms/embed exclus)"))
 
     dg_by_file = {}
     for dg_name, fname in dg_weight_map.items():
@@ -165,7 +179,7 @@ def main():
     with open(os.path.join(args.output, "model.safetensors.index.json"), "w") as f:
         json.dump(index_out, f, indent=2)
 
-    # Recopie TOUS les sidecars source (pas de liste en dur : LICENSE, etc. preservés)
+    # Recopie TOUS les sidecars source (pas de liste en dur : LICENSE, etc. préservés)
     for entry in list_source_sidecar_files(args.diffusiongemma):
         src = os.path.join(args.diffusiongemma, entry)
         dst = os.path.join(args.output, entry)
@@ -174,10 +188,20 @@ def main():
         else:
             shutil.copy2(src, dst)
 
+    # README.md : ne JAMAIS ecraser la model card de la destination (Jainius).
+    readme_src = os.path.join(args.diffusiongemma, "README.md")
+    readme_dst = os.path.join(args.output, "README.md")
+    if os.path.exists(readme_dst):
+        print("  README.md de destination conserve (non ecrase).")
+    elif os.path.exists(readme_src):
+        shutil.copy2(readme_src, readme_dst)
+        print("  README.md source copie (destination sans model card).")
+
     manifest = {
         "method": "Dp + alpha*tau_A (ablation inspiree A2D, pas de tau_D)",
         "alpha": args.alpha,
-        "exclude_norms_embed": args.exclude_norms_embed,
+        "include_norms_embed": args.include_norms_embed,
+        "n_skipped_norms_embed": n_skipped_norms_embed,
         "diffusiongemma": os.path.abspath(args.diffusiongemma),
         "tau_dir": os.path.abspath(args.tau_dir),
         "tau_manifest": tau_manifest,
@@ -187,6 +211,8 @@ def main():
         "shape_errors": shape_errors,
         "date": datetime.datetime.now().astimezone().isoformat(),
         "git_commit": git_commit(),
+        "torch_version": torch.__version__,
+        "safetensors_version": safetensors.__version__,
     }
     with open(os.path.join(args.output, "merge_config.json"), "w") as f:
         json.dump(manifest, f, indent=2)

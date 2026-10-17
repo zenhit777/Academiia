@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Test rapide INT8 (transformers + bitsandbytes) — itération, PAS preuve finale.
+ Test rapide INT8 (transformers + bitsandbytes) — itération, PAS preuve finale.
 
-Charge un checkpoint DiffusionGemma/Jainius (~52 Go BF16 -> ~27 Go INT8,
-tient en 31 Go VRAM batch 1) et verifie :
-  1. chargement sans OOM (device_map auto + offload disque si besoin),
-  2. forward passe : logits finis sur un prompt court,
-  3. generate() si l'API diffusion du transformers installe le supporte.
-
-La preuve publiee reste le chemin BF16 + vLLM offloade (fidélite max) :
-le bruit INT8 est du meme ordre que le delta 0.8*tau (cf. measure_effect.py).
+ ATTENTION : ce script est un test de NON-CASSE UNIQUEMENT. Il ne peut pas départager
+ Dp et Jainius ni mesurer la qualité d'inférence. Le forward passe sur un prompt court,
+ mais la génération n'est pas évaluée quantitativement.
+ La preuve publiee reste le chemin BF16 + vLLM offloade (fidélite max) :
+ le bruit INT8 est du meme ordre que le delta 0.8*tau (cf. measure_effect.py).
+ ATTENTION : ce script ne peut PAS départager Dp et Jainius — il teste uniquement
+ la non-cassure de l'architecture. Le forward passe sur un prompt court, mais la
+ génération n'est pas évaluée quantitativement.
 
 Usage :
     python scripts/smoke_int8.py --checkpoint checkpoints/diffusiongemma_it
@@ -36,6 +36,8 @@ def main():
 
     os.makedirs(args.offload_folder, exist_ok=True)
     print(f"Chargement {args.checkpoint} (INT8, device_map auto)...")
+    # Avec transformers==5.10.2 épinglée : DiffusionGemmaForBlockDiffusion est
+    # reconnu par AutoModelForCausalLM (architecture définie dans config.json).
     tok = AutoTokenizer.from_pretrained(args.checkpoint, trust_remote_code=False)
     model = AutoModelForCausalLM.from_pretrained(
         args.checkpoint,
@@ -64,6 +66,12 @@ def main():
     logits = out.logits.float()
     finite = torch.isfinite(logits).all().item()
     print(f"  forward OK : logits shape {tuple(logits.shape)}, finis={finite}")
+    # Mémoire GPU allouée (utile pour estimer la VRAM nécessaire)
+    try:
+        mem = torch.cuda.max_memory_allocated() / 2**30
+        print(f"  max_memory_allocated: {mem:.1f} Go")
+    except Exception:
+        pass
     if not finite:
         print("SMOKE FAIL : NaN/Inf en forward.")
         raise SystemExit(1)

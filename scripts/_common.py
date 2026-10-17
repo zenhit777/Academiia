@@ -38,8 +38,60 @@ def is_norm_or_embed(dg_name: str) -> bool:
     )
 
 
+def family_of(dg_name: str) -> str:
+    """Famille d'un tenseur DiffusionGemma (agregation des mesures/rapports).
+
+    Valeurs : 'embed', 'norms', 'router', 'attn', 'mlp/experts', 'autre'.
+    Les normes (y compris q_norm/k_norm/layer_scalar) sont classees AVANT
+    'attn'/'mlp' pour rester coherentes avec is_norm_or_embed().
+    """
+    n = dg_name.lower()
+    if "embed" in n:
+        return "embed"
+    if "layernorm" in n or "norm" in n or n.endswith("layer_scalar"):
+        return "norms"
+    if "router" in n:
+        return "router"
+    if "self_attn" in n:
+        return "attn"
+    if "mlp" in n or "experts" in n or "moe" in n:
+        return "mlp/experts"
+    return "autre"
+
+
 def tau_filename(g4_name: str) -> str:
     return g4_name.replace(".", "_") + ".npy"
+
+
+def check_tau_manifest(tau_dir: str, allow_missing: bool = False):
+    """Valide tau_manifest.json contre les .npy presents dans tau_dir.
+
+    Retourne (manifest|None, erreur|None). Une erreur non nulle doit etre
+    traitee comme un echec (exit 2) par l'appelant.
+    """
+    path = os.path.join(tau_dir, "tau_manifest.json")
+    npy = sorted(f for f in os.listdir(tau_dir) if f.endswith(".npy"))
+    if not os.path.exists(path):
+        if allow_missing:
+            return None, None
+        return None, (
+            f"{path} absent : provenance du tau non verifiable. Recalculer tau "
+            f"avec compute_tau_a.py, ou passer --allow-missing-tau-manifest."
+        )
+    with open(path) as f:
+        manifest = json.load(f)
+    declared = manifest.get("n_tensors")
+    if declared is not None and declared != len(npy):
+        return manifest, (
+            f"manifest incoherent : n_tensors={declared} mais {len(npy)} "
+            f"fichiers .npy presents dans {tau_dir}"
+        )
+    filt = manifest.get("filter")
+    if filt not in (None, "all", "decoder"):
+        return manifest, (
+            f"manifest : filter='{filt}' invalide (attendu 'all' ou 'decoder')"
+        )
+    return manifest, None
 
 
 def sha256_file(path: str, limit_mb: int = 0) -> str:
@@ -79,12 +131,20 @@ def index_fingerprint(index_path: str) -> dict:
 
 
 def list_source_sidecar_files(src_dir: str) -> list:
-    """Tous les fichiers source a recopier : tout sauf poids et index."""
+    """Fichiers source a recopier : tout sauf poids, index, README et dotfiles.
+
+    README.md est EXCLU de la recopie : la model card de la destination (Jainius)
+    ne doit pas etre remplacee par celle de DiffusionGemma. merge_jainius.py ne
+    copie le README source que si la destination n'en a pas (et
+    verify_checkpoint.py --reference le compare a part).
+    """
     out = []
     for entry in sorted(os.listdir(src_dir)):
         if entry.endswith(".safetensors"):
             continue
         if entry == "model.safetensors.index.json":
+            continue
+        if entry == "README.md":
             continue
         if entry.startswith("."):
             continue

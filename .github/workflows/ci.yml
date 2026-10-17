@@ -8,8 +8,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install safetensors torch numpy
-      - run: python -c "import ast, glob; [ast.parse(open(f, encoding='utf-8').read()) for f in sorted(glob.glob('scripts/*.py'))]; print('syntax OK')"
+      - run: pip install safetensors torch numpy pytest
+      - run: python -c "import ast,glob; [ast.parse(open(f,encoding='utf-8').read()) for f in sorted(glob.glob('scripts/*.py'))]; print('syntax OK')"
       - run: |
           python - <<'EOF'
           import json, os
@@ -30,3 +30,4 @@ jobs:
           python scripts/merge_jainius.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --output /tmp/dummy_out --alpha 0.3
           python scripts/verify_checkpoint.py --checkpoint /tmp/dummy_out
           python scripts/measure_effect.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --alphas 0.3 --output /tmp/measure.json
+      - run: pytest scripts/tests -q

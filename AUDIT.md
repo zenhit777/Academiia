@@ -18,10 +18,10 @@ Correctif : rebuild v2 (`compute_tau_a.py` 172 s + `merge_jainius.py` 169 s) →
 ### 2. Aucune infrastructure d'évaluation [PARTIEL]
 README + KNOWN_ISSUES : modele jamais teste en inference GPU. Ajouts : `scripts/measure_effect.py` (effet poids post-BF16, CPU, balayage α en cours), `scripts/smoke_int8.py` (test rapide 31 Go VRAM), compose vLLM BF16 offloadé documenté (`VLLM_MAX_MODEL_LEN=4096`). Reste : perplexité/bench vs `D_p` + génération A/B.
 
-### 3. `fix_dtype.py` fragile [CORRIGE puis DEPRECIE]
-Ancien etat : remplacement binaire en place + `np` sans import → double prefix, padding, JSON illisible.
-Correctif : reecriture complete via tmp + `os.replace`, header canonique, detection double-prefix/padding/truncation. Valide sur cas factices + `verify` strict.
-Suite audit : merge direct BF16 → script retire du workflow (bandeau DEPRECIE), conserve pour anciens checkpoints.
+ ### 3. `fix_dtype.py` fragile [SUPPRIMÉ]
+
+ Le script a été supprimé (commit git conserve l'historique). Le merge sauvegarde
+ déjà en BF16 canonique via `torch.bfloat16`. Aucun risque de double-prefix/padding.
 
 ---
 
@@ -36,8 +36,15 @@ Toujours 3 points d'entree (`AGENTS.md`, `.cursorrules`, `CLAUDE.md` redirecteur
 ### 6. Pas de stratégie de backup [OUVERT]
 ~245 Go binaires sans sauvegarde documentee ; `checkpoints/` + `_artefact/` ignores par git. Perte seche si disque HS.
 
-### 7. `alpha=0.8` arbitraire [CORRIGE (défaut 0.3 + balayage)]
-Ancien défaut en dur 0.8 sans ablation. Nouveau : défaut 0.3 (`merge_jainius.py`), `measure_effect.py` balaie 0.05–0.5 (+ variante sans norms/embed). Reste : trancher α sur perplexité/bench vs `D_p`.
+ ### 7. `alpha=0.8` arbitraire [CORRIGE (défaut 0.3 + balayage)]
+
+ Ancien défaut en dur 0.8 sans ablation. Nouveau : défaut 0.3 (`merge_jainius.py`),
+ `measure_effect.py` balaie 0.05–0.5 (+ variante `--include-norms-embed`).
+ Résultats v2 (656 tenseurs, α=0.3) : ratio_rel médian ~3 %, cosinus attn/mlp >99.8 %,
+ cosinus norms = 0.61 (arrondi BF16 détruit la direction normative). Le % d'éléments
+ modifiés (~99 %) ne mesure PAS l'ampleur du changement — un ULP BF16 minuscule suffit
+ à faire "bouger" des bits sans effet numérique significatif. Trancher α sur chiffres
+ (perplexité/bench vs `D_p`) reste à faire.
 
 ---
 
@@ -56,7 +63,7 @@ Documente comme limite dans `KNOWN_ISSUES.md` + tableau README (391 inchanges, b
 Defaut `_artefact/tau_a` (portable, ignore par git). Docs (`AGENTS.md`, `README.md`) alignees.
 
 ---
+ ## Résumé actualise
 
-## Résumé actualise
+ > Le pipeline est **techniquement assaini** (checkpoint valide, scripts corriges et verifies). Suite audit Sonnet : methode renamee Dp+ατA (α=0.3), merge durci + manifest, safe_open, compose epingle, mesure poids v2 avec indicateurs d'ampleur (ratio_rel, cosinus). Reste le **chantier scientifique** : trancher α sur chiffres (perplexité/bench vs `D_p`), backup (6), consolidation docs (5).
 
-> Le pipeline est **techniquement assaini** (checkpoint valide, scripts corriges et verifies). Suite audit Sonnet : methode renommee Dp+ατA (α=0.3), merge durci + manifest, safe_open, compose epingle, mesure poids en cours. Reste le **chantier scientifique** : trancher α sur chiffres (2, 7), backup (6), consolidation docs (5).

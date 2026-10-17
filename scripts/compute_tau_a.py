@@ -9,8 +9,9 @@ Usage:
         --base /path/to/gemma4_base \
         --posttrained /path/to/gemma4_it \
         --output-dir _artefact/tau_a
-    # Economise ~35 Go : ne garde que le decoder mappable :
-    python compute_tau_a.py --filter decoder ...
+    # Par defaut --filter decoder : seuls les tenseurs mappables sont ecrits
+    # (economise ~35 Go). Ecrire les 1013 tenseurs (vision comprise) :
+    python compute_tau_a.py --filter all ...
 """
 
 import argparse
@@ -41,8 +42,9 @@ def main():
     parser.add_argument("--base", required=True, help="Path to AR base model (A_b)")
     parser.add_argument("--posttrained", required=True, help="Path to AR post-trained model (A_p)")
     parser.add_argument("--output-dir", default="_artefact/tau_a", help="Output directory for tau_A files")
-    parser.add_argument("--filter", choices=["all", "decoder"], default="all",
-                        help="'decoder' ne garde que les tenseurs mappables vers DiffusionGemma (economise ~35 Go)")
+    parser.add_argument("--filter", choices=["all", "decoder"], default="decoder",
+                        help="'decoder' (defaut) ne garde que les tenseurs mappables vers "
+                             "DiffusionGemma (economise ~35 Go) ; 'all' ecrit tout")
     parser.add_argument("--overwrite", action="store_true",
                         help="Autorise la reutilisation d'un dossier de sortie non vide")
     args = parser.parse_args()

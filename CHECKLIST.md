@@ -20,6 +20,8 @@
 - [ ] `checkpoints/Jainius/README.md` existe (model card)
 - [ ] `config.json` contient `"architectures": ["DiffusionGemmaForBlockDiffusion"]`
 - [ ] Tous les fichiers de l'original DiffusionGemma sont présents
+ ### 5. Conformité à la source (optionnel mais recommandé)
+ - [ ] `python scripts/verify_checkpoint.py --checkpoint checkpoints/Jainius --reference checkpoints/diffusiongemma_it` passe sans erreur (noms, shapes, dtypes identiques ; sidecars présents).
 
 ## Si un point échoue :
 → Ne pas push/upload. Corriger d'abord, puis relancer la checklist.

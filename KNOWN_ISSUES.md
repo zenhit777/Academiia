@@ -1,4 +1,4 @@
-# KNOWN_ISSUES.md — Anomalies du checkpoint Jainius (rebuild v2 en place, 2026-10-16)
+ # KNOWN_ISSUES.md — Anomalies du checkpoint Jainius (rebuild v2 en place, 2026-10-17)
 
 ## ✅ Suite audit Sonnet 2026-10-16 (appliquée, en attente du balayage α)
 
@@ -6,15 +6,12 @@
 - **Parseur maison en retrait :** `compute_tau_a.py` + `merge_jainius.py` lisent via `safe_open`, helpers partagés `scripts/_common.py`. `fix_dtype.py` déprécié (merge direct BF16).
 - **Merge durci :** shape mismatch → erreur par défaut, manifest `merge_config.json`, écriture atomique, nettoyage shards obsolètes (`--overwrite` exigé), recopie de TOUS les sidecars (LICENSE...), `total_size` dans l'index. `verify_checkpoint.py` : égalité index/headers exigée, contrôle bon-fichier par tenseur, `--check-values` NaN/Inf, HF files requis.
 - **Serving :** compose en forme shell (multi-flags `VLLM_EXTRA_ARGS` OK), image épinglée `vllm/vllm-openai:gemma`, `ipc: host`, `VLLM_MAX_MODEL_LEN=4096`, `MAX_NUM_SEQS=1`, `GPU_MEMORY_UTILIZATION=0.90`. `.gitignore` : `__pycache__/`, `*.pyc`, `.venv/`, `*.npy`.
-- **Mesure poids (résultats 2026-10-16) :** `scripts/measure_effect.py` sur les 656 tenseurs (25.2B éléments) — % réellement modifiés après arrondi BF16 : α=0.05→94.8%, 0.1→97.3%, 0.2→98.5%, **0.3→99.1%**, 0.5→99.4%, 0.8→99.6%. Variante sans norms/embed (355 tenseurs) quasi identique. Par famille à 0.3 : attn 99.4%, mlp/experts 99.1%, norms 76.6%, routeur 0.1% (τ≈0). Conclusion : la quantification n'absorbe presque rien — α pilote réellement le merge, d'où l'importance du balayage et de l'éval vs `D_p`. JSON : `_artefact/measure_effect*.json`.
+ - **Mesure poids (résultats 2026-10-17, v2) :** `scripts/measure_effect.py` sur les 656 tenseurs (25.2B éléments) — % reellement modifies apres arrondi BF16 : α=0.05→94.8%, 0.1→97.3%, 0.2→98.5%, **0.3→99.1%**, 0.5→99.4%. Variante sans norms/embed (355 tenseurs) quasi identique. Par famille a 0.3 : attn ratio_rel med=2.98%, cos=0.998 ; mlp/experts ratio_rel med=2.82%, cos=0.998 ; embed ratio_rel med=2.66%, cos=0.998 ; norms ratio_rel med=0.044%, cos=0.61 (arrondi BF16 detruit la direction) ; routeur τ≈0. Le % d'elements modifies NE mesure PAS l'ampleur du changement : un ULP BF16 minuscule suffit a faire "bouger" des bits sans effet numerique significatif. La quantification n'absorbe presque rien — α pilote reellement le merge, d'où l'importance du balayage et de l'éval vs `D_p`. JSON : `_artefact/measure_effect_v2*.json`.
+ - **2026-10-17** : `merge_jainius.py` — défaut exclut norms/embeddings (opt-in `--include-norms-embed`) ; suppression index/manifest perimes au démarrage du merge ; contrôle manifest τ (exit 2) + `--allow-missing-tau-manifest` ; README.md de destination préservé. `compute_tau_a.py` — défaut `--filter decoder`. `verify_checkpoint.py` — option `--reference <source>` vérifie noms/shapes/dtypes/sidecars. `scripts/tests/test_pipeline.py` : 9 tests (pytest).
 - **Reste :** balayage α + perplexité/bench vs `D_p` (mesure fond en cours : `_artefact/measure_effect*.json`) ; test d'inférence GPU ; pas de `LICENSE` (poids sous conditions Gemma).
 
 ## ✅ Resolu dans les scripts (2026-10-16)
 
-### 1. `fix_dtype.py` cassé (corrige)
-- **Cause :** `np` sans `import numpy` + patch binaire en place (`U16`→`BF16` allonge le header sans decaler les donnees) → double prefix, padding `\x00` trailing, JSON illisible en mode strict.
-- **Fix :** reecriture complete via tmp + `os.replace` (`scripts/fix_dtype.py:repair_one_file`) : header canonique `json.dumps(separators=(",",":"))`, `U16`→`BF16` dans le dict, detection double-prefix et truncation.
-- **Verification :** `python scripts/verify_checkpoint.py` (strict, ASCII, detecte padding/double-prefix/truncation).
 
 ### 2. Decodage BF16 faux + offset de lecture faux (corriges)
 - **Cause decode :** `np.frombuffer(raw, uint16).astype(float32)` donne la valeur entiere du bit-pattern (ex. `0x3F80` → `16256.0` au lieu de `1.0`).
@@ -26,6 +23,7 @@
 - `merge_jainius.py` : stats `len(dg_by_file)-len(mapping)` → `len(weight_map)-len(mapping)` ; mismatch de shape → D_p inchange + warning ; sauvegarde directe `torch.bfloat16`.
 - `verify_checkpoint.py` : crash `UnicodeEncodeError` Windows (emoji/cp1252) → sortie ASCII ; parse strict.
 - `download_models.py` : defaut `./checkpoints` → `checkpoints`.
+ - **2026-10-17** : `merge_jainius.py` — défaut exclut norms/embeddings (`--include-norms-embed`) ; suppression index/manifest perimes au démarrage du merge ; contrôle manifest τ (exit 2) + `--allow-missing-tau-manifest` ; README.md de destination préservé. `compute_tau_a.py` — défaut `--filter decoder`. `verify_checkpoint.py` — option `--reference <source>` vérifie noms/shapes/dtypes/sidecars. `scripts/tests/test_pipeline.py` : 9 tests (pytest).
 - Docs : `CHECKLIST.md` (hash de commit en dur supprime), `AUDIT.md` (chemin `checkpoints/`, `/tmp` → `_artefact/tau_a`), `.env.template` documente, `requirements.txt` ajoute, `.gitignore` (`/tmp` supprime).
 
 ## ✅ Reconstruit et vérifié (2026-10-16, rebuild v2)
@@ -33,7 +31,7 @@
 - **Rebuild v1 invalide :** valeurs fausses (bug offset, ex. layernorm 17.32 → 0.00019). Supprimé, refait.
 - **Rebuild v2 :** `compute_tau_a.py` (172 s, 1013 tenseurs) + `merge_jainius.py` (169 s, 656 mappés / 391 inchangés) → `checkpoints/Jainius` remplacé (ancien corrompu supprimé, `README.md` conservé).
 - **Validation numérique :** layernorm L2 `Dp=17.32424 + 0.8·τ(0.00376)` → attendu `17.32725`, obtenu `17.33191` (écart = quantification BF16, max 0.1 au voisinage de 17) ; `q_proj` écart max 0.0019 (BF16) ; 3 tenseurs non-mappés bit-identiques ; `torch`/`safe_open` strict OK ; `verify_checkpoint.py` : 11/11 `[OK]`, 1047 tenseurs BF16.
-- **Reste :** pas de test d'inférence GPU (recommandé avant publication) ; A2D partiel architectural (391 vision inchangés).
+ - **Reste :** pas de test d'inférence GPU (recommandé avant publication) ; A2D partiel architectural (391 vision inchangés). `smoke_int8.py` : max_memory_allocated ajouté, docstring clarifié.
 
 ## ℹ️ Limites non-bugs (inchangées)
 - A2D partiel : 656 tenseurs decoder fusionnes, 391 vision inchanges (architectural).

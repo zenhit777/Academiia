@@ -20,7 +20,7 @@ Jainius = DiffusionGemma + 0.8 * tau_A_mapped
 ## Workflow reproductible
 
 ```bash
-# 1. Télécharger les checkpoints (≈165 Go au total)
+ # 1. Télécharger les checkpoints (~155 Go au total, mesuré : 3 × ~51.6 Go)
 python scripts/download_models.py --output-dir ./checkpoints
 
 # 2. Calculer tau_A = A_p - A_b (~10 min, ~3 GB RAM peak)
@@ -45,8 +45,6 @@ python scripts/merge_jainius.py \
 # 5. Verifier le checkpoint (format HuggingFace strict)
 python scripts/verify_checkpoint.py --checkpoint ./checkpoints/Jainius
 ```
-(`scripts/fix_dtype.py` est deprecie : le merge sauvegarde deja en BF16
-canonique. Conserve uniquement pour reparer d'anciens checkpoints corrompus.)
 
 ## Résultats
 
@@ -59,10 +57,30 @@ canonique. Conserve uniquement pour reparer d'anciens checkpoints corrompus.)
 
 ## Limites
 
-- A2D n'est appliqué que sur les 656 tenseurs decoder (les 391 tenseurs encoder vision restent inchangés). Contrairement au papier (embeddings/norms/output-head inchangés), le mapping par défaut inclut `embed_tokens` et les normalisations — voir variante `--exclude-norms-embed` (papier) et `scripts/measure_effect.py`.
+ - A2D n'est appliqué que sur les 656 tenseurs decoder (les 391 tenseurs encoder vision restent inchangés). Contrairement au papier (embeddings/norms/output-head inchangés), le mapping par défaut inclut `embed_tokens` et les normalisations — voir variante `--include-norms-embed` (papier) et `scripts/measure_effect.py`.
 - Le modèle n'a pas été testé en inference GPU dédiée (voir `vLLM/` : BF16 + `--cpu-offload-gb 30` sur 5090 32 Go, ou test INT8 rapide `scripts/smoke_int8.py`).
 - α=0.8 était le défaut historique (rebuild v2) mais dégrade SLAKE de 3.8 pts dans le papier (83.1 → 79.3) pour `Dp + ατA`. Le papier retient 0.1–0.3 en merge et jusqu'à 1.0 en transfert de domaine — d'où le balayage 0.05–0.5 recommandé et le défaut actuel 0.3. Aucun gain démontré à ce jour : `D_p` reste le témoin.
 - Poids dérivés de Gemma : soumis aux conditions d'utilisation Gemma (à rappeler dans la model card avant publication).
+ ## Mesure Dp + α·τ_A après arrondi BF16 (v2, 2026-10-17)
+
+ Le script `scripts/measure_effect.py` rapporte, en plus du % d'éléments modifiés,
+ l'ampleur relative du delta (`ratio_rel = ||α·τ|| / ||Dp||`) et la fidélité de
+ l'arrondi BF16 (`cosinus(applied, α·τ)`). Résultats α=0.3 sur les 656 tenseurs :
+
+ | Famille | ratio_rel médiane | cosinus (pondéré taille) | % modifié |
+ |---------|-------------------|--------------------------|-----------|
+ | attn    | 2,98 %            | 0,9984                   | 99,1 %    |
+ | mlp/experts | 2,82 %        | 0,9984                   | 99,1 %    |
+ | embed   | 2,66 %            | 0,9980                   | —         |
+ | norms   | 0,044 %           | 0,606                    | —         |
+ | router  | ≈ 0               | non mesuré (τ≈0)         | —         |
+
+ Le `ratio_rel` médian est de ~3 % : le delta théorique représente une fraction
+ minime du module Dp, même si la plupart des éléments binaires changent (l'ULP BF16
+ est minuscule). Le cosinus des normes = 0,61 montre que l'arrondi BF16 détruit
+ la direction du delta normatif ; les embeddings et attn/mlp sont préservés à >99 %.
+ Ces chiffres ne permettent pas de conclure sur la qualité d'inférence : seule une
+ évaluation (perplexité, bench) peut le faire.
 
 ## Références
 

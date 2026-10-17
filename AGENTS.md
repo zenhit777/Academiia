@@ -27,8 +27,7 @@ Academiia/
 │   ├── verify_checkpoint.py # + --check-values NaN/Inf
 │   ├── smoke_int8.py        # test rapide INT8 (iteration, pas preuve)
 │   ├── _common.py           # helpers partages (mappings, manifest)
-│   └── fix_dtype.py         # DEPRECIE (legacy uniquement)
-├── checkpoints/           # Checkpoints binaires (~245 Go, non partagés)
+ ├── checkpoints/           # Checkpoints binaires (~247 Gio / ~264 Go sur disque, non partagés)
 │   ├── gemma4_base/       (A_b — Gemma 4 AR base)
 │   ├── gemma4_it/         (A_p — Gemma 4 IT post-trained)
 │   ├── diffusiongemma_it/ (D_p — DiffusionGemma IT)
@@ -47,9 +46,11 @@ Academiia/
 ### Pipeline Dp + ατA (ablation inspirée A2D — PAS le A2D-Merge complet)
 
 ```bash
-# 1. Télécharger les modèles (~165 Go)
+ # 1. Télécharger les modèles (~155 Go au total, mesuré : 3 × ~51.6 Go)
 python scripts/download_models.py --output-dir ./checkpoints
 
+ # Par défaut : --filter decoder (économise ~35 Go). Écrire les 1013 tenseurs (vision incluse) :
+ python scripts/compute_tau_a.py --filter all ...
 # 2. Calculer tau_A = A_p - A_b (~10 min, ~3 GB RAM)
 python scripts/compute_tau_a.py \
     --base checkpoints/gemma4_base \

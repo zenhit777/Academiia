@@ -20,6 +20,76 @@ import os
 import struct
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _common import list_source_sidecar_files
+
+
+def read_all_header_meta(ckpt_dir):
+    """name -> (dtype, shape). Lu depuis les en-tetes, sans charger les poids."""
+    out = {}
+    for fname in sorted(os.listdir(ckpt_dir)):
+        if not fname.endswith(".safetensors"):
+            continue
+        with open(os.path.join(ckpt_dir, fname), "rb") as f:
+            raw_len = f.read(8)
+            if len(raw_len) < 8:
+                continue
+            header_len = struct.unpack("<Q", raw_len)[0]
+            header = json.loads(f.read(header_len).decode("utf-8"))
+        for tname, meta in header.items():
+            if tname == "__metadata__" or not isinstance(meta, dict) or "shape" not in meta:
+                continue
+            out[tname] = (meta.get("dtype"), tuple(meta.get("shape", [])))
+    return out
+
+
+def compare_reference(checkpoint_dir, reference_dir):
+    """Verifie que checkpoint_dir est conforme a reference_dir (DiffusionGemma source) :
+    meme ensemble de noms, memes shapes et dtypes (headers seuls, sans charger les
+    poids), et presence de tous les sidecars source (hors README.md)."""
+    print(f"\nComparaison a la reference: {reference_dir}\n")
+    if not os.path.isdir(reference_dir):
+        print(f"[FAIL] reference introuvable: {reference_dir}")
+        return False
+    ok = True
+    ref = read_all_header_meta(reference_dir)
+    got = read_all_header_meta(checkpoint_dir)
+    missing = sorted(set(ref) - set(got))
+    extra = sorted(set(got) - set(ref))
+    if missing:
+        ok = False
+        print(f"[FAIL] {len(missing)} tenseurs absents vs reference: {', '.join(missing[:8])}"
+              + (" ..." if len(missing) > 8 else ""))
+    if extra:
+        ok = False
+        print(f"[FAIL] {len(extra)} tenseurs en plus vs reference: {', '.join(extra[:8])}"
+              + (" ..." if len(extra) > 8 else ""))
+    common = sorted(set(ref) & set(got))
+    n_shape = n_dtype = 0
+    for t in common:
+        rd, rs = ref[t]
+        gd, gs = got[t]
+        if rs != gs:
+            n_shape += 1
+            if n_shape <= 5:
+                print(f"[FAIL] shape {t}: ref={rs} vs {gs}")
+            ok = False
+        if rd != gd:
+            n_dtype += 1
+            if n_dtype <= 5:
+                print(f"[FAIL] dtype {t}: ref={rd} vs {gd}")
+            ok = False
+    print(f"  tenseurs: ref={len(ref)} vs {len(got)} ; communs={len(common)} ; "
+          f"shapes diff={n_shape} ; dtypes diff={n_dtype}")
+    ref_side = set(list_source_sidecar_files(reference_dir))
+    present = set(os.listdir(checkpoint_dir))
+    missing_side = sorted(s for s in ref_side if s not in present)
+    if missing_side:
+        ok = False
+        print(f"[FAIL] sidecars manquants (hors README.md): {', '.join(missing_side)}")
+    print("  [OK] conforme a la reference." if ok else "  [FAIL] non conforme a la reference.")
+    return ok
+
 
 def verify_safetensors_file(fpath):
     """Retourne (ok: bool, infos: dict). Ne charge jamais les tenseurs."""
@@ -54,7 +124,7 @@ def verify_safetensors_file(fpath):
                         strict_dp = False
                     issues.append(
                         f"{fname}: double prefix de header detecte "
-                        f"(L1={header_len}, L2={l2}) — relancer fix_dtype.py"
+                        f"(L1={header_len}, L2={l2}) — relancer le merge"
                     )
                     return False, {"issues": issues}
         except Exception:
@@ -64,7 +134,7 @@ def verify_safetensors_file(fpath):
             json.loads(raw_header.rstrip(b"\x00").decode("utf-8"))
             issues.append(
                 f"{fname}: padding nul trailing ({header_len - len(raw_header.rstrip(b'\x00'))} octets) "
-                f"— header non strict — relancer fix_dtype.py"
+                f"— header non strict — relancer le merge"
             )
         except Exception:
             issues.append(f"{fname}: JSON illisible: {e}")
@@ -100,7 +170,7 @@ def verify_safetensors_file(fpath):
     return (len(issues) == 0), {"issues": issues, **infos}
 
 
-def verify_checkpoint(checkpoint_dir, check_values=False):
+def verify_checkpoint(checkpoint_dir, check_values=False, reference=None):
     print(f"Verifying checkpoint: {checkpoint_dir}\n")
 
     if not os.path.isdir(checkpoint_dir):
@@ -213,11 +283,15 @@ def verify_checkpoint(checkpoint_dir, check_values=False):
             print(f"[FAIL] --check-values requiert torch+safetensors: {e}")
             all_ok = False
 
+    if reference:
+        if not compare_reference(checkpoint_dir, reference):
+            all_ok = False
+
     print("=" * 50)
     if all_ok:
         print(f"[OK] All checks passed ({total_tensors} tenseurs). Checkpoint valide.")
         return True
-    print("[FAIL] Issues found. Re-merger les fichiers concernes (fix_dtype.py est deprecie).")
+    print("[FAIL] Issues found. Re-merger les fichiers concernes.")
     return False
 
 
@@ -226,8 +300,12 @@ def main():
     parser.add_argument("--checkpoint", default="checkpoints/Jainius", help="Path to Jainius checkpoint")
     parser.add_argument("--check-values", action="store_true",
                         help="Charge chaque tenseur et refuse NaN/Inf (lent, ~15min, ~5 Go RAM)")
+    parser.add_argument("--reference", default=None,
+                        help="Dossier DiffusionGemma source : verifie noms/shapes/dtypes "
+                             "identiques et presence des sidecars (hors README.md)")
     args = parser.parse_args()
-    success = verify_checkpoint(args.checkpoint, check_values=args.check_values)
+    success = verify_checkpoint(args.checkpoint, check_values=args.check_values,
+                                reference=args.reference)
     sys.exit(0 if success else 1)
 
 

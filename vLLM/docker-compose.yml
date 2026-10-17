@@ -6,6 +6,14 @@
 # fourni par le tag `gemma`, PAS par `latest` (non reproductible).
 # Voir vLLM recipe diffusiongemma-26B-A4B-it (2026-09-23) : `docker pull vllm/vllm-openai:gemma`.
 # Surcharger via VLLM_IMAGE uniquement pour tester une image plus recente.
+#
+# ENTRYPOINT de l'image : vllm/vllm-openai definit ENTRYPOINT ["vllm","serve"]
+# (verifie via `docker image inspect <image> --format '{{json .Config.Entrypoint}}'`).
+# Un `command:` en forme shell/liste serait donc CONCATENE a cet entrypoint, soit
+# `vllm serve bash -c '...'` -> echec ("unrecognized arguments"). On neutralise
+# l'entrypoint avec `entrypoint: ["bash","-c"]` et on fournit tout le script
+# comme UN SEUL element de `command` (bash -c ne lit que le premier argument
+# comme script ; les elements suivants deviendraient $0, $1... et seraient ignores).
 
 name: jainius-vllm
 
@@ -15,6 +23,9 @@ services:
     container_name: jainius-vllm
     # vLLM recommande `ipc: host` (ou shm_size eleve) pour les conteneurs.
     ipc: host
+    # Neutralise le ENTRYPOINT ["vllm","serve"] de l'image : sans cette ligne,
+    # le script ci-dessous serait passe comme argument a `vllm serve`.
+    entrypoint: ["bash", "-c"]
     # Acces GPU (runtime NVIDIA sous WSL2).
     deploy:
       resources:
@@ -37,22 +48,23 @@ services:
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     # Pas de restart auto : un OOM doit se voir, pas boucler.
     restart: "no"
-    # Forme shell (string) volontaire : permet a VLLM_EXTRA_ARGS de contenir
-    # plusieurs flags separes par espaces. En forme liste YAML, Compose
-    # passerait tout le contenu comme UN seul argument (ou un arg vide),
-    # rejete par `vllm serve` ("unrecognized arguments").
-    # Ne JAMAIS repasser en forme liste sans wrapper shell.
-    # Les ${...:-defaut} sont interpoles par Compose depuis le .env.
-    command: >-
-      bash -c 'exec vllm serve /data/Jainius
-      --served-model-name "${VLLM_SERVED_MODEL_NAME:-jainius}"
-      --host 0.0.0.0 --port 8000
-      --dtype "${VLLM_DTYPE:-bfloat16}"
-      --cpu-offload-gb "${VLLM_CPU_OFFLOAD_GB:-30}"
-      --max-model-len "${VLLM_MAX_MODEL_LEN:-4096}"
-      --max-num-seqs "${VLLM_MAX_NUM_SEQS:-1}"
-      --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.90}"
-      ${VLLM_EXTRA_ARGS:-}'
+    # `command` = liste d'UN SEUL element = le script entier passe a `bash -c`
+    # (entrypoint ci-dessus). Si on decoupait en plusieurs elements, bash -c ne
+    # garderait que le premier comme script et le reste serait ignore.
+    # Les ${...:-defaut} sont interpoles par Compose depuis le .env AVANT
+    # execution ; c'est ensuite le shell du conteneur qui decoupe
+    # ${VLLM_EXTRA_ARGS} en plusieurs flags (forme string -> multi-flags OK).
+    command:
+      - >-
+        exec vllm serve /data/Jainius
+        --served-model-name "${VLLM_SERVED_MODEL_NAME:-jainius}"
+        --host 0.0.0.0 --port 8000
+        --dtype "${VLLM_DTYPE:-bfloat16}"
+        --cpu-offload-gb "${VLLM_CPU_OFFLOAD_GB:-30}"
+        --max-model-len "${VLLM_MAX_MODEL_LEN:-4096}"
+        --max-num-seqs "${VLLM_MAX_NUM_SEQS:-1}"
+        --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.90}"
+        ${VLLM_EXTRA_ARGS:-}
 
 volumes:
   vllm-hf-cache:
