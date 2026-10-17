@@ -16,24 +16,35 @@ Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipelin
 
 ### 1a. Lancer vLLM avec le checkpoint Jainius
 
-```bash
-cd vLLM
-# Vérifier que l'image est disponible :
-docker image inspect vllm/vllm-openai:gemma --format '{{json .Config.Entrypoint}}'
-# → ["vllm","serve"]
+ # Méthode recommandée : via docker-compose (déjà configuré dans `vLLM/docker-compose.yml`)
+ ```bash
+ cd vLLM
+ # Vérifier que l'image est disponible :
+ docker images | grep vllm/vllm-openai:gemma
+ # → doit afficher 9c719fc0c869 (~29.5 Go)
+ 
+ # Lancer (démarrage ~30 min pour charger 52 Go BF16) :
+ docker compose up -d
+ ```
 
-# Lancer (démarrage ~30 min pour charger 52 Go BF16) :
-bash -c 'exec vllm serve /data/Jainius \
-    --served-model-name "jainius" \
-    --host 0.0.0.0 --port 8000 \
-    --dtype bfloat16 \
-    --cpu-offload-gb 303 \
-    --max-model-len 4096 \
-    --max-num-seqs 1 \
-    --gpu-memory-utilization 0.90'
-```
+ > **Note** : le `--cpu-offload-gb 303` est configuré dans `docker-compose.yml`. Jainius fait ~52 Go et la RAM hôte (~67 Go) absorbe le reste via swap disque.
 
-> **Note** : le `--cpu-offload-gb 303` est nécessaire car Jainius fait ~52 Go et la RAM hôte (~67 Go) absorbe le reste via swap disque.
+ # Méthode alternative (sans docker-compose, pour debug) :
+ ```bash
+ cd vLLM
+ docker run --rm -it \
+     --gpus all \
+     --ipc host \
+     -v "$(pwd)/../checkpoints/Jainius:/data/Jainius:ro" \
+     vllm/vllm-openai:gemma bash -c 'exec vllm serve /data/Jainius \
+         --served-model-name "jainius" \
+         --host 0.0.0.0 --port 8000 \
+         --dtype bfloat16 \
+         --cpu-offload-gb 303 \
+         --max-model-len 4096 \
+         --max-num-seqs 1 \
+         --gpu-memory-utilization 0.90'
+ ```
 
 ### 1b. Vérifier que le serveur répond
 
