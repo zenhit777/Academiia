@@ -58,7 +58,7 @@ python scripts/verify_checkpoint.py --checkpoint ./checkpoints/Jainius
 ## Limites
 
  - A2D n'est appliqué que sur les 656 tenseurs decoder (les 391 tenseurs encoder vision restent inchangés). Contrairement au papier (embeddings/norms/output-head inchangés), le mapping par défaut inclut `embed_tokens` et les normalisations — voir variante `--include-norms-embed` (papier) et `scripts/measure_effect.py`.
-- Le modèle n'a pas été testé en inference GPU dédiée (voir `vLLM/` : BF16 + `--cpu-offload-gb 30` sur 5090 32 Go, ou test INT8 rapide `scripts/smoke_int8.py`).
+ - Chargement et démarrage vLLM validés le 2026-10-18 (WSL2, runner V1, `--enforce-eager`, offload 30 Go) ; génération et qualité non encore évaluées.
 - α=0.8 était le défaut historique (rebuild v2) mais dégrade SLAKE de 3.8 pts dans le papier (83.1 → 79.3) pour `Dp + ατA`. Le papier retient 0.1–0.3 en merge et jusqu'à 1.0 en transfert de domaine — d'où le balayage 0.05–0.5 recommandé et le défaut actuel 0.3. Aucun gain démontré à ce jour : `D_p` reste le témoin.
 - Poids dérivés de Gemma : soumis aux conditions d'utilisation Gemma (à rappeler dans la model card avant publication).
  ## Mesure Dp + α·τ_A après arrondi BF16 (v2, 2026-10-17)

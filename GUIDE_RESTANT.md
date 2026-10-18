@@ -23,12 +23,12 @@ Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipelin
  docker images | grep vllm/vllm-openai:gemma
  # → doit afficher 9c719fc0c869 (~29.5 Go)
  
- # Lancer (démarrage ~30 min pour charger 52 Go BF16) :
+ # Lancer (démarrage ~14,5 min pour charger 52 Go BF16 ; observé via /mnt/d en 9P) :
  docker compose up -d
  ```
 
- > **Note** : `--cpu-offload-gb 30` est configuré dans `docker-compose.yml`. Jainius fait ~52 Go et la RAM hôte (~67 Go) absorbe le reste via swap disque.
- > **WSL2** : `VLLM_USE_V2_MODEL_RUNNER=0` force le runner V1 et résout l'erreur UVA (confirmé). Le chargement prend ~5 min. Si un blocage `torch.compile` survient ensuite, ajouter `--enforce-eager` (désactive les CUDA graphs ; débit réduit mais test de cohérence possible).
+ > **Note** : `--cpu-offload-gb 30` est configuré dans `docker-compose.yml`. Jainius fait ~52 Go et la RAM hôte (~67 Go) absorbe le reste en mémoire CPU (pas de swap).
+ > **WSL2** : `VLLM_USE_V2_MODEL_RUNNER=0` force le runner V1 et résout l'erreur UVA (confirmé). Le chargement prend ~14,5 min (observé via /mnt/d en 9P). Si un blocage `torch.compile` survient ensuite, ajouter `--enforce-eager` (désactive les CUDA graphs ; débit réduit mais test de cohérence possible).
 
  ```bash
  cd vLLM
@@ -87,6 +87,14 @@ curl -s http://localhost:8000/v1/chat/completions \
 > **Note** : avec `--enforce-eager`, le débit est très réduit (pas de CUDA graphs + offload CPU). La première requête peut prendre plusieurs minutes. Le timeout par défaut du serveur est 900 s.
 
 > **Attendu** : une réponse cohérente (ex: "97"). Si le serveur crash ou retourne des tokens illisibles → problème de checkpoint.
+ ### 1d. Diagnostic `smoke_int8.py` (si échec d'import AutoProcessor)
+
+ Si le script affiche `AutoProcessor indisponible`, la cause est une dépendance manquante (très probablement `torchvision`). Diagnostiquez :
+ ```bash
+ python -c "from transformers import AutoProcessor"
+ # → si erreur, installer le paquet manquant puis relancer
+ pip install torchvision
+ ```
 
  ## Étape 2 — LICENSE
 
@@ -109,7 +117,7 @@ curl -s http://localhost:8000/v1/chat/completions \
  ```bash
  # Lancer D_p (port 8000) :
  cd vLLM && docker compose up -d --scale vllm=1
- # ... attendre le chargement (~30 min) ...
+ # ... attendre le chargement (~14,5 min ; observé via /mnt/d en 9P) ...
  python scripts/eval_compare.py \
      --base http://localhost:8000/v1/completions \
      --model "diffusiongemma_it" \
@@ -120,7 +128,7 @@ curl -s http://localhost:8000/v1/chat/completions \
  
  # Lancer Jainius (port 8001) :
  cd vLLM && VLLM_SERVED_MODEL_NAME=jainius docker compose up -d --scale vllm=1
- # ... attendre le chargement (~30 min) ...
+ # ... attendre le chargement (~14,5 min ; observé via /mnt/d en 9P) ...
  python scripts/eval_compare.py \
      --base http://localhost:8001/v1/completions \
      --model "jainius" \
@@ -213,12 +221,12 @@ hf upload <user>/<repo> checkpoints/Jainius/ --repo-type model
 ```
 ┌─────────────────────────────────────────────────────┐
 │  Étape 1 : Test inférence GPU (vLLM + smoke)       │
-│  → ~30 min chargement, ~5 min génération            │
+│  → ~14,5 min chargement (observé via /mnt/d en 9P), ~5 min génération            │
 ├─────────────────────────────────────────────────────┤
 │  Étape 2 : LICENSE Gemma                            │
 │  → 2 min                                            │
 ├─────────────────────────────────────────────────────┤
-│  Étape 3 : Perplexité / Bench vs D_p                │
+│  Étape 3 : Évaluation par génération vs D_p                │
 │  → ~1-4 h (dépend du GPU et du nombre de prompts)  │
 ├─────────────────────────────────────────────────────┤
 │  Étape 4 : CHECKLIST finale                         │

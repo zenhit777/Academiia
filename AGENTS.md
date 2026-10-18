@@ -73,7 +73,7 @@ python scripts/merge_jainius.py \
 # 5. Verifier (HuggingFace strict)
 python scripts/verify_checkpoint.py --checkpoint checkpoints/Jainius
 ```
-(`scripts/fix_dtype.py` deprecie : conserve pour anciens checkpoints uniquement.)
+ `scripts/fix_dtype.py` supprimé (commit git conserve l'historique). Le merge sauvegarde déjà en BF16 canonique.
 
 ### Contexte Dp + ατA (ne pas appeler "A2D" seul)
 
