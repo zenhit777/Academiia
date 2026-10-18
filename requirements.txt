@@ -11,3 +11,5 @@ pillow>=10.0  # AutoProcessor / Gemma4Processor en dépend
 # - bitsandbytes : chargement 8-bit (test rapide 31 Go VRAM, relatif uniquement)
 accelerate>=0.30
 bitsandbytes>=0.43
+pyyaml>=6.0
+pytest>=8.0

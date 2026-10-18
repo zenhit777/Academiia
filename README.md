@@ -81,6 +81,51 @@ python scripts/verify_checkpoint.py --checkpoint ./checkpoints/Jainius
  la direction du delta normatif ; les embeddings et attn/mlp sont préservés à >99 %.
  Ces chiffres ne permettent pas de conclure sur la qualité d'inférence : seule une
  évaluation (perplexité, bench) peut le faire.
+## Scripts vLLM (WSL2)
+
+### `vLLM/diagnose_image.sh` — Vérification d'une image d'entrée
+
+Vérifie qu'une image est valide avant de l'utiliser comme entrée au modèle :
+
+```bash
+./vLLM/diagnose_image.sh /path/to/image.png [width] [height]
+```
+
+**Sortie :** JSON compact sur `stdout` avec le format, les dimensions et la taille du fichier. Exemple :
+
+```json
+{"valid":true,"width":512,"height":512,"format":"PNG","size_kb":42}
+```
+
+**Défauts détectés :** fichier introuvable, format non supporté (seulement PNG/WEBP), dimensions manquantes ou non détectables.
+
+### `vLLM/smoke_chat.py` — Chat de fumée avec DiffusionGemma + Jainius
+
+Test complet d'inférence : charge le checkpoint fusionné, encode une image en tokens visuels, génère une réponse textuelle.
+
+```bash
+python vLLM/smoke_chat.py /path/to/image.png \
+    --prompt "Quel est l'objet principal de cette image ?" \
+    --max-tokens 128 \
+    --image-width 560
+```
+
+**Dépendances :** `pyyaml>=6.0`, `pytest>=8.0` (ajoutés à `requirements.txt`).
+
+**Sortie :** JSONL avec la réponse générée, prête à être inspectée ou loguée.
+
+### Comparaison des scripts vLLM
+
+| Script | Usage | Sortie |
+|--------|-------|--------|
+| `smoke.sh` (legacy) | Chat brut, sortie raw | texte brut |
+| `smoke_chat.py` | Chat complet avec prompt + image, JSONL | JSONL |
+| `diagnose_image.sh` | Validation d'entrée image | JSON compact |
+
+**Conseil :** utiliser `smoke_chat.py` pour les tests de non-régression automatisés (ex. CI).
+
+---
+
 
 ## Références
 

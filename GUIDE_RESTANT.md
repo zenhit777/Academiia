@@ -251,3 +251,19 @@ hf upload <user>/<repo> checkpoints/Jainius/ --repo-type model
 - ✅ fix_dtype.py supprimé + toutes références retirées
 - ✅ Tailles harmonisées (~155 Go téléchargement / ~264 Gio sur disque)
 - ✅ CI étendue (pytest dans `.github/workflows/ci.yml`)
+
+---
+
+## Scripts vLLM ajoutés (2026-10-18)
+
+- ✅ `vLLM/smoke_chat.py` : smoke-test de chat complet avec DiffusionGemma + Jainius. Usage :
+  ```bash
+  python vLLM/smoke_chat.py /path/to/image.png --prompt "Quel est l'objet principal ?" --max-tokens 128
+  ```
+- ✅ `vLLM/diagnose_image.sh` : vérifie la validité d'une image d'entrée (PNG/WEBP). Usage :
+  ```bash
+  ./vLLM/diagnose_image.sh /path/to/image.png 560 960
+  ```
+
+Ces scripts complètent `smoke_int8.py` pour les tests de non-régression vLLM.
+

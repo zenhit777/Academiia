@@ -31,3 +31,17 @@ jobs:
           python scripts/verify_checkpoint.py --checkpoint /tmp/dummy_out
           python scripts/measure_effect.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --alphas 0.3 --output /tmp/measure.json
       - run: pytest scripts/tests -q
+      # Tests vLLM (docker-compose.yml non modifié dans le commit, tests de non-régression)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml>=6.0 pytest>=8.0 vllm
+      - name: Test docker-compose.yml (structure, entrypoint/command)
+        shell: bash
+        run: |
+          cd /mnt/d/Intelligence_Artificielle/Projects/Academiia/vLLM
+          pip install pyyaml pytest
+          pytest scripts/tests/test_compose.py -v
+
+# Fin de la section checks.
+
