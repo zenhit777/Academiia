@@ -28,7 +28,7 @@ Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipelin
  ```
 
  > **Note** : `--cpu-offload-gb 30` est configuré dans `docker-compose.yml`. Jainius fait ~52 Go et la RAM hôte (~67 Go) absorbe le reste via swap disque.
- > **WSL2** : vLLM 0.22.x V1 engine requiert UVA (Unified Virtual Addressing), indisponible sous WSL2. Variable `VLLM_USE_V2_MODEL_RUNNER=0` force le runner V1 (à tester ; peut ne pas être reconnue dans cette version). Si l'erreur persiste, utiliser une machine Linux native ou un serveur distant avec GPU NVIDIA.
+ > **WSL2** : `VLLM_USE_V2_MODEL_RUNNER=0` force le runner V1 et résout l'erreur UVA (confirmé). Le chargement prend ~5 min. Si un blocage `torch.compile` survient ensuite, ajouter `--enforce-eager` (désactive les CUDA graphs ; débit réduit mais test de cohérence possible).
 
  # Méthode alternative (sans docker-compose, pour debug) :
  ```bash
@@ -36,6 +36,7 @@ Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipelin
  docker run --rm -it \
      --gpus all \
      --ipc host \
+     -e VLLM_USE_V2_MODEL_RUNNER=0 \
      -v "$(pwd)/../checkpoints/Jainius:/data/Jainius:ro" \
      --entrypoint bash \
      vllm/vllm-openai:gemma -c 'exec vllm serve /data/Jainius \
@@ -45,8 +46,14 @@ Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipelin
          --cpu-offload-gb 30 \
          --max-model-len 4096 \
          --max-num-seqs 1 \
-         --gpu-memory-utilization 0.90'
- ```
+         --gpu-memory-utilization 0.90 \
+         --enforce-eager'
+ docker run --rm -it \
+     --gpus all \
+     --ipc host \
+     -v "$(pwd)/../checkpoints/Jainius:/data/Jainius:ro" \
+     --entrypoint bash \
+     vllm/vllm-openai:gemma -c 'exec vllm serve /data/Jainius \
 
 ### 1b. Vérifier que le serveur répond
 

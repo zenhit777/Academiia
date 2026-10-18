@@ -66,6 +66,7 @@ services:
         --max-model-len "${VLLM_MAX_MODEL_LEN:-4096}"
         --max-num-seqs "${VLLM_MAX_NUM_SEQS:-1}"
         --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.90}"
+        --enforce-eager \
         ${VLLM_EXTRA_ARGS:-}
 
 volumes:
