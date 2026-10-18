@@ -46,6 +46,8 @@ services:
       - HF_TOKEN=${HF_TOKEN:-}
       # Evite les surprises d'allocation memoire PyTorch dans le conteneur.
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+      # Contourne l'erreur UVA sur WSL2 en forçant le runner V1.
+      - VLLM_USE_V2_MODEL_RUNNER=0
     # Pas de restart auto : un OOM doit se voir, pas boucler.
     restart: "no"
     # `command` = liste d'UN SEUL element = le script entier passe a `bash -c`

@@ -6,9 +6,9 @@ Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipelin
 
 ## Prérequis
 
-- GPU NVIDIA avec ≥ 32 Go VRAM (pour vLLM BF16 offloadé) ou ≥ 8 Go pour INT8
+- GPU NVIDIA avec ≥ 32 Go VRAM (pour vLLM BF16 offloadé ; Jainius fait ~52 Go). INT8 n'est pas applicable ici.
 - Docker Desktop / Engine avec runtime NVIDIA (`nvidia-smi` sous WSL2)
-- `huggingface_hub`, `transformers==5.10.2`, `safetensors.torch`, `bitsandbytes` (pour smoke INT8)
+- `huggingface_hub`, `transformers>=5.10` (≥ 5.11 pour DiffusionGemmaForBlockDiffusion), `safetensors.torch`, `bitsandbytes` (pour smoke INT8)
 
 ---
 
@@ -27,8 +27,8 @@ Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipelin
  docker compose up -d
  ```
 
- > **Note** : le `--cpu-offload-gb 303` est configuré dans `docker-compose.yml`. Jainius fait ~52 Go et la RAM hôte (~67 Go) absorbe le reste via swap disque.
- > **WSL2** : vLLM 0.22.x V1 engine requiert UVA (Unified Virtual Addressing), indisponible sous WSL2. Aucune variable d'environnement ne le désactive dans cette version (`VLLM_USE_UVA=0` est ignoré). Pour tester l'inférence, utiliser une machine Linux native ou un serveur distant avec GPU NVIDIA.
+ > **Note** : `--cpu-offload-gb 30` est configuré dans `docker-compose.yml`. Jainius fait ~52 Go et la RAM hôte (~67 Go) absorbe le reste via swap disque.
+ > **WSL2** : vLLM 0.22.x V1 engine requiert UVA (Unified Virtual Addressing), indisponible sous WSL2. Variable `VLLM_USE_V2_MODEL_RUNNER=0` force le runner V1 (à tester ; peut ne pas être reconnue dans cette version). Si l'erreur persiste, utiliser une machine Linux native ou un serveur distant avec GPU NVIDIA.
 
  # Méthode alternative (sans docker-compose, pour debug) :
  ```bash
@@ -42,7 +42,7 @@ Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipelin
          --served-model-name "jainius" \
          --host 0.0.0.0 --port 8000 \
          --dtype bfloat16 \
-         --cpu-offload-gb 303 \
+         --cpu-offload-gb 30 \
          --max-model-len 4096 \
          --max-num-seqs 1 \
          --gpu-memory-utilization 0.90'
@@ -71,26 +71,45 @@ curl -s http://localhost:8000/v1/completions \
 
 > **Attendu** : une réponse cohérente (ex: "97"). Si le serveur crash ou retourne des tokens illisibles → problème de checkpoint.
 
-### 1d. Test INT8 rapide (optionnel, ~5 min)
+ ## Étape 2 — LICENSE
 
-```bash
-python scripts/smoke_int8.py --checkpoint checkpoints/Jainius --no-generate
-# → doit afficher "SMOKE OK (forward seul)" + max_memory_allocated en Go
-```
+ Le checkpoint Jainius contient des poids dérivés de Gemma. Vérifier la licence dans les dépôts sources réels (`google/gemma-4` et `google/diffusiongemma`). Si le merge a déjà recopié un fichier `LICENSE`, le conserver ; sinon, ajouter celui du dépôt source approprié.
 
----
+ ---
 
-## Étape 2 — Ajouter LICENSE
+ ## Étape 3 — Bench vs D_p (qualité d'inférence)
 
-Le checkpoint Jainius contient des poids dérivés de Gemma. La licence **Gemma Community License** s'applique :
+ Les mesures de poids (`measure_effect.py`) montrent **l'amplitude** du merge mais pas sa **qualité**. Il faut évaluer la génération.
 
-1. Télécharger la licence officielle depuis [gemma.ai](https://gemma.google.com/legal/) ou le repo HuggingFace `google/gemma-3-4b-it`.
-2. Copier le fichier `LICENSE` dans `checkpoints/Jainius/`.
-3. Vérifier que `verify_checkpoint.py --reference checkpoints/diffusiongemma_it` passe (le LICENSE est un sidecar non-poids).
+ > **Note** : la perplexité classique ne s'applique pas directement à un modèle de diffusion. Restez sur l'évaluation par génération (latence, débit, format respecté).
 
 ---
 
-## Étape 3 — Perplexité / Bench vs D_p (qualité d'inférence)
+ ### 3b. Interroger les modèles via vLLM OpenAI-compatible (un par un)
+
+ > **Important** : D_p et Jainius font ~52 Go chacun. Ils ne tiennent pas simultanément sur un GPU de 32 Go ni dans la RAM (~67 Go). Lancer-les l'un après l'autre.
+
+ ```bash
+ # Lancer D_p (port 8000) :
+ cd vLLM && docker compose up -d --scale vllm=1
+ # ... attendre le chargement (~30 min) ...
+ python scripts/eval_compare.py \
+     --base http://localhost:8000/v1/completions \
+     --model "diffusiongemma_it" \
+     --prompts eval/prompts.jsonl \
+     --output eval/results_Dp.json
+ # ... évaluer, puis arrêter D_p ...
+ docker compose down
+ 
+ # Lancer Jainius (port 8001) :
+ cd vLLM && VLLM_SERVED_MODEL_NAME=jainius docker compose up -d --scale vllm=1
+ # ... attendre le chargement (~30 min) ...
+ python scripts/eval_compare.py \
+     --base http://localhost:8001/v1/completions \
+     --model "jainius" \
+     --prompts eval/prompts.jsonl \
+     --output eval/results_jainius.json
+ ```
 
 Les mesures de poids (`measure_effect.py`) montrent **l'amplitude** du merge mais pas sa **qualité**. Il faut évaluer la génération.
 
@@ -108,20 +127,6 @@ Format JSONL : un objet par ligne :
 {"id": "math_03", "prompt": "Combien font 7 × 8 ?", "expected": "56"}
 ```
 
-### 3b. Interroger les deux modèles via vLLM OpenAI-compatible
-
-```bash
-# Lancer D_p et Jainius sur des ports différents :
-python scripts/eval_compare.py \
-    --base http://localhost:8000/v1/completions \
-    --model "diffusiongemma_it" \
-    --target http://localhost:8001/v1/completions \
-    --model "jainius" \
-    --prompts eval/prompts.jsonl \
-    --output eval/results_α0.3.json
-```
-
-> **Paramètres identiques** pour les deux modèles : `temperature=0.7`, `max_tokens=256`, `top_p=0.9`.
 
 ### 3c. Analyser les résultats
 
@@ -130,7 +135,7 @@ Le script doit produire un JSON avec :
 - Débit (tokens/s) par modèle
 - Score de format respecté (%)
 - Réponses non vides / répétitions dégénérées (%)
-- Comparaison α ∈ {0.05, 0.1, 0.2, 0.3}
+- Comparaison α ∈ {0.1, 0.3} (chaque α nécessite un checkpoint ~52 Go ; faire les tests un par un).
 
 ---
 
@@ -146,9 +151,6 @@ python scripts/verify_checkpoint.py --checkpoint checkpoints/Jainius
 # 2. Headers safetensors = "BF16" (pas "U16")
 # Vérifié automatiquement par verify_checkpoint.py
 
-# 3. Aucun JSONDecodeError au parsing
-python -c "import glob, json; [json.load(open(f)) for f in sorted(glob.glob('checkpoints/Jainius/*.safetensors'))]"
-# → doit passer sans erreur (les headers sont lus via safe_open, pas json.load)
 
 # 4. Scripts compilent
 python -c "import ast,glob; [ast.parse(open(f,encoding='utf-8').read()) for f in sorted(glob.glob('scripts/*.py'))]"
@@ -184,7 +186,7 @@ Une fois toutes les étapes ci-dessus validées :
 git push origin main
 
 # Upload HuggingFace (nécessite HF_TOKEN)
-huggingface-cli upload <user>/<repo> checkpoints/Jainius/ --repo-type model
+hf upload <user>/<repo> checkpoints/Jainius/ --repo-type model
 ```
 
 ---
