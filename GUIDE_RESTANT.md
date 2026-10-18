@@ -30,13 +30,12 @@ Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipelin
  > **Note** : `--cpu-offload-gb 30` est configuré dans `docker-compose.yml`. Jainius fait ~52 Go et la RAM hôte (~67 Go) absorbe le reste via swap disque.
  > **WSL2** : `VLLM_USE_V2_MODEL_RUNNER=0` force le runner V1 et résout l'erreur UVA (confirmé). Le chargement prend ~5 min. Si un blocage `torch.compile` survient ensuite, ajouter `--enforce-eager` (désactive les CUDA graphs ; débit réduit mais test de cohérence possible).
 
- # Méthode alternative (sans docker-compose, pour debug) :
  ```bash
  cd vLLM
  docker run --rm -it \
+     -p 8000:8000 \
      --gpus all \
      --ipc host \
-     -e VLLM_USE_V2_MODEL_RUNNER=0 \
      -v "$(pwd)/../checkpoints/Jainius:/data/Jainius:ro" \
      --entrypoint bash \
      vllm/vllm-openai:gemma -c 'exec vllm serve /data/Jainius \
@@ -48,13 +47,22 @@ Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipelin
          --max-num-seqs 1 \
          --gpu-memory-utilization 0.90 \
          --enforce-eager'
- docker run --rm -it \
-     --gpus all \
-     --ipc host \
-     -v "$(pwd)/../checkpoints/Jainius:/data/Jainius:ro" \
-     --entrypoint bash \
-     vllm/vllm-openai:gemma -c 'exec vllm serve /data/Jainius \
+ ```
 
+### 1b. Vérifier que le serveur répond
+
+# Si le conteneur est déjà lancé, tester depuis l'intérieur :
+```bash
+cd vLLM && docker compose ps | grep vllm
+# → doit afficher "Up"
+docker exec -i $(docker compose ps -q vllm) python3 -c 'import urllib.request; print(urllib.request.urlopen("http://localhost:8000/v1/models", timeout=30).read().decode())'
+# → doit afficher "jainius" dans les modèles disponibles
+```
+
+# Ou depuis WSL (si le port est bien publié) :
+```bash
+curl -s http://localhost:8000/v1/models | python3 -m json.tool
+```
 ### 1b. Vérifier que le serveur répond
 
 ```bash
@@ -65,16 +73,18 @@ curl -s http://localhost:8000/v1/models | python3 -m json.tool
 
 ### 1c. Test de génération (smoke)
 
-```bash
-curl -s http://localhost:8000/v1/completions \
+ ```bash
+# Test de génération via l'endpoint chat (Jainius est un modèle Instruct) :
+curl -s http://localhost:8000/v1/chat/completions \
     -H "Content-Type: application/json" \
     -d '{
         "model": "jainius",
-        "prompt": "Quel est le plus grand nombre premier inférieur à 100 ?",
+        "messages": [{"role": "user", "content": "Combien font 7 × 8 ? Réponds en une phrase."}],
         "max_tokens": 50,
         "temperature": 0.7
     }' | python3 -m json.tool
 ```
+> **Note** : avec `--enforce-eager`, le débit est très réduit (pas de CUDA graphs + offload CPU). La première requête peut prendre plusieurs minutes. Le timeout par défaut du serveur est 900 s.
 
 > **Attendu** : une réponse cohérente (ex: "97"). Si le serveur crash ou retourne des tokens illisibles → problème de checkpoint.
 
