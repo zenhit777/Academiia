@@ -28,13 +28,15 @@ def main():
     p.add_argument("--offload-folder", default="_artefact/offload")
     args = p.parse_args()
 
-    # DiffusionGemmaForBlockDiffusion est la classe officielle pour cette architecture.
-    # Fallback AutoModelForCausalLM si transformers < 5.11 (architecture non enregistree).
+    # Imports : toujours definis, meme si AutoProcessor/Gemma4Processor fait defaut.
+    from transformers import DiffusionGemmaForBlockDiffusion, AutoModelForCausalLM
     try:
-        from transformers import DiffusionGemmaForBlockDiffusion, AutoProcessor
+        from transformers import AutoProcessor
         use_diffusiongemma = True
-    except ImportError:
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+    except ImportError as e:
+        print(f"  AutoProcessor indisponible ({e})")
+        print("  Fallback AutoTokenizer (chat template non disponible).")
+        from transformers import AutoTokenizer
         use_diffusiongemma = False
     os.makedirs(args.offload_folder, exist_ok=True)
     print(f"Chargement {args.checkpoint} ...")
