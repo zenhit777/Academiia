@@ -7,5 +7,7 @@ diffusion_steps = max_new_tokens, bfloat16, chat template, 0-shot (GSM8K/MATH).
 |---|---|---|---|---|---|---|---|
 | dream_7b_base | GSM8K | flexible-extract | 68.7 % | 300 | [63.2, 73.7] | 66.5 | +2.2 |
 | dream_7b_base | GSM8K | strict-match | 42.7 % | 300 | [37.2, 48.3] | 66.5 | -23.8 |
+| dream_7b_instruct | GSM8K | flexible-extract | 84.0 % | 300 | [79.4, 87.7] | 83.0 | +1.0 |
+| dream_7b_instruct | GSM8K | strict-match | 66.0 % | 300 | [60.5, 71.1] | 83.0 | -17.0 |
 
 Effectifs reduits : le budget GPU local ne permet pas les jeux complets (mesure : 162 s/prompt pour IFEval a 1280 pas de debruitage). L'intervalle de Wilson est donne pour chaque score.
