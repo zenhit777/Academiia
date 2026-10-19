@@ -1,0 +1,57 @@
+{
+  "model": "jainius_a03",
+  "url": "http://localhost:8000",
+  "payload": {
+    "model": "jainius_a03",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Écris une phrase courte décrivant le rôle d'un modèle de diffusion."
+      }
+    ],
+    "max_tokens": 64,
+    "temperature": 0.0
+  },
+  "elapsed_s": 2.18,
+  "finish_reason": "stop",
+  "text": "thought\nUn modèle de diffusion génère du contenu en apprenant à transformer du bruit aléatoire en données struct données.",
+  "verdict": "PASS",
+  "raw": {
+    "id": "chatcmpl-ac6657e0f96e7890",
+    "object": "chat.completion",
+    "created": 1792425059,
+    "model": "jainius_a03",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "thought\nUn modèle de diffusion génère du contenu en apprenant à transformer du bruit aléatoire en données struct données.",
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "reasoning": null
+        },
+        "logprobs": null,
+        "finish_reason": "stop",
+        "stop_reason": 106,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.24.0-c6b6ae21",
+    "usage": {
+      "prompt_tokens": 26,
+      "total_tokens": 53,
+      "completion_tokens": 27,
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null
+  },
+  "saved_at": "2026-10-19T17:51:01.920060"
+}

@@ -1,0 +1,57 @@
+{
+  "model": "jainius_a03_ne",
+  "url": "http://localhost:8000",
+  "payload": {
+    "model": "jainius_a03_ne",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is the capital of France? Answer in one short sentence."
+      }
+    ],
+    "max_tokens": 64,
+    "temperature": 0.0
+  },
+  "elapsed_s": 1.81,
+  "finish_reason": "stop",
+  "text": "thought\nThe capital of way is Paris.",
+  "verdict": "PASS",
+  "raw": {
+    "id": "chatcmpl-8c6964d42d3af7d7",
+    "object": "chat.completion",
+    "created": 1792426327,
+    "model": "jainius_a03_ne",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "thought\nThe capital of way is Paris.",
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "reasoning": null
+        },
+        "logprobs": null,
+        "finish_reason": "stop",
+        "stop_reason": 106,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.24.0-c6b6ae21",
+    "usage": {
+      "prompt_tokens": 22,
+      "total_tokens": 34,
+      "completion_tokens": 12,
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null
+  },
+  "saved_at": "2026-10-19T18:12:09.645937"
+}

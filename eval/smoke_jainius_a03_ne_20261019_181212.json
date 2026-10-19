@@ -1,0 +1,57 @@
+{
+  "model": "jainius_a03_ne",
+  "url": "http://localhost:8000",
+  "payload": {
+    "model": "jainius_a03_ne",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Explique en une phrase ce qu'est la photosynthèse."
+      }
+    ],
+    "max_tokens": 64,
+    "temperature": 0.0
+  },
+  "elapsed_s": 2.55,
+  "finish_reason": "stop",
+  "text": "thought\nLa photosèse est le processus",
+  "verdict": "PASS",
+  "raw": {
+    "id": "chatcmpl-a8fda536911f4952",
+    "object": "chat.completion",
+    "created": 1792426329,
+    "model": "jainius_a03_ne",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "thought\nLa photosèse est le processus",
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "reasoning": null
+        },
+        "logprobs": null,
+        "finish_reason": "stop",
+        "stop_reason": null,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.24.0-c6b6ae21",
+    "usage": {
+      "prompt_tokens": 23,
+      "total_tokens": 34,
+      "completion_tokens": 11,
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null
+  },
+  "saved_at": "2026-10-19T18:12:12.281523"
+}

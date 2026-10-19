@@ -1,0 +1,57 @@
+{
+  "model": "jainius",
+  "url": "http://localhost:8000",
+  "payload": {
+    "model": "jainius",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Combien font 7 × 8 ? Réponds en une phrase."
+      }
+    ],
+    "max_tokens": 64,
+    "temperature": 0.0
+  },
+  "elapsed_s": 24.9,
+  "finish_reason": "length",
+  "text": " *\" own own l l l *\" *\" *\" *\" *\" *\" way *\" own *\" de own own de *\" *\" de de de de own *\" hatred de own own de own own de de de de own own de de own own de de de de own de own manners own own own own de manners way motto own",
+  "verdict": "FAIL",
+  "raw": {
+    "id": "chatcmpl-89d64fa6ce06c0fd",
+    "object": "chat.completion",
+    "created": 1792421984,
+    "model": "jainius",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": " *\" own own l l l *\" *\" *\" *\" *\" *\" way *\" own *\" de own own de *\" *\" de de de de own *\" hatred de own own de own own de de de de own own de de own own de de de de own de own manners own own own own de manners way motto own",
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "reasoning": null
+        },
+        "logprobs": null,
+        "finish_reason": "length",
+        "stop_reason": null,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.24.0-05d2e260",
+    "usage": {
+      "prompt_tokens": 24,
+      "total_tokens": 88,
+      "completion_tokens": 64,
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null
+  },
+  "saved_at": "2026-10-19T17:00:10.230632"
+}

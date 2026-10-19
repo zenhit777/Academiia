@@ -1,0 +1,57 @@
+{
+  "model": "jainius_a03_ne",
+  "url": "http://localhost:8000",
+  "payload": {
+    "model": "jainius_a03_ne",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Combien font 7 × 8 ? Réponds en une phrase."
+      }
+    ],
+    "max_tokens": 64,
+    "temperature": 0.0
+  },
+  "elapsed_s": 2.69,
+  "finish_reason": "stop",
+  "text": "thought\n7 × 8 font 56.",
+  "verdict": "PASS",
+  "raw": {
+    "id": "chatcmpl-9c9c33814e6ff9d9",
+    "object": "chat.completion",
+    "created": 1792426325,
+    "model": "jainius_a03_ne",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "thought\n7 × 8 font 56.",
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "reasoning": null
+        },
+        "logprobs": null,
+        "finish_reason": "stop",
+        "stop_reason": null,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.24.0-c6b6ae21",
+    "usage": {
+      "prompt_tokens": 24,
+      "total_tokens": 38,
+      "completion_tokens": 14,
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null
+  },
+  "saved_at": "2026-10-19T18:12:07.746829"
+}

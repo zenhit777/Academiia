@@ -1,0 +1,57 @@
+{
+  "model": "jainius",
+  "url": "http://localhost:8000",
+  "payload": {
+    "model": "jainius",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Combien font 7 × 8 ? Réponds en une phrase."
+      }
+    ],
+    "max_tokens": 64,
+    "temperature": 0.0
+  },
+  "elapsed_s": 2.7,
+  "finish_reason": "length",
+  "text": " dreadful l own 살펴 l l passivation *\" coagulation de rugby de coagulation coagulation coagulation coop waterproofing *\" *\" own de own own own *\" de own de own l own own own percolation own de own own de own own own own own own own own own own own own own own own own own own de own own own own own own",
+  "verdict": "FAIL",
+  "raw": {
+    "id": "chatcmpl-88f434e6ab6f499e",
+    "object": "chat.completion",
+    "created": 1792421151,
+    "model": "jainius",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": " dreadful l own 살펴 l l passivation *\" coagulation de rugby de coagulation coagulation coagulation coop waterproofing *\" *\" own de own own own *\" de own de own l own own own percolation own de own own de own own own own own own own own own own own own own own own own own own de own own own own own own",
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "reasoning": null
+        },
+        "logprobs": null,
+        "finish_reason": "length",
+        "stop_reason": null,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.24.0-c6b6ae21",
+    "usage": {
+      "prompt_tokens": 24,
+      "total_tokens": 88,
+      "completion_tokens": 64,
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null
+  },
+  "saved_at": "2026-10-19T16:45:53.891976"
+}

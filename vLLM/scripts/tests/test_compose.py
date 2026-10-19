@@ -56,19 +56,23 @@ def compose_interpolate(script: str, env: dict[str, str]) -> str:
 
     Compose remplace $$ par un marqueur unique, résout les variables,
     puis restaure les $ littéraux.
+
+    Sémantique des défauts (spécification Compose) :
+      - `${V-d}`  : défaut si V n'est PAS DÉFINIE (V="" reste "") ;
+      - `${V:-d}` : défaut si V n'est pas définie OU est vide.
     """
     DOLLAR = "\x00DOLLAR\x00"
     out = script.replace("$$", DOLLAR)
 
     def sub_braced(m: re.Match) -> str:
         name, default = m.group(1), m.group(2)
-        if name in env:
-            return env[name]
-        if default is not None and (env.get(name, "") == "" or ":-" in m.group(0)):
+        if default is None:
+            return env.get(name, "")
+        if name not in env:
             return default
-        if default is not None:  # ${V-d} : défaut seulement si non défini
-            return env.get(name, default)
-        return ""
+        if ":-" in m.group(0) and env[name] == "":
+            return default
+        return env[name]
 
     out = _VAR_BRACED.sub(sub_braced, out)
     out = _VAR_BARE.sub(lambda m: env.get(m.group(1), ""), out)
@@ -164,6 +168,33 @@ def test_runner_override_exported_only_when_set():
     assert runner == "0"
     runner, _ = run_script({})
     assert runner == "<unset>", f"override fuiterait dans le défaut : {runner}"
+
+
+# --- Sémantique d'interpolation Compose (forme avec / sans « : ») ---
+
+def test_interpolation_default_forms():
+    """`${V-d}` (défaut si NON définie) vs `${V:-d}` (défaut si vide).
+
+    Sémantique vérifiée contre `docker compose config` (voir
+    test_compose_config_resolves_alloc_conf).
+    """
+    assert compose_interpolate("${V-def}", {}) == "def"
+    assert compose_interpolate("${V-def}", {"V": ""}) == ""
+    assert compose_interpolate("${V-def}", {"V": "x"}) == "x"
+    assert compose_interpolate("${V:-def}", {}) == "def"
+    assert compose_interpolate("${V:-def}", {"V": ""}) == "def"
+    assert compose_interpolate("${V:-def}", {"V": "x"}) == "x"
+    assert compose_interpolate("$V", {"V": "x"}) == "x"
+    assert compose_interpolate("$$V", {}) == "$V"
+
+
+def test_default_extra_args_enable_fp8():
+    """Par défaut, le compose passe `--quantization fp8` (2 arguments distincts)."""
+    _, args = run_script({})
+    assert "--quantization" in args, f"--quantization absent par défaut : {args}"
+    assert "fp8" in args, f"fp8 absent par défaut : {args}"
+    bad = [a for a in args if not a.strip()]
+    assert not bad, f"arguments vides : {bad}"
 
 
 # --- PYTORCH_CUDA_ALLOC_CONF configurable (variable d'env du conteneur) ---

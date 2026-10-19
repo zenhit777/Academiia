@@ -1,0 +1,103 @@
+{"id": "fact_fr_01", "category": "fact", "lang": "fr", "prompt": "Quelle est la capitale de la France ? Réponds en une phrase.", "expected": "Paris"}
+{"id": "fact_fr_02", "category": "fact", "lang": "fr", "prompt": "Quelle est la capitale du Portugal ?", "expected": "Lisbonne"}
+{"id": "fact_fr_03", "category": "fact", "lang": "fr", "prompt": "Quelle est la capitale du Japon ?", "expected": "Tokyo"}
+{"id": "fact_fr_04", "category": "fact", "lang": "fr", "prompt": "Quelle est la capitale de l'Italie ?", "expected": "Rome"}
+{"id": "fact_fr_05", "category": "fact", "lang": "fr", "prompt": "Quelle est la capitale de l'Allemagne ?", "expected": "Berlin"}
+{"id": "fact_fr_06", "category": "fact", "lang": "fr", "prompt": "Quelle est la capitale du Canada ?", "expected": "Ottawa"}
+{"id": "fact_fr_07", "category": "fact", "lang": "fr", "prompt": "Quelle est la capitale de l'Australie ?", "expected": "Canberra"}
+{"id": "fact_fr_08", "category": "fact", "lang": "fr", "prompt": "Quelle est la capitale du Brésil ?", "expected": "Brasilia"}
+{"id": "fact_fr_09", "category": "fact", "lang": "fr", "prompt": "Quelle est la capitale de l'Inde ?", "expected": "New Delhi"}
+{"id": "fact_fr_10", "category": "fact", "lang": "fr", "prompt": "Quelle est la capitale de la Turquie ?", "expected": "Ankara"}
+{"id": "fact_fr_11", "category": "fact", "lang": "fr", "prompt": "Quelle est la capitale de l'Espagne ?", "expected": "Madrid"}
+{"id": "fact_fr_12", "category": "fact", "lang": "fr", "prompt": "Quelle est la capitale du Kenya ?", "expected": "Nairobi"}
+{"id": "fact_fr_13", "category": "fact", "lang": "fr", "prompt": "Quelle est la plus grande planète du système solaire ?", "expected": "Jupiter"}
+{"id": "fact_fr_14", "category": "fact", "lang": "fr", "prompt": "Quelle est la plus petite planète du système solaire ?", "expected": "Mercure"}
+{"id": "fact_fr_15", "category": "fact", "lang": "fr", "prompt": "Quel est le symbole chimique de l'or ?", "expected": "Au"}
+{"id": "fact_fr_16", "category": "fact", "lang": "fr", "prompt": "Quel est le symbole chimique de l'oxygène ?", "expected": "O"}
+{"id": "fact_fr_17", "category": "fact", "lang": "fr", "prompt": "Quel est le plus grand océan de la planète ?", "expected": "Pacifique"}
+{"id": "fact_fr_18", "category": "fact", "lang": "fr", "prompt": "Quelle est la plus haute montagne du monde ?", "expected": "Everest"}
+{"id": "fact_fr_19", "category": "fact", "lang": "fr", "prompt": "Quel fleuve traverse Paris ?", "expected": "Seine"}
+{"id": "fact_fr_20", "category": "fact", "lang": "fr", "prompt": "Quelle mer borde l'Italie ?", "expected": "Méditerranée"}
+{"id": "fact_fr_21", "category": "fact", "lang": "fr", "prompt": "On parle quelle langue au Brésil ?", "expected": "portugais"}
+{"id": "fact_fr_22", "category": "fact", "lang": "fr", "prompt": "Dans quel pays se trouve la pyramide de Khéops ?", "expected": "Egypte"}
+{"id": "fact_fr_23", "category": "fact", "lang": "fr", "prompt": "Quel est le plus grand pays d'Afrique en superficie ?", "expected": "Algerie"}
+{"id": "fact_fr_24", "category": "fact", "lang": "fr", "prompt": "Quelle ville est surnommée la Ville lumière ?", "expected": "Paris"}
+{"id": "fact_en_01", "category": "fact", "lang": "en", "prompt": "What is the capital of France? Answer in one sentence.", "expected": "Paris"}
+{"id": "fact_en_02", "category": "fact", "lang": "en", "prompt": "What is the capital of Japan?", "expected": "Tokyo"}
+{"id": "fact_en_03", "category": "fact", "lang": "en", "prompt": "What is the capital of Canada?", "expected": "Ottawa"}
+{"id": "fact_en_04", "category": "fact", "lang": "en", "prompt": "What is the capital of Australia?", "expected": "Canberra"}
+{"id": "fact_en_05", "category": "fact", "lang": "en", "prompt": "What is the capital of Brazil?", "expected": "Brasilia"}
+{"id": "fact_en_06", "category": "fact", "lang": "en", "prompt": "What is the capital of India?", "expected": "New Delhi"}
+{"id": "fact_en_07", "category": "fact", "lang": "en", "prompt": "What is the capital of Turkey?", "expected": "Ankara"}
+{"id": "fact_en_08", "category": "fact", "lang": "en", "prompt": "What is the capital of Spain?", "expected": "Madrid"}
+{"id": "fact_en_09", "category": "fact", "lang": "en", "prompt": "What is the capital of Kenya?", "expected": "Nairobi"}
+{"id": "fact_en_10", "category": "fact", "lang": "en", "prompt": "What is the capital of Norway?", "expected": "Oslo"}
+{"id": "fact_en_11", "category": "fact", "lang": "en", "prompt": "What is the capital of Argentina?", "expected": "Buenos Aires"}
+{"id": "fact_en_12", "category": "fact", "lang": "en", "prompt": "Which planet is the largest in our solar system?", "expected": "Jupiter"}
+{"id": "fact_en_13", "category": "fact", "lang": "en", "prompt": "Which planet is the smallest in our solar system?", "expected": "Mercury"}
+{"id": "fact_en_14", "category": "fact", "lang": "en", "prompt": "What is the chemical symbol for gold?", "expected": "Au"}
+{"id": "fact_en_15", "category": "fact", "lang": "en", "prompt": "What is the chemical symbol for silver?", "expected": "Ag"}
+{"id": "fact_en_16", "category": "fact", "lang": "en", "prompt": "What is the chemical symbol for iron?", "expected": "Fe"}
+{"id": "fact_en_17", "category": "fact", "lang": "en", "prompt": "Which is the largest ocean on Earth?", "expected": "Pacific"}
+{"id": "fact_en_18", "category": "fact", "lang": "en", "prompt": "Which is the longest river in the world?", "expected": "Nile"}
+{"id": "fact_en_19", "category": "fact", "lang": "en", "prompt": "Which mountain is the highest in the world?", "expected": "Everest"}
+{"id": "fact_en_20", "category": "fact", "lang": "en", "prompt": "Which country is the Eiffel Tower located in?", "expected": "France"}
+{"id": "fact_en_21", "category": "fact", "lang": "en", "prompt": "Who wrote the play Hamlet?", "expected": "Shakespeare"}
+{"id": "fact_en_22", "category": "fact", "lang": "en", "prompt": "In which city is the Colosseum located?", "expected": "Rome"}
+{"id": "fact_en_23", "category": "fact", "lang": "en", "prompt": "What is the capital of New Zealand?", "expected": "Wellington"}
+{"id": "fact_en_24", "category": "fact", "lang": "en", "prompt": "What is the largest desert in the world?", "expected": "Sahara"}
+{"id": "math_fr_01", "category": "math", "lang": "fr", "prompt": "Combien font 7 × 8 ? Réponds en une phrase.", "expected": "56"}
+{"id": "math_fr_02", "category": "math", "lang": "fr", "prompt": "Combien font 12 + 27 ?", "expected": "39"}
+{"id": "math_fr_03", "category": "math", "lang": "fr", "prompt": "Combien font 100 − 45 ?", "expected": "55"}
+{"id": "math_fr_04", "category": "math", "lang": "fr", "prompt": "Combien font 9 × 9 ?", "expected": "81"}
+{"id": "math_fr_05", "category": "math", "lang": "fr", "prompt": "Combien font 144 ÷ 12 ?", "expected": "12"}
+{"id": "math_fr_06", "category": "math", "lang": "fr", "prompt": "Combien font 2 + 3 × 4 ?", "expected": "14"}
+{"id": "math_fr_07", "category": "math", "lang": "fr", "prompt": "Combien font 15 % de 200 ?", "expected": "30"}
+{"id": "math_fr_08", "category": "math", "lang": "fr", "prompt": "Combien font 3 × (4 + 5) ?", "expected": "27"}
+{"id": "math_fr_09", "category": "math", "lang": "fr", "prompt": "Un gâteau coûte 12 euros. Combien coûtent 5 gâteaux ?", "expected": "60"}
+{"id": "math_en_01", "category": "math", "lang": "en", "prompt": "What is 13 + 29?", "expected": "42"}
+{"id": "math_en_02", "category": "math", "lang": "en", "prompt": "What is 8 × 7?", "expected": "56"}
+{"id": "math_en_03", "category": "math", "lang": "en", "prompt": "What is 96 − 37?", "expected": "59"}
+{"id": "math_en_04", "category": "math", "lang": "en", "prompt": "What is 121 ÷ 11?", "expected": "11"}
+{"id": "math_en_05", "category": "math", "lang": "en", "prompt": "What is 5 × (6 + 7)?", "expected": "65"}
+{"id": "math_en_06", "category": "math", "lang": "en", "prompt": "What is 25% of 80?", "expected": "20"}
+{"id": "math_en_07", "category": "math", "lang": "en", "prompt": "What is 2 + 2 × 10?", "expected": "22"}
+{"id": "math_en_08", "category": "math", "lang": "en", "prompt": "What is 144 ÷ 16?", "expected": "9"}
+{"id": "math_en_09", "category": "math", "lang": "en", "prompt": "What is 4 × 4 + 4?", "expected": "20"}
+{"id": "math_en_10", "category": "math", "lang": "en", "prompt": "What is 60 − 3 × 7?", "expected": "39"}
+{"id": "fmt_fr_01", "category": "format", "lang": "fr", "format": "json", "prompt": "Réponds uniquement par un objet JSON avec les clés \"ville\" et \"pays\" pour la capitale de l'Italie."}
+{"id": "fmt_fr_02", "category": "format", "lang": "fr", "format": "json", "prompt": "Renvoie uniquement du JSON valide : {\"nom\": \"Lina\", \"age\": 30}."}
+{"id": "fmt_fr_03", "category": "format", "lang": "fr", "format": "list", "prompt": "Donne une liste de trois fruits, un par ligne, chacun préfixé par « - »."}
+{"id": "fmt_fr_04", "category": "format", "lang": "fr", "format": "list", "prompt": "Donne trois couleurs, une par ligne."}
+{"id": "fmt_fr_05", "category": "format", "lang": "fr", "format": "one_line", "prompt": "Écris une seule phrase de moins de 15 mots décrivant la mer."}
+{"id": "fmt_fr_06", "category": "format", "lang": "fr", "format": "one_line", "prompt": "Rédige une seule phrase sur les trains."}
+{"id": "fmt_fr_07", "category": "format", "lang": "fr", "format": "json", "prompt": "Réponds par du JSON uniquement, avec la clé \"reponse\" valant le nombre de jours dans une semaine."}
+{"id": "fmt_fr_08", "category": "format", "lang": "fr", "format": "list", "prompt": "Donne deux fauteuils pour petit déjeuner, un par ligne."}
+{"id": "fmt_en_01", "category": "format", "lang": "en", "format": "json", "prompt": "Return only a JSON object with keys \"city\" and \"country\" for the capital of Spain."}
+{"id": "fmt_en_02", "category": "format", "lang": "en", "format": "json", "prompt": "Return only a valid JSON array of three numbers: [1, 2, 3]."}
+{"id": "fmt_en_03", "category": "format", "lang": "en", "format": "list", "prompt": "List three countries in Europe, one per line, each prefixed with '- '."}
+{"id": "fmt_en_04", "category": "format", "lang": "en", "format": "list", "prompt": "Give three programming languages, one per line."}
+{"id": "fmt_en_05", "category": "format", "lang": "en", "format": "one_line", "prompt": "Write a single short sentence describing a forest."}
+{"id": "fmt_en_06", "category": "format", "lang": "en", "format": "one_line", "prompt": "Answer in exactly one line: what is the boiling point of water in Celsius?"}
+{"id": "fmt_en_07", "category": "format", "lang": "en", "format": "json", "prompt": "Return only JSON with key \"answer\" whose value is the number of days in a week."}
+{"id": "fmt_en_08", "category": "format", "lang": "en", "format": "list", "prompt": "Give a bulleted list of two breakfast foods, one per line."}
+{"id": "gen_fr_01", "category": "general", "lang": "fr", "prompt": "Explique en deux phrases ce qu'est un réseau de neurones."}
+{"id": "gen_fr_02", "category": "general", "lang": "fr", "prompt": "Résume en une phrase la différence entre un CPU et un GPU."}
+{"id": "gen_fr_03", "category": "general", "lang": "fr", "prompt": "Écris un haïku sur la pluie."}
+{"id": "gen_fr_04", "category": "general", "lang": "fr", "prompt": "Donne trois conseils pour améliorer son sommeil."}
+{"id": "gen_fr_05", "category": "general", "lang": "fr", "prompt": "Explique la photosynthèse en deux phrases."}
+{"id": "gen_fr_06", "category": "general", "lang": "fr", "prompt": "Décris la gravité en une phrase."}
+{"id": "gen_fr_07", "category": "general", "lang": "fr", "prompt": "Propose un plan de repas équilibré pour une journée."}
+{"id": "gen_fr_08", "category": "general", "lang": "fr", "prompt": "Explique ce qu'est une table de hachage."}
+{"id": "gen_fr_09", "category": "general", "lang": "fr", "prompt": "Raconte en trois phrases pourquoi les saisons changent."}
+{"id": "gen_fr_10", "category": "general", "lang": "fr", "prompt": "Décris en une phrase ce qu'est un modèle de diffusion."}
+{"id": "gen_en_01", "category": "general", "lang": "en", "prompt": "What are three benefits of regular exercise?"}
+{"id": "gen_en_02", "category": "general", "lang": "en", "prompt": "Explain the difference between a list and a tuple in Python."}
+{"id": "gen_en_03", "category": "general", "lang": "en", "prompt": "Summarize the water cycle in two sentences."}
+{"id": "gen_en_04", "category": "general", "lang": "en", "prompt": "Give two tips for writing clear commit messages."}
+{"id": "gen_en_05", "category": "general", "lang": "en", "prompt": "What is the difference between weather and climate?"}
+{"id": "gen_en_06", "category": "general", "lang": "en", "prompt": "Explain what a hash table is."}
+{"id": "gen_en_07", "category": "general", "lang": "en", "prompt": "Describe in two sentences how a bicycle works."}
+{"id": "gen_en_08", "category": "general", "lang": "en", "prompt": "List three reasons to learn statistics."}
+{"id": "gen_en_09", "category": "general", "lang": "en", "prompt": "Explain in one sentence what an embedding is in machine learning."}
+{"id": "gen_en_10", "category": "general", "lang": "en", "prompt": "Write a short paragraph about the invention of the printing press."}

@@ -2,9 +2,22 @@
 # Lancer depuis WSL : `cd vLLM && docker compose up`
 # (Docker Desktop/Engine avec runtime NVIDIA requis, GPU visible via `nvidia-smi` sous WSL.)
 #
-# Image : le support DiffusionGemma (blog vLLM 2026-06-10, PR #45163) est
-# fourni par le tag `gemma`, PAS par `latest` (non reproductible).
-# Surcharger via VLLM_IMAGE uniquement pour tester une image plus recente.
+# Image (defaut = config qui PRODUIT une generation, mesuree le 2026-10-19) :
+#   vllm/vllm-openai@sha256:251eba5cc7c12fed0b75da22a9240e582b1c9e39f6fbc064f86781b963bd814f
+#   (= tag `latest` au 2026-10-19, vLLM 0.24.0). Epinglee par digest : reproductible.
+#   Le tag `gemma` (vLLM 0.22.1rc1.dev357, support DiffusionGemma PR #45163) est
+#   INUTILISABLE sous WSL2 : son runner V2 exige UVA, et cette image refuse la
+#   memoire einglee sous WSL (platforms/interface.py:758) -> "UVA is not
+#   available" a l'init ; son runner V1 charge le modele mais crash a la 1re
+#   generation (scatter index -1, cf. vLLM/KNOWN_ISSUES.md).
+#   Surcharger via VLLM_IMAGE uniquement pour experimenter.
+#
+# Configuration par defaut (mesuree le 2026-10-19 sur RTX 5090 32 Go / WSL2) :
+#   --cpu-offload-gb 0 + --quantization fp8 (quantification A LA VOLEE des poids
+#   BF16) : 25,85 GiB de poids en VRAM, budget vLLM 0,92 x 31,84 GiB.
+#   Sans offload ni quantification, le modele (48,10 GiB) ne tient pas.
+#   ATTENTION : en FP8, toute comparaison de generation est faite EN FP8
+#   (pas en BF16).
 #
 # ENTRYPOINT de l'image : vllm/vllm-openai definit ENTRYPOINT ["vllm","serve"]
 # (verifie via `docker image inspect <image> --format '{{json .Config.Entrypoint}}'`).
@@ -23,7 +36,7 @@ name: jainius-vllm
 
 services:
   vllm:
-    image: ${VLLM_IMAGE:-vllm/vllm-openai:gemma}
+    image: ${VLLM_IMAGE:-vllm/vllm-openai@sha256:251eba5cc7c12fed0b75da22a9240e582b1c9e39f6fbc064f86781b963bd814f}
     container_name: jainius-vllm
     # vLLM recommande `ipc: host` (ou shm_size eleve) pour les conteneurs.
     ipc: host
@@ -50,21 +63,25 @@ services:
       - HF_TOKEN=${HF_TOKEN:-}
       # VLLM_WSL2_ENABLE_PIN_MEMORY=1 : reactive la memoire epinglee sous WSL2
       #   (desactivee par defaut sous WSL2), precondition d'UVA pour le runner
-      #   V2. Variable introduite dans vLLM main ; a verifier dans l'image via
-      #   ./diagnose_image.sh (peut y etre inconnue -> sans effet).
+      #   V2. CONNUE de l'image 0.24.0 (celle utilisee par defaut) -> c'est
+      #   elle qui permet au runner V2 de s'initialiser (sans elle : "UVA is
+      #   not available"). INCONNUE de l'image `gemma` (0.22.1rc1) -> sans
+      #   effet la-bas (et cette image refuse la memoire einglee sous WSL).
       - VLLM_WSL2_ENABLE_PIN_MEMORY=${VLLM_WSL2_ENABLE_PIN_MEMORY:-1}
       # CUDA_LAUNCH_BLOCKING=0 : defaut (execution parallele). Mettre a 1 pour
       #   debug GPU : synchronise les lances CUDA, ralentit mais localise le
       #   crash reel (les erreurs CUDA sont asynchrones).
       - CUDA_LAUNCH_BLOCKING=${CUDA_LAUNCH_BLOCKING:-0}
       # VLLM_ENFORCE_EAGER=1 : desactive les CUDA graphs (--enforce-eager).
-      #   Etait NECESSAIRE avec le runner V1 + offload CPU sous WSL2
-      #   (test du 2026-10-18). Defaut 1 ; le flag n'est passe que si =1.
+      #   Necessaire avec le runner V1 + offload CPU sous WSL2 (2026-10-18) ;
+      #   conserve a 1 pour la config FP8 mesuree le 2026-10-19. Le flag
+      #   n'est passe que si =1.
       - VLLM_ENFORCE_EAGER=${VLLM_ENFORCE_EAGER:-1}
       # Override runner V1 : NE PAS definir VLLM_USE_V2_MODEL_RUNNER ici
       #   (le runner V2 est le defaut de vLLM). Pour forcer le runner V1
-      #   (DECONSEILLE : le test du 2026-10-18 a montre que la 1re generation
-      #   plante avec une assertion GPU scatter/gather), definir dans .env :
+      #   (INUTILE ici : le 2026-10-18 a montre que la 1re generation plante
+      #   avec une assertion GPU scatter/gather — voir vLLM/KNOWN_ISSUES.md,
+      #   E0), definir dans .env :
       #     VLLM_USE_V2_MODEL_RUNNER_OVERRIDE=0
       - VLLM_USE_V2_MODEL_RUNNER_OVERRIDE=${VLLM_USE_V2_MODEL_RUNNER_OVERRIDE:-}
       # Allocation memoire PyTorch (configurable via .env).
@@ -80,16 +97,18 @@ services:
     # `$$` = littéral `$` pour le SHELL du conteneur (Compose interpole tout
     # `$VAR`/`${VAR}` AVANT ; seul `$$` lui échappe). Sont interpolés par
     # Compose (valeurs du .env) : ${VLLM_SERVED_MODEL_NAME:-jainius},
-    # ${VLLM_DTYPE:-bfloat16}, ${VLLM_CPU_OFFLOAD_GB:-30},
-    # ${VLLM_MAX_MODEL_LEN:-4096}, ${VLLM_MAX_NUM_SEQS:-1},
-    # ${VLLM_GPU_MEMORY_UTILIZATION:-0.90}, ${VLLM_ENFORCE_EAGER:-1},
-    # ${VLLM_EXTRA_ARGS:-}. Sont lus par le shell : $$EAGER (interne),
-    # $${VLLM_USE_V2_MODEL_RUNNER_OVERRIDE} (passe par environment:).
+    # ${VLLM_DTYPE:-bfloat16}, ${VLLM_CPU_OFFLOAD_GB:-0},
+    # ${VLLM_MAX_MODEL_LEN:-2048}, ${VLLM_MAX_NUM_SEQS:-1},
+    # ${VLLM_GPU_MEMORY_UTILIZATION:-0.92}, ${VLLM_ENFORCE_EAGER:-1},
+    # ${VLLM_EXTRA_ARGS:---quantization fp8}. Sont lus par le shell : $$EAGER
+    # (interne), $${VLLM_USE_V2_MODEL_RUNNER_OVERRIDE} (passe par environment:).
+    # ATTENTION : ${VLLM_EXTRA_ARGS:---quantization fp8} n'est PAS quote : le
+    # shell doit le decouper en deux arguments ("--quantization", "fp8").
     command:
       - >-
         [ -n "$${VLLM_USE_V2_MODEL_RUNNER_OVERRIDE:-}" ] && export VLLM_USE_V2_MODEL_RUNNER="$$VLLM_USE_V2_MODEL_RUNNER_OVERRIDE" ;
         EAGER="" ;
         [ "${VLLM_ENFORCE_EAGER:-1}" = "1" ] && EAGER="--enforce-eager" ;
-        exec vllm serve /data/Jainius --served-model-name "${VLLM_SERVED_MODEL_NAME:-jainius}" --host 0.0.0.0 --port 8000 --dtype "${VLLM_DTYPE:-bfloat16}" --cpu-offload-gb "${VLLM_CPU_OFFLOAD_GB:-30}" --max-model-len "${VLLM_MAX_MODEL_LEN:-4096}" --max-num-seqs "${VLLM_MAX_NUM_SEQS:-1}" --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.90}" $${EAGER} ${VLLM_EXTRA_ARGS:-}
+        exec vllm serve /data/Jainius --served-model-name "${VLLM_SERVED_MODEL_NAME:-jainius}" --host 0.0.0.0 --port 8000 --dtype "${VLLM_DTYPE:-bfloat16}" --cpu-offload-gb "${VLLM_CPU_OFFLOAD_GB:-0}" --max-model-len "${VLLM_MAX_MODEL_LEN:-2048}" --max-num-seqs "${VLLM_MAX_NUM_SEQS:-1}" --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.92}" $${EAGER} ${VLLM_EXTRA_ARGS:---quantization fp8}
 volumes:
   vllm-hf-cache:

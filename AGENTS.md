@@ -80,8 +80,11 @@ python scripts/verify_checkpoint.py --checkpoint checkpoints/Jainius
 
 - **Source** : Qin et al., "Enhancing Diffusion Language Models with Autoregressive Post-Training Weights", arXiv:2610.08108, 2026 (EPFL)
 - **Principe** : τ_A = A_p − A_b ajouté aux couches decoder de DiffusionGemma (mapping par nom). Ablation « Dp + ατA » (Tab. 9), PAS `D_p + λ(τ_A − τ_D)` (τ_D inexistant publiquement).
-- **α=0.3** par défaut (balayage 0.05–0.5 via `measure_effect.py`). L'ancien défaut 0.8 dégradait SLAKE (83.1 → 79.3).
-- **656 tenseurs** fusionnés max, **391 tenseurs** inchangés (encoder vision). Variante papier `--exclude-norms-embed` (embeddings/norms inchangés).
+- **α=0.3** par défaut (balayage 0.05–0.5 via `measure_effect.py`). L'ancien défaut 0.8 dégradait SLAKE (83.1 → 79.3) **et produisait un texte dégénéré** : le checkpoint livré avant le 2026-10-19 était en réalité fusionné à α=0.8 (mesuré : `α_eff = ||Jainius − D_p|| / ||τ_A|| = 0,80`). Refusion à α=0.3 → 0 % de répétitions sur 103 prompts.
+- **355 tenseurs** fusionnés / **692 inchangés** par défaut (embeddings, norms, routeur MoE, encoder vision inchangés = variante papier). Variante `--include-norms-embed` : 656 fusionnés / 391 inchangés.
+- **Validé sur GPU le 2026-10-19** : seule config qui produit une génération sur cette machine = image vLLM 0.24.0 épinglée par digest + `--quantization fp8` (quantification à la volée, 25,85 GiB en VRAM) + `--cpu-offload-gb 0` + `--max-model-len 2048` (runner V2, `--enforce-eager`). Outils : `vLLM/smoke_chat.py`, `scripts/eval_compare.py`, `eval/prompts.jsonl` (103 prompts), résultats `eval/RESULTS.md`.
+- **Aucun gain vs `D_p`** (mesuré) : Jainius α=0.3 → 88,1 % de justesse / 21,1 tok/s ; `D_p` → 100 % / 116,4 tok/s. `D_p` reste le témoin.
+- **τ_A non recalculable sur cette machine** : `safetensors.safe_open` pré-fault la projection du shard AR de 46,5 GiB, au-delà des 30 GiB de RAM de la VM WSL2 → ENOMEM. `compute_tau_a.py` exige ≥ 50 Go de RAM disponibles (`.wslconfig` : `[wsl2] memory=64GB`). Un parseur safetensors maison est interdit (`.cursorrules`).
 
 ### Outils disponibles
 

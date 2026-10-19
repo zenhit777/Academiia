@@ -67,14 +67,25 @@ python smoke_chat.py    # autre terminal ; stdlib uniquement
    le point affiché par défaut est trompeur), puis
    `docker logs --tail 200 jainius-vllm`.
 
-## Lancer les diagnostics depuis Windows
+## Qui exécute quoi (WSL / Windows)
 
-Vérifié le 2026-10-19 depuis un shell WSL : `docker --version` (29.6.1) et
-`nvidia-smi` (RTX 5090, 32 607 MiB) répondent directement ; `wsl.exe -e
-nvidia-smi` échoue (`execvpe(nvidia-smi) failed`) car on est déjà dans WSL.
-Depuis Windows (PowerShell/CMD), les commandes WSL s'invoquent via
-`wsl.exe -e <cmd>` (p. ex. `wsl.exe -e docker compose -f vLLM/docker-compose.yml config`).
-Non testé depuis un shell Windows natif ce jour.
+- **Exécution GPU (agent de dev, ops vLLM) : dans WSL2**, distribution
+  **Ubuntu** 24.04 (le nom de machine hôte « Morpheus » n'est pas le nom de la
+  distribution). Mesuré le 2026-10-19 depuis ce shell : `docker --version`
+  (29.6.1, Compose v5.1.4) et `nvidia-smi` (RTX 5090, 32 607 MiB) répondent
+  **directement**, sans passer par Windows.
+- **Revue côté Windows (PowerShell/CMD) : sans Docker** — la relecture
+  documentaire et les diffs git n'exigent ni GPU ni runtime Docker. Les
+  commandes Linux restent invocables depuis Windows via `wsl.exe -e <cmd>`
+  (p. ex. `wsl.exe -e docker compose -f vLLM/docker-compose.yml config`).
+  Depuis WSL, `wsl.exe -e …` échoue (`execvpe(nvidia-smi) failed`) : on est
+  déjà dans WSL, les commandes se lancent directement.
+
+> **RAM WSL2 : 30 GiB au total, ~29 GiB disponibles** (`free -h`, mesuré le
+> 2026-10-19). Le checkpoint fait 48,14 GiB : en BF16, `--cpu-offload-gb 30`
+> est **impossible** ici (30 GiB de RAM pour les poids seuls, hors tampons).
+> Voir `../GUIDE_RESTANT.md` (les trois chiffres : poids / budget vLLM /
+> VRAM).
 
 ## Règle VRAM (LM Studio) — pour les agents
 

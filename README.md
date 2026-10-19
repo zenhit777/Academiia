@@ -11,11 +11,13 @@ celui-ci exigerait τ_D (base diffusion publique, inexistante). Le nom
 
 ```
 tau_A = Gemma4_IT − Gemma4_Base          # vecteur tâche AR post-training
-Jainius = DiffusionGemma + 0.8 * tau_A_mapped
+Jainius = DiffusionGemma + 0.3 * tau_A_mapped
 ```
 
-- **656 tenseurs** : couches decoder de Gemma 4 → DiffusionGemma, shapes alignées, τ_A appliqué (α=0.8)
-- **391 tenseurs** : encoder vision, router, etc. — inchangés (pas d'équivalent dans Gemma 4)
+- **α = 0.3** (défaut ; 0.8 est déprécié — il produit un texte dégénéré, cf. « Évaluation par génération »)
+- **355 tenseurs** : projections decoder de Gemma 4 → DiffusionGemma, shapes alignées, τ_A appliqué
+- **692 tenseurs** : inchangés (embeddings, normalisations, routeur MoE, encoder vision)
+- Variante `--include-norms-embed` : 656 tenseurs fusionnés / 391 inchangés (embeddings et norms inclus)
 
 ## Workflow reproductible
 
@@ -24,6 +26,8 @@ Jainius = DiffusionGemma + 0.8 * tau_A_mapped
 python scripts/download_models.py --output-dir ./checkpoints
 
 # 2. Calculer tau_A = A_p - A_b (~10 min, ~3 GB RAM peak)
+#    ATTENTION : safetensors pré-fault la projection du shard AR de 46,5 GiB ->
+#    il faut >= 50 Go de RAM disponibles (sur WSL2 : memory= dans .wslconfig)
 python scripts/compute_tau_a.py \
     --base ./checkpoints/gemma4_base \
     --posttrained ./checkpoints/gemma4_it \
@@ -48,19 +52,52 @@ python scripts/verify_checkpoint.py --checkpoint ./checkpoints/Jainius
 
 ## Résultats
 
-| | DiffusionGemma original | Jainius (rebuild v2 2026-10-16) |
+| | DiffusionGemma original (D_p) | Jainius (α=0.3, 2026-10-19) |
 |--|---|---|
 | Tenseurs | 1047 (11 fichiers) | 1047 (11 fichiers) |
-| Taille | ~52 Go | ~51.6 Go |
-| Format | BF16 | **BF16** ✓ (strict, vérifié) |
-| A2D appliqué | — | **656 tenseurs** (391 inchangés, bit-identiques) |
+| Format | BF16 | **BF16** ✓ (strict : 11/11 shards, en-têtes « BF16 ») |
+| Conformité à la source | — | ✓ (`verify_checkpoint.py --reference` : 1047 tenseurs, 0 écart de shape/dtype) |
+| A2D appliqué | — | **355 tenseurs** (692 inchangés, bit-identiques) |
+| Provenance | — | `merge_config.json` (α, variante, date, commit) |
 
 ## Limites
 
- - A2D n'est appliqué que sur les 656 tenseurs decoder (les 391 tenseurs encoder vision restent inchangés). Contrairement au papier (embeddings/norms/output-head inchangés), le mapping par défaut inclut `embed_tokens` et les normalisations — voir variante `--include-norms-embed` (papier) et `scripts/measure_effect.py`.
- - vLLM (WSL2, 2026-10-18) : avec le runner V1 forcé (`VLLM_USE_V2_MODEL_RUNNER=0`) + `--enforce-eager` + offload 30 Go, le serveur démarre et charge Jainius, mais la première génération échoue (assert GPU scatter/gather). Cause probable non prouvée : incompatibilité du runner V1 avec la diffusion. Le compose force désormais le runner V2 (défaut vLLM) — à valider sur GPU, avec témoin `D_p`. Voir `vLLM/KNOWN_ISSUES.md`.
-- α=0.8 était le défaut historique (rebuild v2) mais dégrade SLAKE de 3.8 pts dans le papier (83.1 → 79.3) pour `Dp + ατA`. Le papier retient 0.1–0.3 en merge et jusqu'à 1.0 en transfert de domaine — d'où le balayage 0.05–0.5 recommandé et le défaut actuel 0.3. Aucun gain démontré à ce jour : `D_p` reste le témoin.
-- Poids dérivés de Gemma : soumis aux conditions d'utilisation Gemma (à rappeler dans la model card avant publication).
+ - A2D n'est appliqué qu'aux projections decoder (355 tenseurs sur 1047) : embeddings, normalisations, routeur MoE et encoder vision restent ceux de D_p. C'est la variante papier (embeddings/norms inchangés) ; la variante `--include-norms-embed` fusionne 656 tenseurs (391 inchangés) et a été mesurée elle aussi (voir « Évaluation par génération »).
+ - **Aucun gain démontré** : sur 103 prompts, Jainius (α=0.3) est moins bon que D_p sur la justesse des réponses (88,1 % contre 100 %) et 5,5× plus lent. `D_p` reste le témoin ; le merge A2D tel qu'implémenté ici dégrade le modèle de diffusion.
+ - α=0.8 (défaut historique, rebuild v2) ne produit pas un texte cohérent : il perturbe les projections d'attention de ~50 % de leur norme. α=0.3 est le coefficient retenu.
+ - Les mesures de génération ont été faites en **FP8** (quantification à la volée) : c'est la seule configuration qui tient dans 32 Go de VRAM, le modèle en BF16 faisant 48,1 GiB. Le comportement en BF16 n'est pas mesuré. Le runner v1 est inutilisable (crash scatter CUDA, cf. `vLLM/KNOWN_ISSUES.md`).
+- `tau_A` ne peut pas être recalculé sur cette machine : `safetensors.safe_open` pré-fault la projection du shard de 46,5 GiB des checkpoints AR, au-delà des 30 GiB de RAM de la VM WSL2 (ENOMEM). Augmenter `memory=` dans `%UserProfile%\.wslconfig` (≥ 64 Go) débloque l'étape 2 du workflow.
+- Poids dérivés de Gemma : soumis aux conditions d'utilisation Gemma (https://ai.google.dev/gemma/docs/gemma_4_license). Les repos sources (`google/gemma-4-26B-A4B`, `google/gemma-4-26B-A4B-it`, `google/diffusiongemma-26B-A4B-it`) ne publient **aucun fichier LICENSE** (vérifié le 2026-10-19) : rien à recopier, la model card déclare `apache-2.0` + le lien des conditions Gemma.
+
+## Évaluation par génération (2026-10-19)
+
+Serveur vLLM 0.24.0 (image épinglée par digest), RTX 5090 32 Go, WSL2/Ubuntu 24.04,
+`--quantization fp8`, `--max-model-len 2048`, `--max-num-seqs 1`, `--enforce-eager`,
+`max_tokens=128`, `temperature=0`, 103 prompts (`eval/prompts.jsonl` : faits FR/EN,
+maths, formats de sortie, questions libres).
+
+| Métrique | D_p (témoin) | Jainius α=0.3 | Jainius α=0.3 + norms/embed | Jainius α=0.8 (ancien build) |
+|---|---|---|---|---|
+| Requêtes OK | 103/103 | 103/103 | 3/3 (smoke) | HTTP 200 mais texte dégénéré |
+| Réponses non vides | 100 % | 100 % | 100 % | 100 % |
+| Répétitions dégénérées | 0 % | 0 % | 0 % | 100 % |
+| Valeur attendue présente | **100 %** | 88,1 % (faits 83,3 %, maths 100 %) | — (smoke) | — |
+| Format respecté | 93,8 % | 75,0 % | — | — |
+| Latence moyenne | 405 ms | 2 120 ms | ≈ 2 100 ms | — |
+| Débit | 116,4 tok/s | 21,1 tok/s | ≈ 20 tok/s | — |
+
+Lecture : α=0.3 rend un texte cohérent (α=0.8 non), mais **n'améliore pas** le
+témoin — les erreurs restantes sont des corruptions de tokens (« Can로 » pour
+« Canberra », « New area » pour « New Delhi »), symptomatiques d'un modèle de
+diffusion moins « peaked ». Le ralentissement d'un facteur ~5,5 est cohérent avec
+le sampler's data-dependent (arrêt anticipé sur `confidence_threshold` /
+`stability_threshold`, `max_denoising_steps=48` par défaut) : moins confiant ⇒
+plus d'itérations de débruitage par token. Le sampler étant stochastique même à
+`temperature=0`, la justesse de Jainius varie d'une exécution à l'autre
+(91,0 % puis 88,1 % sur deux passes) ; `D_p` est resté à 100 %.
+
+Détail des métriques et réponses : `eval/results_Dp.json`,
+`eval/results_jainius_a03.json`, rapport `eval/RESULTS.md`.
  ## Mesure Dp + α·τ_A après arrondi BF16 (v2, 2026-10-17)
 
  Le script `scripts/measure_effect.py` rapporte, en plus du % d'éléments modifiés,
