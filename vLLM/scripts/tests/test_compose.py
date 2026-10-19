@@ -15,6 +15,9 @@ Vérifie :
   - (5) aucun ${...}/$VAR résiduel inattendu dans le script interpolé ;
   - VLLM_USE_V2_MODEL_RUNNER absent de environment: ;
   - override runner exporté seulement s'il est défini ;
+  - PYTORCH_CUDA_ALLOC_CONF configurable : defaut si la variable n'est pas
+    définie, valeur VIDE conservée si elle est définie vide (forme `${V-d}`,
+    PAS `${V:-d}` qui réappliquerait le défaut) ;
   - si `docker compose` est disponible : la commande RÉSOLUE contient
     bien $${EAGER} (échappé pour le shell), sinon test skipped.
 """
@@ -161,6 +164,86 @@ def test_runner_override_exported_only_when_set():
     assert runner == "0"
     runner, _ = run_script({})
     assert runner == "<unset>", f"override fuiterait dans le défaut : {runner}"
+
+
+# --- PYTORCH_CUDA_ALLOC_CONF configurable (variable d'env du conteneur) ---
+
+ALLOC_VAR = "PYTORCH_CUDA_ALLOC_CONF"
+ALLOC_DEFAULT = "expandable_segments:True"
+
+
+def alloc_entry() -> str:
+    """Entrée environment: de PYTORCH_CUDA_ALLOC_CONF (forme 'CLE=valeur')."""
+    for entry in load_compose()["services"]["vllm"]["environment"]:
+        if entry.split("=", 1)[0] == ALLOC_VAR:
+            return entry
+    raise AssertionError(f"{ALLOC_VAR} absent de environment:")
+
+
+def resolve_alloc(env: dict[str, str]) -> str:
+    """Valeur résolue de l'entrée environment: (interpolation Compose)."""
+    value = alloc_entry().split("=", 1)[1]
+    return compose_interpolate(value, env)
+
+
+def test_alloc_conf_uses_dash_form_not_colon_form():
+    """`${V-d}` (défaut si NON définie) et NON `${V:-d}` (défaut si vide).
+
+    Avec `${V:-d}`, une ligne `PYTORCH_CUDA_ALLOC_CONF=` (vide) dans .env
+    serait réécrite par le défaut -> impossible de désactiver
+    `expandable_segments` (cf. expérience E1 du 2026-10-19).
+    """
+    value = alloc_entry().split("=", 1)[1]
+    expected_form = "${" + ALLOC_VAR + "-"
+    forbidden_form = "${" + ALLOC_VAR + ":-"
+    assert expected_form in value, f"forme attendue {expected_form}defaut : {value}"
+    assert forbidden_form not in value, (
+        f"forme {forbidden_form}defaut réapplique le défaut à une valeur vide : {value}"
+    )
+
+
+def test_alloc_conf_default_when_undefined():
+    assert resolve_alloc({}) == ALLOC_DEFAULT
+
+
+def test_alloc_conf_empty_value_is_preserved():
+    """Valeur vide dans .env => variable vide (expandable_segments désactivé)."""
+    assert resolve_alloc({ALLOC_VAR: ""}) == ""
+
+
+def test_alloc_conf_override_value():
+    assert resolve_alloc({ALLOC_VAR: "garbage_fragment:1234"}) == "garbage_fragment:1234"
+
+
+def test_compose_config_resolves_alloc_conf(tmp_path):
+    """Vérifie la résolution RÉELLE par `docker compose config` (3 cas)."""
+    if shutil.which("docker") is None:
+        pytest.skip("docker compose non disponible sur cette machine")
+    env = {k: v for k, v in os.environ.items() if k != ALLOC_VAR}
+    cases = {
+        "defaut": None,  # variable non définie -> défaut du compose
+        "vide": "",
+        "surcharge": "garbage_fragment:1234",
+    }
+    for label, value in cases.items():
+        env_file = tmp_path / f"env_{label}"
+        content = "" if value is None else f"{ALLOC_VAR}={value}\n"
+        env_file.write_text(content, encoding="utf-8")
+        proc = subprocess.run(
+            ["docker", "compose", "--env-file", str(env_file), "config"],
+            cwd=COMPOSE_PATH.parent, capture_output=True, text=True, timeout=120, env=env,
+        )
+        assert proc.returncode == 0, f"docker compose config a échoué ({label}) : {proc.stderr}"
+        resolved = [
+            line.split(":", 1)[1].strip().strip('"')
+            for line in proc.stdout.splitlines()
+            if line.strip().startswith(f"{ALLOC_VAR}:")
+        ]
+        assert len(resolved) == 1, f"entrée {ALLOC_VAR} introuvable/dupliquée : {resolved}"
+        expected = ALLOC_DEFAULT if value is None else value
+        assert resolved[0] == expected, (
+            f"{label} : {ALLOC_VAR} résolu à {resolved[0]!r}, attendu {expected!r}"
+        )
 
 
 # --- docker compose config (si disponible) ---

@@ -67,8 +67,14 @@ services:
       #   plante avec une assertion GPU scatter/gather), definir dans .env :
       #     VLLM_USE_V2_MODEL_RUNNER_OVERRIDE=0
       - VLLM_USE_V2_MODEL_RUNNER_OVERRIDE=${VLLM_USE_V2_MODEL_RUNNER_OVERRIDE:-}
-      # Evite les surprises d'allocation memoire PyTorch dans le conteneur.
-      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+      # Allocation memoire PyTorch (configurable via .env).
+      # Forme `${VAR-defaut}` (SANS « : ») : le defaut ne s'applique que si la
+      # variable n'est PAS definie ; une valeur VIDE dans .env reste vide
+      # (permet de desactiver `expandable_segments`, cf. experience E1 du
+      # 2026-10-19). La forme `${VAR:-defaut}` re-mettrait le defaut des qu'une
+      # valeur vide est presente dans .env -> la variable ne serait pas
+      # desactivable.
+      - PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF-expandable_segments:True}
     # Pas de restart auto : un OOM doit se voir, pas boucler.
     restart: "no"
     # `$$` = littéral `$` pour le SHELL du conteneur (Compose interpole tout
