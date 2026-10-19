@@ -41,7 +41,8 @@ explicites ; le runner V1 ne se force que via `VLLM_USE_V2_MODEL_RUNNER_OVERRIDE
 dans `.env` (déconseillé). Voir l'arbre de décision dans `README.md`.
 ## 2026-10-19 (WSL2, RTX 5090 32 Go) — runner V2 : faits nouveaux
 
-**Diagnostiqué puis exécuté (sorties brutes dans le rapport J4Bis-bis) :**
+**Diagnostiqué puis exécuté (sorties brutes dans le rapport
+J4Bis-bis : `vLLM/RAPPORT_J4BIS-BIS.md`, sources `_artefact/vllm_test/`) :**
 - `gemma` (vLLM 0.22.1rc1.dev357) : `VLLM_WSL2_ENABLE_PIN_MEMORY` est
   **INCONNUE** de l'image — log serveur : `WARNING [envs.py:2111] Unknown
   vLLM environment variable detected: VLLM_WSL2_ENABLE_PIN_MEMORY` (le
