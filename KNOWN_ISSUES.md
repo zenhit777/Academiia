@@ -1,8 +1,41 @@
  # KNOWN_ISSUES.md — Anomalies du checkpoint Jainius (rebuild v2 en place, 2026-10-17)
 
+## 🆕 Mission J6 (2026-10-20) — bibliothèque A2D conforme + baseline Dream-7B
+
+- **Bibliothèque A2D** (`scripts/a2d/`, `scripts/merge_a2d.py`, `scripts/verify_merge.py`) :
+  transfert (eq. 1), merge (eq. 2), ablations `D_p + ατ_A` (Table 9) et `D_p − λτ_D` (Table 10) ;
+  τ **calculé à la volée** (paire de checkpoints ou adaptateur LoRA), **jamais persisté** ;
+  FP32 + un seul cast BF16 ; écriture atomique ; **vérification post-écriture obligatoire**
+  (`α_eff`/`λ_eff`, échec dur hors tolérance). 19 tests ajoutés (`scripts/tests/test_a2d_library.py`).
+- **Corrections documentaires (A2)** :
+  - « τ_D inexistant publiquement » est **faux** : `τ_D = D_p − D_b` est défini (§2.1) et, pour
+    DiffusionGemma, c'est le delta LoRA de post-training **publié**
+    (`gevaertlab/diffusiongemma-radiology-vqa`, r=64/α=128, experts/routeur/vision gelés —
+    vérifié dans `docs/VP_ADAPTERS.md`). Ce qui manque est la chaîne complète, pas la définition.
+  - « routeur inchangé » était **faux** : le build legacy fusionne 90 tenseurs de routeur
+    (355 = attn 115 + mlp 90 + experts 60 + routeur 90). Le routeur est une famille à part,
+    fusionnée par défaut et **déclarée** dans le manifeste.
+  - « Tab. 9 » : l'ablation `D_p + ατ_A` est bien la Table 9 du papier, mais le setup du
+    papier y suppose un `τ_A` **médical** (IT → médical) ; notre build utilise un `τ_A`
+    **général** (base → IT) ⇒ **ablation hors papier**, pas une reproduction.
+  - `D_b` pour DiffusionGemma = le checkpoint **IT** (aucun base diffusion public).
+  - J5 est marqué **non conforme** au protocole du papier (FP8, `temperature=0`, 128 tokens,
+    103 prompts de texte, sans juge) : c'est un contrôle de non-régression, pas une mesure.
+- **Géométrie des vecteurs (Table 21) reproduite** sur Qwen2.5-7B → Dream-7B (337 tenseurs du
+  backbone) : ‖τ_A‖ 23.01 (23.0), ‖τ_D‖ 31.47 (31.5), ‖Δ_b‖ 729.04 (729), ‖Δ_p‖ 732.14 (732),
+  cos(Δ_b,Δ_p) +0.9986 (+0.999), cos(τ_A,τ_D) +0.0130 (+0.013) — écarts ≤ 0,11 %.
+  Outil : `scripts/measure_geometry.py`.
+- **Baseline Dream-7B** : checkpoints téléchargés (`Qwen/Qwen2.5-7B[-Instruct]`,
+  `Dream-org/Dream-v0-{Base,Instruct}-7B`, identifiants HF vérifiés le 2026-10-19) ; harnais
+  d'évaluation = fork lm-eval de Dream (`DreamLM/Dream`, `eval_instruct/lm_eval`) dans un venv
+  **séparé** (`requirements-dream.txt`). Résultats partiels et écarts : `docs/reports/J6.md`.
+
 ## ✅ Suite audit Sonnet 2026-10-16 (appliquée, en attente du balayage α)
 
-- **Méthode renommée :** ce n'est PAS le A2D-Merge (`D_p + λ(τ_A − τ_D)`, τ_D inexistant publiquement) mais l'ablation `D_p + ατ_A` (Tab. 9). README/AGENTS corrigés, défaut **α=0.3** (0.8 déprécié : −3.8 pts SLAKE dans le papier).
+- **Méthode renommée (formulation 2026-10-16, révisée le 2026-10-20) :** ce n'est PAS le
+  A2D-Merge (`D_p + λ(τ_A − τ_D)`) mais l'ablation `D_p + ατ_A` — **hors papier**, cf. la
+  section J6 ci-dessus (τ_A général au lieu d'un vecteur de domaine, α non sélectionné sur
+  ancre). README/AGENTS corrigés, défaut **α=0.3** (0.8 déprécié : −3.8 pts SLAKE dans le papier).
  - **Parseur maison en retrait :** `compute_tau_a.py` + `merge_jainius.py` lisent via `safe_open`, helpers partagés `scripts/_common.py`. Le merge sauvegarde déjà en BF16 canonique.
 - **Merge durci :** shape mismatch → erreur par défaut, manifest `merge_config.json`, écriture atomique, nettoyage shards obsolètes (`--overwrite` exigé), recopie de TOUS les sidecars (LICENSE...), `total_size` dans l'index. `verify_checkpoint.py` : égalité index/headers exigée, contrôle bon-fichier par tenseur, `--check-values` NaN/Inf, HF files requis.
 - **Serving :** compose en forme shell (multi-flags `VLLM_EXTRA_ARGS` OK), image épinglée `vllm/vllm-openai:gemma`, `ipc: host`, `VLLM_MAX_MODEL_LEN=4096`, `MAX_NUM_SEQS=1`, `GPU_MEMORY_UTILIZATION=0.90`. `.gitignore` : `__pycache__/`, `*.pyc`, `.venv/`, `*.npy`.
@@ -34,7 +67,7 @@
  - **Reste (à cette date) :** pas de test d'inférence GPU (fait depuis : voir « Inférence GPU vLLM (2026-10-19) ») ; A2D partiel architectural (391 vision inchangés). `smoke_int8.py` : max_memory_allocated ajouté, docstring clarifié. **Ce build (α=0.8) a été remplacé le 2026-10-19 par le build α=0.3** (l'ancien produisait un texte dégénéré) ; `checkpoints/Jainius/merge_config.json` : α=0.3, 355 fusionnés / 692 inchangés.
 
 ## ℹ️ Limites non-bugs (inchangées)
-- A2D partiel : par défaut 355 tenseurs decoder fusionnés (embeddings/norms/routeur/encoder vision inchangés) ; variante `--include-norms-embed` : 656 fusionnés / 391 inchangés.
+- A2D partiel : par défaut 355 tenseurs decoder fusionnés (embeddings/norms/`layer_scalar`/encoder vision inchangés ; **le routeur EST fusionné** — 90 tenseurs, famille déclarée ; correction du 2026-10-20) ; variante `--include-norms-embed` : 656 fusionnés / 391 inchangés.
 
 ## ✅ Inférence GPU vLLM (2026-10-19) — validée, cause racine de la dégénérescence trouvée
 
@@ -52,6 +85,7 @@
   - τ_A a bien été **calculé sur cette machine le 2026-10-16** : `_artefact/logs/rebuild_tau.log` (171,5 s) et `rebuild2_tau.log` (172,4 s), 1013 tenseurs, sortie `_artefact/tau_a`. Ce calcul est **antérieur** au passage à `safe_open` (commit `16b6efa`, le même jour à 21:14) et à l'exigence de `tau_manifest.json` (2026-10-17) : les `.npy` n'ont donc jamais eu de manifest.
   - Le **2026-10-19**, ces `.npy` étaient présents et ont servi : mesure `alpha_eff = 0,799` (17:25-17:29) puis **les deux refusions** de la journée (17:30-17:43, α=0.3 variante par défaut → remplace `checkpoints/Jainius` ; 17:51-18:05, variante `--include-norms-embed`). Les deux ont tourné avec `--allow-missing-tau-manifest` : mapping par existence des `.npy`, **provenance non vérifiée par manifest** (annoncé explicitement dans `_artefact/vllm_test/merge_a03*.log`).
   - **État actuel (2026-10-19 18:34)** : `_artefact/tau_a` est **vide** (0 `.npy`, dossier modifié à 18:34:15) — nettoyé après la refusion ; le calcul du 16/10 n'est plus réutilisable.
-- **Conséquence** : le checkpoint livré est intact et vérifié (`merge_config.json` : α=0.3, 355/692 ; `verify_checkpoint.py` 11/11 [OK]) ; mais **tout nouvel α ou refusion exige de reconstituer τ_A avec son manifest**, impossible en l'état sur la VM à 30 GiB avec la version `safe_open` actuelle.
-- **Remède** : augmenter la RAM de la VM WSL2 (`%UserProfile%\.wslconfig` → `[wsl2] memory=64GB`, puis `wsl --shutdown`), ou re-découper les checkpoints AR en shards ≤ 20 GiB. Reconstruire ensuite `tau_a` par `scripts/compute_tau_a.py` (il écrit `tau_manifest.json`, exigé par le merge).
+- **Conséquence** : le checkpoint livré est intact et vérifié (`merge_config.json` : α=0.3, 355/692 ; `verify_checkpoint.py` 11/11 [OK]) ; mais **tout nouvel α ou refusion par le chemin LEGACY exige de reconstituer τ_A avec son manifest**, impossible en l'état sur la VM à 30 GiB avec la version `safe_open` actuelle.
+- **Contournement propre (2026-10-20) : la bibliothèque conforme n'est pas concernée.** `scripts/merge_a2d.py` recalcule τ_A **à la volée**, tenseur par tenseur, en FP32, sans jamais matérialiser le vecteur : la RAM reste bornée par la taille d'un tenseur, pas par celle du checkpoint. Le blocage mmap/RAM est donc propre au chemin legacy (`compute_tau_a.py` → `.npy`). La mission J6 l'a vérifié sur la famille Qwen2.5-7B → Dream-7B (shards ≤ 5 Go) : `scripts/measure_geometry.py` a recalculé ‖τ_A‖, ‖τ_D‖, ‖Δ_b‖, ‖Δ_p‖ et les cosinus **sans** écrire un seul `.npy` (résultat : reproduction de la Table 21 à ≤ 0,11 %).
+- **Remède (voie legacy)** : augmenter la RAM de la VM WSL2 (`%UserProfile%\.wslconfig` → `[wsl2] memory=64GB`, puis `wsl --shutdown`), ou re-découper les checkpoints AR en shards ≤ 20 GiB. Reconstruire ensuite `tau_a` par `scripts/compute_tau_a.py` (il écrit `tau_manifest.json`, exigé par le merge legacy).
 - **Interdit** : contourner par un parseur safetensors maison (`.cursorrules`). Ce contournement n'a pas été employé.

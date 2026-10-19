@@ -1,0 +1,54 @@
+# Tache GSM8K 0-shot conforme A2D App. A.1 (arXiv:2610.08108, PDF p. 17-20) :
+#  - system prompt A.1 (fourni via --system_instruction au lanceur) :
+#    "Solve the math problem with brief, direct reasoning. ... On the final line,
+#     write the answer as '#### <number>' and nothing else."
+#  - 0-shot, format "Q: {question}\n\nA:" (App. A.3)
+#  - extraction : nombre apres "#### " (format impose par le system prompt)
+#  - metrique : exact_match (identique au filtre strict-match de gsm8k_cot du fork Dream)
+# Dataset : gsm8k (main, test) — identique au fork.
+task: gsm8k_cot_a2d
+dataset_name: main
+dataset_path: gsm8k
+output_type: generate_until
+test_split: test
+num_fewshot: 0
+doc_to_text: 'Q: {{question}}
+
+  A:'
+doc_to_target: "{{answer.split('####')[-1].strip() if answer is defined else target}}"
+filter_list:
+# strict-match : le system prompt A.1 impose "#### <nombre>" (extraction "parseable")
+- filter:
+  - function: regex
+    group_select: -1
+    regex_pattern: '#### (\-?[0-9\.\,]+)'
+  - function: take_first
+  name: strict-match
+# flexible-extract : extraction numerique souple du harnais (repli de A2D App. A.3)
+- filter:
+  - function: regex
+    group_select: -1
+    regex_pattern: '(-?[$0-9.,]{2,})|(-?[0-9]+)'
+  - function: take_first
+  name: flexible-extract
+generation_kwargs:
+  do_sample: false
+  until:
+  - 'Q:'
+  - </s>
+  - <|im_end|>
+metric_list:
+- aggregation: mean
+  higher_is_better: true
+  ignore_case: true
+  ignore_punctuation: false
+  metric: exact_match
+  regexes_to_ignore:
+  - ','
+  - \$
+  - '(?s).*#### '
+  - \.$
+tag:
+- chain_of_thought
+metadata:
+  version: 3.0

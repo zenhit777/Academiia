@@ -1,31 +1,100 @@
-# Jainius — DiffusionGemma + vecteur instruction IT (ablation `Dp + ατA`, inspirée A2D)
+# Academiia — A2D (AR-to-Diffusion Transfer) sur DiffusionGemma et Dream-7B
 
-Checkpoint `Jainius` obtenu en appliquant à **DiffusionGemma** le vecteur
-tâche **τ_A = Gemma4_IT − Gemma4_Base**, suivant l'ablation « Dp + ατA »
-du papier [Qin et al., EPFL, 2026](docs/2610.08108v1%20-%20A2D%20(Enhancing%20diffusion%20language%20models%20with%20autoregressive%20post-training%20weights).pdf).
-Ce N'EST PAS le A2D-Merge complet du papier (`D_p + λ(τ_A − τ_D)`) :
-celui-ci exigerait τ_D (base diffusion publique, inexistante). Le nom
-« optimisé par A2D » des versions précédentes était donc abusif.
+Ce dépôt implémente la méthode **A2D** (Qin et al., EPFL, 2026,
+[arXiv:2610.08108](docs/2610.08108v1%20-%20A2D%20(Enhancing%20diffusion%20language%20models%20with%20autoregressive%20post-training%20weights).pdf)) :
+transférer un vecteur de tâche autoregressif vers un modèle de diffusion, puis composer
+ce transfert avec le vecteur de post-training du modèle de diffusion.
 
-## Principe
+**La spécification de référence est [`docs/A2D_SPEC.md`](docs/A2D_SPEC.md)** : équations,
+tableau des coefficients (Table 6 du papier), cibles chiffrées (Tables 1, 16, 21) et
+règles de mapping, chaque valeur référencée par son tableau/section.
+
+> **Note de statut (mission J6, 2026-10-20).** Le checkpoint `checkpoints/Jainius` est une
+> **ablation hors papier** : il applique à DiffusionGemma-IT le vecteur *général*
+> `τ_A = Gemma4_IT − Gemma4_Base` avec α = 0.3, alors que le papier (Tableaux 1b, 6, 9, 19)
+> étudie pour DiffusionGemma un vecteur **de domaine** (IT → médical, LoRA) et sélectionne
+> α ou λ **sur une tâche ancre**. Ce build n'est donc plus une référence scientifique ;
+> il reste un témoin de l'outillage legacy. Le pipeline conforme est
+> `scripts/merge_a2d.py` + `scripts/a2d/` (voir « Bibliothèque A2D »).
+
+## Trajectoire par portes
+
+| Porte | Contenu | Statut |
+|---|---|---|
+| **G1** | mécanique de fusion validée sur la paire publique Qwen2.5-7B → Dream-7B (Tableaux 6, 16, 21) | ouvert (J6) |
+| **G2** | reproduction du setup médical DiffusionGemma du papier (adaptateurs publiés, voir [`docs/VP_ADAPTERS.md`](docs/VP_ADAPTERS.md)) | **hors périmètre de J6** |
+| **G3** | raisonnement (hors papier : conception d'abord) | **hors périmètre de J6** |
+
+## Bibliothèque A2D (pipeline conforme)
 
 ```
-tau_A = Gemma4_IT − Gemma4_Base          # vecteur tâche AR post-training
-Jainius = DiffusionGemma + 0.3 * tau_A_mapped
+scripts/a2d/            # bibliothèque : mapping, sources de vecteurs, moteur de fusion
+scripts/merge_a2d.py    # CLI : transfert / merge / ablations
+scripts/verify_merge.py # vérification post hoc (alpha_eff, lambda_eff par famille)
 ```
 
-- **α = 0.3** (défaut ; 0.8 est déprécié — il produit un texte dégénéré, cf. « Évaluation par génération »)
-- **355 tenseurs** : projections decoder de Gemma 4 → DiffusionGemma, shapes alignées, τ_A appliqué
-- **692 tenseurs** : inchangés (embeddings, normalisations, routeur MoE, encoder vision)
-- Variante `--include-norms-embed` : 656 tenseurs fusionnés / 391 inchangés (embeddings et norms inclus)
-
-## Workflow reproductible
+* **Modes** : `transfer` (`D_b + α·τ_A`, eq. 1), `merge` (`D_p + λ·(τ_A − τ_D)`, eq. 2),
+  `ablation-dp-plus-tau-a` (Table 9), `ablation-dp-minus-tau-d` (Table 10).
+* **Sources de vecteur** : paire de checkpoints complets (τ = post − base) **ou** adaptateur
+  LoRA (`ΔW = (α/r)·B·A`, par module ; l'égalité avec `peft.merge_and_unload` est testée).
+* **τ n'est jamais persisté** : il est recalculé à la volée, tenseur par tenseur, en FP32
+  (3-4 handles `safe_open`) ; la provenance est portée par les hashes d'index des sources
+  dans le manifeste `merge_config.json`.
+* **Mapping** : identité (Qwen→Dream : *tous* les paramètres, embeddings et tête inclus) et
+  Gemma4→DiffusionGemma (vision, embeddings, normes, tête inchangés ; routeur = famille à
+  part, fusionné par défaut et déclaré).
+* α et λ ≥ 0 **sans plafond** (avertissement au-delà de 1.5) ; τ_D absent ⇒ le merge
+  dégénère en transfert (et le signale).
+* Arithmétique FP32, **un seul** cast BF16, écriture atomique, **vérification post-écriture
+  obligatoire** (`α_eff` / `λ_eff`, échec dur hors tolérance).
 
 ```bash
- # 1. Télécharger les checkpoints (~155 Go au total, mesuré : 3 × ~51.6 Go)
-python scripts/download_models.py --output-dir ./checkpoints
+# Transfert A2D (eq. 1) : D_b + alpha*tau_A
+python scripts/merge_a2d.py --mode transfer \
+    --diffusion-base checkpoints/dream_7b_base \
+    --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b \
+    --alpha 0.9 --mapping identity --output checkpoints/dream_transfer_a09
 
-# 2. Calculer tau_A = A_p - A_b (~10 min, ~3 GB RAM peak)
+# Merge A2D (eq. 2) : D_p + lambda*(tau_A - tau_D)
+python scripts/merge_a2d.py --mode merge \
+    --diffusion checkpoints/dream_7b_instruct \
+    --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b \
+    --tau-d-post checkpoints/dream_7b_instruct --tau-d-base checkpoints/dream_7b_base \
+    --lambda 0.6 --mapping identity --output checkpoints/dream_merge_l06
+
+# Verification post hoc (detecte un coefficient errone)
+python scripts/verify_merge.py --merged checkpoints/dream_transfer_a09 \
+    --reference checkpoints/dream_7b_base --mode transfer \
+    --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b --alpha 0.9
+```
+
+## Géométrie des vecteurs (Table 21 du papier) — reproduite
+
+`scripts/measure_geometry.py` recalcule, sur le backbone (attention + MLP + normes ;
+embeddings et tête exclus) :
+
+| Grandeur | Mesuré (J6) | Table 21 | Écart |
+|---|---|---|---|
+| ‖τ_A‖ | 23.01 | 23.0 | +0.05 % |
+| ‖τ_D‖ | 31.47 | 31.5 | −0.11 % |
+| ‖Δ_b‖ | 729.04 | 729 | +0.01 % |
+| ‖Δ_p‖ | 732.14 | 732 | +0.02 % |
+| cos(Δ_b, Δ_p) | +0.9986 | +0.999 | — |
+| cos(τ_A, τ_D) | +0.0130 | +0.013 | — |
+
+## Workflow legacy (Jainius, déprécié)
+
+`scripts/merge_jainius.py` est un **wrapper déprécié** de la bibliothèque ; il conserve son
+interface historique (τ en `.npy`, α borné à [0,1], manifeste `merge_config.json`).
+`scripts/compute_tau_a.py` est un **chemin legacy** (il persiste τ) : il n'est pas supprimé,
+mais le pipeline conforme ne s'en sert pas.
+
+```bash
+# 1. Télécharger les checkpoints (~155 Go au total, mesuré : 3 × ~51.6 Go)
+python scripts/download_models.py --output-dir ./checkpoints
+#    (famille Dream : --set dream)
+
+# 2. Calculer tau_A = A_p - A_b (~10 min, ~3 GB RAM peak)   [LEGACY]
 #    ATTENTION : safetensors pré-fault la projection du shard AR de 46,5 GiB ->
 #    il faut >= 50 Go de RAM disponibles (sur WSL2 : memory= dans .wslconfig)
 python scripts/compute_tau_a.py \
@@ -33,13 +102,13 @@ python scripts/compute_tau_a.py \
     --posttrained ./checkpoints/gemma4_it \
     --output-dir _artefact/tau_a
 
-# 3. Mesurer l'effet reel apres arrondi BF16 (CPU seul, recommande avant merge)
+# 3. Mesurer l'effet reel apres arrondi BF16 (CPU seul)   [LEGACY]
 python scripts/measure_effect.py \
     --diffusiongemma ./checkpoints/diffusiongemma_it \
     --tau-dir _artefact/tau_a \
     --alphas 0.05,0.1,0.2,0.3,0.5,0.8
 
-# 4. Appliquer le merge Dp + alpha*tau_A (~15 min, ~5 GB RAM peak)
+# 4. Appliquer le merge Dp + alpha*tau_A (~15 min, ~5 GB RAM peak)   [LEGACY]
 python scripts/merge_jainius.py \
     --diffusiongemma ./checkpoints/diffusiongemma_it \
     --tau-dir _artefact/tau_a \
@@ -50,26 +119,60 @@ python scripts/merge_jainius.py \
 python scripts/verify_checkpoint.py --checkpoint ./checkpoints/Jainius
 ```
 
-## Résultats
+## Principe du build legacy
+
+```
+tau_A = Gemma4_IT − Gemma4_Base          # vecteur tâche AR post-training
+Jainius = DiffusionGemma + 0.3 * tau_A_mapped
+```
+
+- **α = 0.3** (défaut ; 0.8 est déprécié — il produit un texte dégénéré, cf. « Évaluation par génération »)
+- **355 tenseurs** : projections decoder de Gemma 4 → DiffusionGemma, shapes alignées, τ_A appliqué
+  (attention 115, MLP 90, experts 60, **routeur 90**)
+- **692 tenseurs** : inchangés (embeddings, normalisations, `layer_scalar`, encoder vision)
+- Variante `--include-norms-embed` : 656 tenseurs fusionnés / 391 inchangés (embeddings et norms inclus)
+
+## Résultats (build legacy Jainius)
 
 | | DiffusionGemma original (D_p) | Jainius (α=0.3, 2026-10-19) |
 |--|---|---|
 | Tenseurs | 1047 (11 fichiers) | 1047 (11 fichiers) |
 | Format | BF16 | **BF16** ✓ (strict : 11/11 shards, en-têtes « BF16 ») |
 | Conformité à la source | — | ✓ (`verify_checkpoint.py --reference` : 1047 tenseurs, 0 écart de shape/dtype) |
-| A2D appliqué | — | **355 tenseurs** (692 inchangés, bit-identiques) |
+| Vecteur appliqué | — | **355 tenseurs** (attn 115, mlp 90, experts 60, **routeur 90**) ; 692 inchangés, bit-identiques |
 | Provenance | — | `merge_config.json` (α, variante, date, commit) |
 
-## Limites
+## Limites (build legacy)
 
- - A2D n'est appliqué qu'aux projections decoder (355 tenseurs sur 1047) : embeddings, normalisations, routeur MoE et encoder vision restent ceux de D_p. C'est la variante papier (embeddings/norms inchangés) ; la variante `--include-norms-embed` fusionne 656 tenseurs (391 inchangés) et a été mesurée elle aussi (voir « Évaluation par génération »).
+ - **Hors protocole du papier.** Ce build applique un vecteur **général** (base → IT général) à un
+   modèle **déjà post-entraîné** : c'est un *double comptage* par rapport au setup du papier, où
+   `τ_A` est un vecteur **de domaine** (IT → médical) et où le coefficient est choisi sur une
+   tâche ancre (Table 6 : α = 1.0 SLAKE / 0.7 VQA-RAD ; λ = 0.1 / 0.3). Voir
+   [`docs/A2D_SPEC.md`](docs/A2D_SPEC.md) et [`docs/VP_ADAPTERS.md`](docs/VP_ADAPTERS.md).
+ - **« τ_D inexistant » n'est plus exact.** `τ_D` est bien défini (`D_p − D_b`, §2.1) ; pour
+   DiffusionGemma il correspond au delta LoRA de post-training de domaine, **publié**
+   (`gevaertlab/diffusiongemma-radiology-vqa`, cf. `docs/VP_ADAPTERS.md`). Ce qui manque à ce
+   dépôt n'est pas τ_D mais la **chaîne complète** (adapters + merge + évaluation conforme).
+ - **Le routeur est fusionné** (90 tenseurs sur 355), contrairement à ce qu'indiquaient
+   `AGENTS.md`/`KNOWN_ISSUES.md` (« routeur inchangé »). C'est sans effet mesurable ici
+   (τ_routeur ≈ 0), mais la documentation est désormais alignée sur le code.
+ - A2D n'est appliqué qu'aux projections decoder (355 tenseurs sur 1047) : embeddings,
+   normalisations, `layer_scalar` et encoder vision restent ceux de D_p — conforme à
+   l'App. A.2 du papier (embeddings/normes/tête inchangés pour DiffusionGemma) ; la variante
+   `--include-norms-embed` fusionne 656 tenseurs (391 inchangés).
  - **Aucun gain démontré** : sur 103 prompts, Jainius (α=0.3) est moins bon que D_p sur la justesse des réponses (88,1 % contre 100 %) et 5,5× plus lent. `D_p` reste le témoin ; le merge A2D tel qu'implémenté ici dégrade le modèle de diffusion.
  - α=0.8 (défaut historique, rebuild v2) ne produit pas un texte cohérent : il perturbe les projections d'attention de ~50 % de leur norme. α=0.3 est le coefficient retenu.
  - Les mesures de génération ont été faites en **FP8** (quantification à la volée) : c'est la seule configuration qui tient dans 32 Go de VRAM, le modèle en BF16 faisant 48,1 GiB. Le comportement en BF16 n'est pas mesuré. Le runner v1 est inutilisable (crash scatter CUDA, cf. `vLLM/KNOWN_ISSUES.md`).
-- `tau_A` ne peut pas être recalculé sur cette machine : `safetensors.safe_open` pré-fault la projection du shard de 46,5 GiB des checkpoints AR, au-delà des 30 GiB de RAM de la VM WSL2 (ENOMEM). Augmenter `memory=` dans `%UserProfile%\.wslconfig` (≥ 64 Go) débloque l'étape 2 du workflow.
+- `tau_A` (chemin legacy, `.npy`) ne peut pas être recalculé sur cette machine : `safetensors.safe_open` pré-fault la projection du shard de 46,5 GiB des checkpoints AR, au-delà des 30 GiB de RAM de la VM WSL2 (ENOMEM). La **bibliothèque conforme** (`scripts/merge_a2d.py`) n'a pas ce problème : elle recalcule τ à la volée, tenseur par tenseur, sans jamais matérialiser le vecteur.
 - Poids dérivés de Gemma : soumis aux conditions d'utilisation Gemma (https://ai.google.dev/gemma/docs/gemma_4_license). Les repos sources (`google/gemma-4-26B-A4B`, `google/gemma-4-26B-A4B-it`, `google/diffusiongemma-26B-A4B-it`) ne publient **aucun fichier LICENSE** (vérifié le 2026-10-19) : rien à recopier, la model card déclare `apache-2.0` + le lien des conditions Gemma.
 
-## Évaluation par génération (2026-10-19)
+## Évaluation par génération (2026-10-19) — **non conforme au protocole du papier**
+
+Cette campagne (J5) **ne constitue pas une évaluation de qualité au sens de l'article** :
+FP8 à la volée au lieu de BF16, `temperature=0` au lieu du réglage natif (entropie, T = 0.1,
+top-p = 0.9), 128 tokens au lieu des budgets par tâche, 103 prompts de texte libre au lieu de
+IFEval/GSM8K/MATH-500, et **aucun juge**. Les chiffres ci-dessous sont des **contrôles de
+non-régression** entre deux checkpoints, pas des scores de benchmark.
 
 Serveur vLLM 0.24.0 (image épinglée par digest), RTX 5090 32 Go, WSL2/Ubuntu 24.04,
 `--quantization fp8`, `--max-model-len 2048`, `--max-num-seqs 1`, `--enforce-eager`,

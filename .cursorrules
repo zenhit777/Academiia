@@ -2,33 +2,45 @@
 
 ## Contexte
 
-Projet de recherche sur l'application A2D (AR-to-Diffusion Transfer) à DiffusionGemma.
+Projet de recherche sur l'application de la méthode A2D (AR-to-Diffusion Transfer,
+arXiv:2610.08108) à DiffusionGemma et Dream-7B. **La spécification de référence est
+[`docs/A2D_SPEC.md`](docs/A2D_SPEC.md)** (équations, Table 6, cibles des Tables 1/16/21) :
+la lire avant toute modification du pipeline de fusion.
 
 ## Fichiers clés
-
-- `AGENTS.md` → Instructions complètes pour les agents IA
-- `scripts/merge_jainius.py` → Script principal du merge A2D
-- `scripts/compute_tau_a.py` → Calcul du vecteur tâche τ_A
-- `./checkpoints/Jainius/` → Checkpoint final (BF16, prêt HuggingFace)
+- `docs/A2D_SPEC.md` → spécification de la méthode (source primaire : le PDF)
+- `docs/VP_ADAPTERS.md` → adaptateurs médicaux publiés (LoRA r=64, α=128) et dépôt de référence
+- `scripts/a2d/` → **bibliothèque A2D** (mapping, sources de vecteurs, moteur de fusion)
+- `scripts/merge_a2d.py` → **CLI conforme** (transfert / merge / ablations)
+- `scripts/verify_merge.py` → vérification post hoc (`α_eff` / `λ_eff` par famille)
+- `scripts/measure_geometry.py` → géométrie des vecteurs (Table 21 du papier)
+- `scripts/merge_jainius.py` → **wrapper DÉPRÉCIÉ** (legacy) ; la logique est dans `scripts/a2d/`
+- `scripts/compute_tau_a.py` → **LEGACY** : persiste τ en `.npy` (ne pas supprimer, ne pas réintroduire)
+- `./checkpoints/Jainius/` → build legacy (ablation hors papier, plus une référence scientifique)
 
 ## Dossiers temporaires
-
 - `_artefact/` → dossier temporaire agents (non partagé). Tous les fichiers générés par les agents sans vocation de partage doivent y être placés.
+
 ## Fichiers de référence
+- [`CHECKLIST.md`](CHECKLIST.md) → vérifications obligatoires avant "prêt" (portes G1/G2/G3)
+- [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) → anomalies connues (blocage mmap/RAM, J5 non conforme)
+- [`AGENTS.md`](AGENTS.md) → règles de travail complètes
 
-- [`CHECKLIST.md`](CHECKLIST.md) → vérifications obligatoires avant "prêt"
-- [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) → anomalies connues (header corrompu, dtype U16/BF16)
 ## Règles
+- Ne jamais modifier directement les fichiers `.safetensors` dans `checkpoints/`. Le merge écrit en BF16 canonique.
+- Lire les safetensors via `safetensors.safe_open` (bits exacts). Parseur maison `SafetensorsMmapLoader` interdit pour tout nouveau code.
+- Les checkpoints sont volumineux (~247 Gio / ~264 Go total, mesuré `du -sb`). Ne pas les lister ou scanner en masse.
+- **Ne jamais persister un vecteur de tâche** (τ) dans le pipeline conforme : il est recalculé à la volée, tenseur par tenseur, en FP32, depuis les sources (paire de checkpoints ou adaptateur LoRA). La provenance passe par les hashes d'index des sources dans `merge_config.json`.
+- **α et λ ≥ 0, sans plafond à 1** (le papier va jusqu'à α = 1.4, Table 6) ; avertissement au-delà de 1.5. Le plafond [0,1] n'existe que dans le wrapper legacy `merge_jainius.py`.
+- **Ne pas appeler « A2D » une simple addition `D_p + ατ_A`** hors du mode `ablation-dp-plus-tau-a` : l'A2D-Transfer du papier est `D_b + ατ_A` (eq. 1), l'A2D-Merge est `D_p + λ(τ_A − τ_D)` (eq. 2). Le build `Jainius` est une **ablation hors papier**.
+- **`τ_D` n'est pas « inexistant »** : il vaut `D_p − D_b` (§2.1) et, pour DiffusionGemma, c'est le delta LoRA de post-training de domaine — **publié** (`gevaertlab/diffusiongemma-radiology-vqa`). Ce qui manque est la chaîne complète (adapters + merge + évaluation conforme), pas la définition.
+- **Le routeur est fusionné par défaut** (famille à part, déclarée dans le manifeste) : ne pas écrire qu'il est « inchangé ». Pour DiffusionGemma, embeddings / norms / tête / vision restent inchangés (A.2).
+- Toute fusion doit passer par la **vérification post-écriture** (`α_eff`/`λ_eff`, échec dur hors tolérance) : c'est elle qui aurait détecté le build livré à α=0.8 étiqueté 0.3.
+- Mesurer avant de merger : `scripts/measure_geometry.py` (Table 21) et `scripts/verify_merge.py`.
+- **Trajectoire par portes** : G1 (mécanique, Qwen2.5-7B → Dream-7B) → G2 (DiffusionGemma médical) → G3 (raisonnement, conception d'abord). Ne pas entamer une porte avant d'avoir franchi la précédente.
 
- - Ne jamais modifier directement les fichiers `.safetensors` dans `checkpoints/`. Le merge sauvegarde déjà en BF16 canonique.
-- Lire les safetensors via `safetensors.safe_open` (bits exacts). Parseur maison `SafetensorsMmapLoader` interdit pour tout nouveau code (dette en cours de retrait de `compute_tau_a.py` / `merge_jainius.py`).
- - Les checkpoints sont volumineux (~247 Gio / ~264 Go total, mesuré `du -sb`). Ne pas les lister ou scanner en masse.
-- Pour toute modification du pipeline Dp+ατA, lire d'abord `AGENTS.md` et les scripts dans `scripts/`. Ne pas appeler la méthode "A2D" seule : c'est l'ablation `Dp + ατA` (pas de τ_D public).
- - Mesurer avant de merger : `scripts/measure_effect.py` (effet réel après arrondi BF16, balayage α 0.05–0.5, défaut 0.3). L'ancien défaut 0.8 est déprécié. Par défaut, norms/embeddings sont exclus (variante papier A2D : `--include-norms-embed`).
-- Le checkpoint Jainius est le résultat final — ne pas le recréer sauf si explicitement demandé.
- ## Workflow typique
-
- 1. L'utilisateur demande une modification → lire `AGENTS.md` pour comprendre le contexte.
- 2. Si modification du merge : éditer `scripts/merge_jainius.py` (défaut : --exclude norms/embeddings, opt-in `--include-norms-embed`).
- 3. Si modification du calcul τ_A : éditer `scripts/compute_tau_a.py` (défaut : --filter decoder).
-
+## Workflow typique
+ 1. L'utilisateur demande une modification → lire `AGENTS.md` + `docs/A2D_SPEC.md`.
+ 2. Si modification de la fusion → éditer `scripts/a2d/` (jamais une copie de la logique dans un script).
+ 3. Si ajout d'un mode ou d'une source de vecteur → ajouter les tests dans `scripts/tests/test_a2d_library.py` (modèles jouets, sans GPU) et faire passer `pytest scripts/tests -q`.
+ 4. Si modification de l'évaluation → vérifier la conformité au protocole (App. A.1) et consigner modèle / dtype / décodeur / paramètres / graine / nombre de prompts.

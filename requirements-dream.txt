@@ -1,0 +1,63 @@
+# requirements-dream.txt — harnais d'évaluation officiel de Dream-7B (mission J6, porte G1)
+#
+# Environnement SEPARE du venv principal et de vLLM.
+# Le harnais est le fork lm-evaluation-harness publie par l'equipe Dream
+# (https://github.com/DreamLM/Dream, dossier `eval_instruct/lm_eval`, modele "diffllm") ;
+# il exige le code distant des checkpoints Dream (`trust_remote_code=True`).
+#
+# Installation (hors WSL2 / sur un disque local, ~7 Go) :
+#
+#   git clone --depth 1 https://github.com/DreamLM/Dream.git
+#   python3 -m venv venv
+#   ./venv/bin/pip install -r requirements-dream.txt
+#   ./venv/bin/pip install -e Dream/eval_instruct      # le fork lm_eval (nom du paquet : lm_eval)
+#
+# Contraintes materielles mesurees (RTX 5090 32 Go, WSL2) :
+#   * torch 2.8.0+cu128 est le minimum utile : torch < 2.7 ne supporte pas sm_120 (Blackwell).
+#   * transformers 4.46.2 est la version ciblee par le README de Dream
+#     ("pip install transformers==4.46.2 and torch==2.5.1 ... Other versions ... not been
+#      fully tested") ; le code distant `modeling_dream.py` en depend.
+#   * datasets 2.21.0 : les versions >= 2.16 cassent le script de chargement de
+#     google/IFEval (cf. eval/dream_a2d/tasks/ifeval_a2d.yaml, chargement via la conversion
+#     parquet refs/convert/parquet).
+#   * numpy 2.x : pyarrow (datasets) l'exige ; transformers 4.46.2 est compatible.
+#
+# Evaluation de reference (A2D App. A.1) : temperature 0.1, top_p 0.9, alg=entropy,
+# diffusion_steps = max_new_tokens, un pas de debruitage par token, bfloat16,
+# chat template applique, 0-shot pour GSM8K et MATH-500.
+
+torch==2.8.0
+transformers==4.46.2
+tokenizers>=0.20,<0.21
+safetensors==0.4.5
+huggingface_hub==0.26.5
+datasets==2.21.0
+accelerate==1.1.1
+peft==0.13.2
+numpy>=2.0,<3
+scipy
+scikit-learn
+sqlitedict
+pytablewriter
+jsonlines
+numexpr
+rouge-score
+sacrebleu
+zstandard
+dill
+word2number
+more_itertools
+tqdm-multiprocess
+tqdm
+evaluate==0.4.3
+packaging
+filelock
+pyyaml
+requests
+# IFEval (scoring du fork) et MATH (Minerva + Math-Verify)
+langdetect
+immutabledict
+nltk
+sympy
+math-verify
+antlr4-python3-runtime==4.11
