@@ -42,10 +42,8 @@ import torch
 from safetensors import safe_open
 from safetensors.torch import save_file
 
-from .naming import (ALL_FAMILIES, FAMILY_EMBED, IDENTITY, NameMapping,
-                     family_of, module_of)
-from .sources import (CheckpointPairSource, LoraAdapterSource, LegacyNpySource,
-                      VectorSource, index_fingerprint, load_weight_map)
+from .naming import (FAMILY_EMBED, IDENTITY, NameMapping, family_of, module_of)
+from .sources import VectorSource, load_weight_map
 
 MODES = ("transfer", "merge", "ablation-dp-plus-tau-a", "ablation-dp-minus-tau-d")
 
@@ -127,6 +125,21 @@ def _unscaled_norm_squared(stats: dict, mode: str) -> float:
 def _new_stats() -> dict:
     return {"n_a": 0.0, "n_d": 0.0, "dot": 0.0, "w": 0.0, "resid": 0.0, "exact": 0.0,
             "num": 0.0, "n_tensors": 0, "n_a_tensors": 0, "n_d_tensors": 0}
+
+
+def _sq_norm(tensor: torch.Tensor) -> float:
+    """Norme au carre, accumulatee en float64.
+
+    `torch.norm` en float32 se trompe de ~0,75 % sur un tenseur de 68 M elements
+    (mesure) : les normes de famille du manifeste et les bornes de tolerance de
+    la verification post-ecriture meritent l'exactitude float64.
+    """
+    return float(torch.linalg.vector_norm(tensor, dtype=torch.float64).item()) ** 2
+
+
+def _dot(a: torch.Tensor, b: torch.Tensor) -> float:
+    """Produit scalaire, accumule en float64."""
+    return float((a * b).sum(dtype=torch.float64).item())
 
 
 def validate_config(cfg: MergeConfig) -> List[str]:
@@ -303,25 +316,25 @@ def merge_checkpoint(cfg: MergeConfig, log=print) -> MergeResult:
                     expected = expected + c_d * delta_d
                 casted = expected.to(cfg.dtype)
                 # UN SEUL cast : on mesure l'ecart BF16 pour la verification
-                residual = (expected - casted.to(torch.float32)).norm().item() ** 2
+                residual = _sq_norm(expected - casted.to(torch.float32))
                 out_tensors[tensor_name] = casted
 
                 st = stats[family]
                 st["n_tensors"] += 1
-                st["w"] += float(weight.norm().item()) ** 2
+                st["w"] += _sq_norm(weight)
                 st["resid"] += residual
-                st["n_a"] += float(delta_a.norm().item()) ** 2
+                st["n_a"] += _sq_norm(delta_a)
                 st["n_a_tensors"] += 1
                 if delta_d is not None:
-                    st["n_d"] += float(delta_d.norm().item()) ** 2
+                    st["n_d"] += _sq_norm(delta_d)
                     st["n_d_tensors"] += 1
-                    st["dot"] += float((delta_a * delta_d).sum().item())
+                    st["dot"] += _dot(delta_a, delta_d)
                 applied = c_a * delta_a
                 if delta_d is not None:
                     applied = applied + c_d * delta_d
-                w_norm = float(weight.norm().item())
+                w_norm = math.sqrt(_sq_norm(weight))
                 if w_norm > 0:
-                    ratios[family].append(float(applied.norm().item()) / w_norm)
+                    ratios[family].append(math.sqrt(_sq_norm(applied)) / w_norm)
         _atomic_save(out_tensors, output / fname)
         total_written += len(tensor_names)
         log(f"    [{fname}] {len(tensor_names)} tenseurs — total {total_written}/{len(weight_map)}")
@@ -492,7 +505,7 @@ def verify_written(cfg: MergeConfig, weight_map, plan, stats, log=print) -> dict
                 _, family = plan[tensor_name]
                 out_t = out_handle.get_tensor(tensor_name).to(torch.float32)
                 ref_t = ref_handle.get_tensor(tensor_name).to(torch.float32)
-                num[family] += float((out_t - ref_t).norm().item()) ** 2
+                num[family] += _sq_norm(out_t - ref_t)
 
     families: Dict[str, dict] = {}
     failures: List[str] = []
@@ -594,19 +607,19 @@ def compute_effective_coefficients(merged_dir, reference_dir, cfg: MergeConfig,
                     delta_d = cfg.tau_d.delta(module)
                 st = families[family]
                 st["n_tensors"] += 1
-                st["num"] += float((out_t - ref_t).norm().item()) ** 2
-                st["n_a"] += float(delta_a.norm().item()) ** 2
+                st["num"] += _sq_norm(out_t - ref_t)
+                st["n_a"] += _sq_norm(delta_a)
                 if delta_d is not None:
-                    st["n_d"] += float(delta_d.norm().item()) ** 2
-                    st["dot"] += float((delta_a * delta_d).sum().item())
+                    st["n_d"] += _sq_norm(delta_d)
+                    st["dot"] += _dot(delta_a, delta_d)
                 expected = ref_t + c_a * delta_a
                 if delta_d is not None:
                     expected = expected + c_d * delta_d
                 rounded = expected.to(cfg.dtype).to(torch.float32)
                 # residu BF16 pur (arrondi) : c'est lui qui borne la tolerance
-                st["resid"] += float((expected - rounded).norm().item()) ** 2
+                st["resid"] += _sq_norm(expected - rounded)
                 # deviation de la valeur ecrite par rapport a la valeur attendue
-                st["exact"] += float((out_t - rounded).norm().item()) ** 2
+                st["exact"] += _sq_norm(out_t - rounded)
 
     results: Dict[str, dict] = {}
     failures: List[str] = []

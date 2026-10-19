@@ -38,7 +38,7 @@ if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
 from a2d import (CheckpointPairSource, family_of, index_fingerprint,  # noqa: E402
-                 load_weight_map, module_of)
+                 module_of)
 
 DEFAULT_FAMILIES = ("attn", "mlp", "norms")
 
