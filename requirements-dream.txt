@@ -9,6 +9,7 @@
 #
 #   git clone --depth 1 https://github.com/DreamLM/Dream.git
 #   python3 -m venv venv
+#   ./venv/bin/pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.8.0
 #   ./venv/bin/pip install -r requirements-dream.txt
 #   ./venv/bin/pip install -e Dream/eval_instruct      # le fork lm_eval (nom du paquet : lm_eval)
 #
@@ -28,36 +29,39 @@
 
 torch==2.8.0
 transformers==4.46.2
-tokenizers>=0.20,<0.21
+tokenizers==0.20.3
 safetensors==0.4.5
 huggingface_hub==0.26.5
 datasets==2.21.0
 accelerate==1.1.1
 peft==0.13.2
-numpy>=2.0,<3
-scipy
-scikit-learn
-sqlitedict
-pytablewriter
-jsonlines
-numexpr
-rouge-score
-sacrebleu
-zstandard
-dill
-word2number
-more_itertools
-tqdm-multiprocess
-tqdm
+numpy==2.5.4
+scipy==1.17.1
+scikit-learn==1.9.1
+sqlitedict==2.1.0
+pytablewriter==1.2.1
+jsonlines==4.0.0
+numexpr==2.14.2
+rouge_score==0.1.2
+sacrebleu==2.6.0
+zstandard==0.25.0
+dill==0.3.8
+word2number==1.1
+more_itertools==11.2.1
+tqdm-multiprocess==0.0.11
+tqdm==4.70.1
 evaluate==0.4.3
-packaging
-filelock
-pyyaml
-requests
+packaging==26.3
+filelock==3.32.3
+pyyaml==6.0.3
+requests==2.34.2
 # IFEval (scoring du fork) et MATH (Minerva + Math-Verify)
-langdetect
-immutabledict
-nltk
-sympy
-math-verify
-antlr4-python3-runtime==4.11
+langdetect==1.0.9
+immutabledict==4.3.1
+nltk==3.10.3
+sympy==1.14.0
+math-verify==0.9.0
+antlr4-python3-runtime==4.11.0
+# Le fork lm-evaluation-harness de Dream s'installe en editable (nom du paquet : lm_eval) :
+#   pip install -e Dream/eval_instruct
+# Version du fork : lm_eval 0.4.8 (voir Dream/eval_instruct/pyproject.toml)
