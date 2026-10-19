@@ -441,6 +441,48 @@ def test_manifest_records_provenance_and_norms(tmp_path):
     assert on_disk["post_write_verification"]["ok"]
 
 
+def test_cli_merge_without_tau_d_degrades_to_transfer(tmp_path):
+    ar_base, ar_post, diff_base, diff_post = ar_and_diffusion(tmp_path)
+    out = tmp_path / "out"
+    cmd = [sys.executable, str(SCRIPTS / "merge_a2d.py"), "--mode", "merge",
+           "--diffusion", str(diff_post), "--diffusion-base", str(diff_base),
+           "--tau-a-post", str(ar_post), "--tau-a-base", str(ar_base),
+           "--alpha", "0.4", "--output", str(out)]
+    done = subprocess.run(cmd, capture_output=True, text=True)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "degradation en A2D-Transfer" in done.stdout
+    manifest = json.loads((out / "merge_config.json").read_text())
+    assert manifest["mode"] == "transfer"
+    assert manifest["alpha"] == 0.4
+    src, dst = tensors_of(diff_base), tensors_of(out)
+    ar_b, ar_p = tensors_of(ar_base), tensors_of(ar_post)
+    for name in QWEN:
+        expected = src[name] + 0.4 * (ar_p[name] - ar_b[name])
+        assert torch.allclose(dst[name].to(torch.float32), expected, atol=1e-2), name
+
+
+def test_cli_merge_without_tau_d_and_without_alpha_is_refused(tmp_path):
+    ar_base, ar_post, diff_base, diff_post = ar_and_diffusion(tmp_path)
+    cmd = [sys.executable, str(SCRIPTS / "merge_a2d.py"), "--mode", "merge",
+           "--diffusion", str(diff_post), "--diffusion-base", str(diff_base),
+           "--tau-a-post", str(ar_post), "--tau-a-base", str(ar_base),
+           "--lambda", "0.6", "--output", str(tmp_path / "out")]
+    done = subprocess.run(cmd, capture_output=True, text=True)
+    assert done.returncode == 2, done.stdout + done.stderr
+    assert "exige un --alpha explicite" in done.stdout
+
+
+def test_cli_warns_above_coefficient_threshold(tmp_path):
+    ar_base, ar_post, diff_base, diff_post = ar_and_diffusion(tmp_path)
+    cmd = [sys.executable, str(SCRIPTS / "merge_a2d.py"), "--mode", "transfer",
+           "--diffusion-base", str(diff_base),
+           "--tau-a-post", str(ar_post), "--tau-a-base", str(ar_base),
+           "--alpha", "2.0", "--output", str(tmp_path / "out")]
+    done = subprocess.run(cmd, capture_output=True, text=True)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "ATTENTION" in done.stdout and "1.5" in done.stdout
+
+
 def test_legacy_npy_source_still_readable(tmp_path):
     import numpy as np
     tau_dir = tmp_path / "tau"

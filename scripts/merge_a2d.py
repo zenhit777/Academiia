@@ -103,6 +103,11 @@ def main() -> int:
         recipient = args.diffusion
 
     if args.mode == "merge" and tau_d is None and args.diffusion_base:
+        if args.alpha == 0.0:
+            print("ERREUR: tau_D absent : l'A2D-Merge est impossible. La degradation en "
+                  "A2D-Transfer (D_b + alpha*tau_A) exige un --alpha explicite "
+                  "(alpha=0 par defaut produirait un modele inchange).")
+            return 2
         print("ATTENTION: tau_D absent -> l'A2D-Merge est impossible ; "
               "degradation en A2D-Transfer (D_b + alpha*tau_A).")
         cfg = MergeConfig(mode="transfer", recipient=args.diffusion_base,
