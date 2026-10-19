@@ -46,11 +46,9 @@ def load_results(root):
     for path in sorted(glob.glob(os.path.join(root, "*", "**", "results_*.json"), recursive=True)):
         with open(path) as f:
             data = json.load(f)
-        model_dir = os.path.basename(os.path.dirname(path))
-        # le repertoire de sortie est <model>_<tache> ; le modele est le 1er segment
-        outer = os.path.basename(os.path.dirname(os.path.dirname(path)))
-        run_key = outer
-        runs.setdefault(run_key, {"results": data, "path": path, "model_dir": model_dir})
+        model_name = os.path.basename(str(data.get("model_name", "")))
+        run_key = f"{model_name}"
+        runs.setdefault(run_key, {"results": data, "path": path})
     return runs
 
 
@@ -65,9 +63,18 @@ def main():
     summary = {}
     for run_key, info in runs.items():
         data = info["results"]
-        n_samples = {t: r.get("samples", []) for t, r in data.get("results", {}).items()}
-        entry = {"n_prompts": {t: len(v) for t, v in n_samples.items()},
-                 "metrics": {}}
+        n_samples = data.get("n-samples", {})
+        entry = {
+            "model": run_key,
+            "n_prompts": {t: (v.get("effective") if isinstance(v, dict) else v)
+                          for t, v in n_samples.items()},
+            "n_original": {t: (v.get("original") if isinstance(v, dict) else None)
+                           for t, v in n_samples.items()},
+            "model_args": data.get("config", {}).get("model_args"),
+            "system_instruction": data.get("system_instruction"),
+            "duration_s": data.get("total_evaluation_time_seconds"),
+            "metrics": {},
+        }
         for task, res in data.get("results", {}).items():
             for metric, value in res.items():
                 if not isinstance(value, (int, float)) or isinstance(value, bool):
@@ -81,17 +88,20 @@ def main():
                 }
         summary[run_key] = entry
 
-    # table de synthese : une ligne par (modele, tache)
+    # table de synthese : une ligne par (modele, tache, metrique utile)
     rows = []
     for run_key, entry in sorted(summary.items()):
-        model = run_key.rsplit("_", 1)[0] if run_key.endswith("_a2d") else run_key
+        model = entry["model"]
         for key, m in entry["metrics"].items():
             task, metric = key.split("/")
+            metric_name = metric.split(",")[0]
+            if metric_name.endswith("_stderr"):
+                continue
             bench = TASK_TO_BENCH.get(task, task)
             rows.append({
                 "run": run_key, "model": model, "task": task, "benchmark": bench,
                 "metric": metric, "value": m["value"], "n": m["n"],
-                "wilson95": m["wilson95"],
+                "stderr": m["stderr"], "wilson95": m["wilson95"],
                 "target": TARGETS.get(model, {}).get(bench),
             })
 
@@ -100,26 +110,51 @@ def main():
            "note": ("Effectifs reduits : le budget GPU local ne permet pas les jeux complets "
                     "(mesure : 162 s/prompt pour IFEval a 1280 pas de debruitage). "
                     "L'intervalle de Wilson est donne pour chaque score.")}
+
+    # agregation par (modele, benchmark, filtre) : les 7 sous-taches minerva_math
+    # sont regroupees (moyenne ponderee par l'effectif, IC sur le total)
+    agg = {}
+    for r in rows:
+        filt = r["metric"].split(",")[-1]
+        key = (r["model"], r["benchmark"], filt)
+        a = agg.setdefault(key, {"n": 0, "correct": 0.0, "tasks": []})
+        a["n"] += r["n"]
+        a["correct"] += r["value"] * r["n"]
+        a["tasks"].append(r["task"])
+    aggregated = []
+    for (model, bench, filt), a in sorted(agg.items()):
+        value = a["correct"] / a["n"] if a["n"] else None
+        lo, hi = wilson(round(a["correct"]), a["n"]) if a["n"] else (None, None)
+        aggregated.append({
+            "model": model, "benchmark": bench, "filter": filt, "value": value,
+            "n": a["n"], "wilson95": [lo, hi],
+            "target": TARGETS.get(model, {}).get(bench),
+            "tasks": sorted(set(a["tasks"])),
+        })
+    out["aggregated"] = aggregated
     if args.out:
         with open(args.out, "w") as f:
             json.dump(out, f, indent=2, ensure_ascii=False)
         print(f"JSON ecrit : {args.out}")
     if args.markdown:
-        lines = ["# Resume des evaluations Dream-7B (J6)", "",
-                 "| modele | tache | metrique | score | n | IC 95 % (Wilson) | cible Table 16 |",
-                 "|---|---|---|---|---|---|---|"]
-        for r in rows:
-            lo, hi = r["wilson95"] if r["wilson95"] else (None, None)
+        lines = ["# Resume des evaluations Dream-7B (J6, porte G1)", "",
+                 "Harnais : fork lm-eval de Dream (`diffllm`), T=0.1, top_p=0.9, alg=entropy,",
+                 "diffusion_steps = max_new_tokens, bfloat16, chat template, 0-shot (GSM8K/MATH).", "",
+                 "| modele | benchmark | filtre | score | n | IC 95 % (Wilson) | cible Table 16 | ecart |",
+                 "|---|---|---|---|---|---|---|---|"]
+        for a in aggregated:
+            lo, hi = a["wilson95"]
             ci = f"[{100*lo:.1f}, {100*hi:.1f}]" if lo is not None else "—"
-            tgt = f"{r['target']}" if r["target"] is not None else "—"
-            lines.append(f"| {r['model']} | {r['benchmark']} | {r['metric']} | "
-                         f"{100*r['value']:.1f} % | {r['n']} | {ci} | {tgt} |")
+            tgt = a["target"]
+            delta = (f"{100*a['value']-tgt:+.1f}" if tgt is not None and a["value"] is not None
+                     else "—")
+            lines.append(f"| {a['model']} | {a['benchmark']} | {a['filter']} | "
+                         f"{100*a['value']:.1f} % | {a['n']} | {ci} | {tgt} | {delta} |")
         lines += ["", out["note"], ""]
         with open(args.markdown, "w") as f:
             f.write("\n".join(lines))
         print(f"Markdown ecrit : {args.markdown}")
-    print(json.dumps([{k: r[k] for k in ("model", "benchmark", "metric", "value", "n", "target")}
-                      for r in rows], indent=2))
+    print(json.dumps(aggregated, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":

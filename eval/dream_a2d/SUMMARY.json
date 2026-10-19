@@ -1,0 +1,131 @@
+{
+  "runs": {
+    "dream_7b_base": {
+      "model": "dream_7b_base",
+      "n_prompts": {
+        "gsm8k_cot_a2d": 300
+      },
+      "n_original": {
+        "gsm8k_cot_a2d": 1319
+      },
+      "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_7b_base,trust_remote_code=True,max_new_tokens=256,diffusion_steps=256,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+      "system_instruction": "Solve the math problem with brief, direct reasoning. Do NOT restate the problem, do NOT use bullet points, and use as few steps as possible. On the final line, write the answer as '#### <number>' and nothing else.",
+      "duration_s": "3036.4152114410026",
+      "metrics": {
+        "gsm8k_cot_a2d/exact_match,strict-match": {
+          "value": 0.4266666666666667,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.37197260006995525,
+            0.4832151029963794
+          ]
+        },
+        "gsm8k_cot_a2d/exact_match_stderr,strict-match": {
+          "value": 0.028603050929618443,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.015861673205964575,
+            0.05602315099190695
+          ]
+        },
+        "gsm8k_cot_a2d/exact_match,flexible-extract": {
+          "value": 0.6866666666666666,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.6320966534895827,
+            0.7365164659779293
+          ]
+        },
+        "gsm8k_cot_a2d/exact_match_stderr,flexible-extract": {
+          "value": 0.026825059139630406,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.013572906766976815,
+            0.051729540297546284
+          ]
+        }
+      }
+    }
+  },
+  "rows": [
+    {
+      "run": "dream_7b_base",
+      "model": "dream_7b_base",
+      "task": "gsm8k_cot_a2d",
+      "benchmark": "GSM8K",
+      "metric": "exact_match,strict-match",
+      "value": 0.4266666666666667,
+      "n": 300,
+      "stderr": null,
+      "wilson95": [
+        0.37197260006995525,
+        0.4832151029963794
+      ],
+      "target": 66.5
+    },
+    {
+      "run": "dream_7b_base",
+      "model": "dream_7b_base",
+      "task": "gsm8k_cot_a2d",
+      "benchmark": "GSM8K",
+      "metric": "exact_match,flexible-extract",
+      "value": 0.6866666666666666,
+      "n": 300,
+      "stderr": null,
+      "wilson95": [
+        0.6320966534895827,
+        0.7365164659779293
+      ],
+      "target": 66.5
+    }
+  ],
+  "targets_a2d_table16": {
+    "dream_7b_base": {
+      "IFEval": 49.7,
+      "GSM8K": 66.5,
+      "MATH-500": 20.8
+    },
+    "dream_7b_instruct": {
+      "IFEval": 63.0,
+      "GSM8K": 83.0,
+      "MATH-500": 38.4
+    }
+  },
+  "note": "Effectifs reduits : le budget GPU local ne permet pas les jeux complets (mesure : 162 s/prompt pour IFEval a 1280 pas de debruitage). L'intervalle de Wilson est donne pour chaque score.",
+  "aggregated": [
+    {
+      "model": "dream_7b_base",
+      "benchmark": "GSM8K",
+      "filter": "flexible-extract",
+      "value": 0.6866666666666666,
+      "n": 300,
+      "wilson95": [
+        0.6320966534895827,
+        0.7365164659779293
+      ],
+      "target": 66.5,
+      "tasks": [
+        "gsm8k_cot_a2d"
+      ]
+    },
+    {
+      "model": "dream_7b_base",
+      "benchmark": "GSM8K",
+      "filter": "strict-match",
+      "value": 0.4266666666666667,
+      "n": 300,
+      "wilson95": [
+        0.37197260006995525,
+        0.4832151029963794
+      ],
+      "target": 66.5,
+      "tasks": [
+        "gsm8k_cot_a2d"
+      ]
+    }
+  ]
+}
