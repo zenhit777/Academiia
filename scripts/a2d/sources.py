@@ -146,6 +146,14 @@ class CheckpointPairSource(VectorSource):
         base = self._tensor(self.base, self.base_map, self._base_module, module)
         return post - base
 
+    def tensor(self, module: str, side: str = "post") -> torch.Tensor:
+        """Tenseur brut (FP32) d'un module : side 'post' (A_p/D_p) ou 'base' (A_b/D_b)."""
+        if side == "post":
+            return self._tensor(self.post_trained, self.post_map, self._post_module, module)
+        if side == "base":
+            return self._tensor(self.base, self.base_map, self._base_module, module)
+        raise ValueError(f"side inconnu : {side!r} (attendu 'post' ou 'base')")
+
     def describe(self) -> dict:
         return {
             "kind": self.kind,
