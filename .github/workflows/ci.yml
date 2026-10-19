@@ -25,9 +25,10 @@ jobs:
           for f in ["tokenizer.json", "tokenizer_config.json", "generation_config.json", "chat_template.jinja", "processor_config.json"]:
               open(f"/tmp/dummy_dg/{f}", "w").write("{}")
           import numpy as np
-          np.save("/tmp/dummy_tau/model_language_model_layers_0_self_attn_q_proj_weight.npy", np.full((8, 8), 0.001, dtype=np.float32))
+          json.dump({"model.decoder.layers.0.self_attn.q_proj.weight": "model_language_model_layers_0_self_attn_q_proj_weight.npy"},
+                    open("/tmp/dummy_tau/tau_manifest.json", "w"))
           EOF
-          python scripts/merge_jainius.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --output /tmp/dummy_out --alpha 0.3
+          python scripts/merge_jainius.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --output /tmp/dummy_out --alpha 0.3 --overwrite
           python scripts/verify_checkpoint.py --checkpoint /tmp/dummy_out
           python scripts/measure_effect.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --alphas 0.3 --output /tmp/measure.json
       - run: pytest scripts/tests -q
