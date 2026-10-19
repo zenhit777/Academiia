@@ -8,9 +8,21 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install safetensors torch numpy pytest pyyaml
-      - run: python -c "import ast,glob; [ast.parse(open(f,encoding='utf-8').read()) for f in sorted(glob.glob('scripts/*.py'))]; print('syntax OK')"
-      - run: |
+      - run: pip install safetensors torch numpy pytest pyyaml peft transformers accelerate
+      - name: Syntaxe recursive de scripts/
+        run: |
+          python - <<'EOF'
+          import ast, glob, sys
+          files = sorted(glob.glob('scripts/**/*.py', recursive=True))
+          assert files, "aucun script trouve"
+          for f in files:
+              ast.parse(open(f, encoding='utf-8').read(), filename=f)
+          print(f"syntax OK : {len(files)} fichiers")
+          for f in files:
+              print("  ", f)
+          EOF
+      - name: Merge legacy (merge_jainius.py) sur mini-checkpoint
+        run: |
           python - <<'EOF'
           import json, os
           import torch
@@ -18,19 +30,70 @@ jobs:
           os.makedirs("/tmp/dummy_dg", exist_ok=True)
           os.makedirs("/tmp/dummy_tau", exist_ok=True)
           save_file({"model.decoder.layers.0.self_attn.q_proj.weight": torch.ones(8, 8, dtype=torch.bfloat16)},
-                      "/tmp/dummy_dg/model-00001-of-00001.safetensors")
+                    "/tmp/dummy_dg/model-00001-of-00001.safetensors")
           json.dump({"metadata": {}, "weight_map": {"model.decoder.layers.0.self_attn.q_proj.weight": "model-00001-of-00001.safetensors"}},
                     open("/tmp/dummy_dg/model.safetensors.index.json", "w"))
           json.dump({"architectures": ["DiffusionGemmaForBlockDiffusion"]}, open("/tmp/dummy_dg/config.json", "w"))
           for f in ["tokenizer.json", "tokenizer_config.json", "generation_config.json", "chat_template.jinja", "processor_config.json"]:
               open(f"/tmp/dummy_dg/{f}", "w").write("{}")
           import numpy as np
-          json.dump({"model.decoder.layers.0.self_attn.q_proj.weight": "model_language_model_layers_0_self_attn_q_proj_weight.npy"},
+          json.dump({"metadata": {}, "weight_map": {"model.language_model.layers.0.self_attn.q_proj.weight": "model_language_model_layers_0_self_attn_q_proj_weight.npy"}},
                     open("/tmp/dummy_tau/tau_manifest.json", "w"))
+          np.save("/tmp/dummy_tau/model_language_model_layers_0_self_attn_q_proj_weight.npy",
+                  np.full((8, 8), 0.05, dtype=np.float32))
           EOF
           python scripts/merge_jainius.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --output /tmp/dummy_out --alpha 0.3 --overwrite
           python scripts/verify_checkpoint.py --checkpoint /tmp/dummy_out
           python scripts/measure_effect.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --alphas 0.3 --output /tmp/measure.json
+      - name: Merge A2D conforme (merge_a2d.py) + verification (verify_merge.py)
+        run: |
+          python - <<'EOF'
+          import json, os
+          import torch
+          from safetensors.torch import save_file
+          spec = {
+              "model.embed_tokens.weight": (8, 4),
+              "model.layers.0.self_attn.q_proj.weight": (4, 4),
+              "model.layers.0.mlp.gate_proj.weight": (6, 4),
+              "model.norm.weight": (4,),
+              "lm_head.weight": (8, 4),
+          }
+          for name, seed in (("ar_base", 1), ("ar_post", 2), ("d_base", 3), ("d_post", 4)):
+              d = f"/tmp/a2d/{name}"
+              os.makedirs(d, exist_ok=True)
+              g = torch.Generator().manual_seed(seed)
+              tensors = {k: torch.randn(*s, generator=g) for k, s in spec.items()}
+              save_file(tensors, f"{d}/model-00001-of-00001.safetensors")
+              json.dump({"metadata": {"total_size": 0},
+                         "weight_map": {k: "model-00001-of-00001.safetensors" for k in spec}},
+                        open(f"{d}/model.safetensors.index.json", "w"))
+              json.dump({"architectures": ["Toy"]}, open(f"{d}/config.json", "w"))
+          EOF
+          # A2D-Transfer : D_b + alpha*tau_A
+          python scripts/merge_a2d.py --mode transfer \
+            --diffusion-base /tmp/a2d/d_base \
+            --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
+            --alpha 0.9 --mapping identity --output /tmp/a2d/transfer
+          python scripts/verify_merge.py --merged /tmp/a2d/transfer --reference /tmp/a2d/d_base \
+            --mode transfer --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
+            --alpha 0.9 --mapping identity
+          # A2D-Merge : D_p + lambda*(tau_A - tau_D)
+          python scripts/merge_a2d.py --mode merge \
+            --diffusion /tmp/a2d/d_post \
+            --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
+            --tau-d-post /tmp/a2d/d_post --tau-d-base /tmp/a2d/d_base \
+            --lambda 0.6 --mapping identity --output /tmp/a2d/merge
+          python scripts/verify_merge.py --merged /tmp/a2d/merge --reference /tmp/a2d/d_post \
+            --mode merge --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
+            --tau-d-post /tmp/a2d/d_post --tau-d-base /tmp/a2d/d_base \
+            --lambda 0.6 --mapping identity
+          # un coefficient errone doit etre detecte
+          if python scripts/verify_merge.py --merged /tmp/a2d/transfer --reference /tmp/a2d/d_base \
+              --mode transfer --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
+              --alpha 0.3 --mapping identity; then
+            echo "ERREUR: verify_merge aurait du detecter alpha=0.3 sur un merge a 0.9"
+            exit 1
+          fi
       - run: pytest scripts/tests -q
       # Test compose vLLM (docker-compose.yml, sans Docker : YAML + simulation bash)
       - run: pytest vLLM/scripts/tests -q
@@ -38,4 +101,3 @@ jobs:
       - run: python -m py_compile vLLM/smoke_chat.py
 
 # Fin de la section checks.
-

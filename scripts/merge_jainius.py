@@ -1,47 +1,83 @@
 #!/usr/bin/env python3
-"""
-Apply merge: Jainius = D_p + alpha * tau_A_mapped.
-Ablation « Dp + ατA » inspiree A2D (PAS le A2D-Merge complet : pas de τ_D).
-Maps Gemma 4 tensor names to DiffusionGemma decoder layer names.
-Lecture Dp via safetensors.safe_open (bits exacts).
-Memory-efficient: writes output files incrementally (~5GB max in RAM).
+"""DEPRECATED — wrapper autour de la bibliotheque A2D (`scripts/a2d/`).
 
-Usage:
-    python merge_jainius.py \
-        --diffusiongemma /path/to/diffusiongemma_it \
+Ce script est conserve pour compatibilite (le checkpoint `checkpoints/Jainius`
+et sa docaute ont ete produits par cette interface). Il n'implique plus la
+logique de fusion : tout passe par `scripts/a2d/merge.py`.
+
+  * Le calcul de tau se fait TOUJOURS a partir des `.npy` produits par
+    `scripts/compute_tau_a.py` (chemin legacy). Le pipeline A2D conforme
+    (`scripts/merge_a2d.py`) calcule tau a la volee et ne persiste rien.
+  * Le plafond alpha dans [0,1] est conserve COTE LEGACY (le papier n'en
+    impose pas : cf. Table 6, alpha jusqu'a 1.4). La bibliotheque, elle,
+    accepte alpha >= 0 sans plafond.
+  * `scripts/compute_tau_a.py` est un chemin legacy : il n'est pas supprime.
+
+Usage (identique a l'historique) :
+    python scripts/merge_jainius.py \
+        --diffusiongemma checkpoints/diffusiongemma_it \
         --tau-dir _artefact/tau_a \
-        --output /path/to/Jainius \
+        --output checkpoints/Jainius \
         [--alpha 0.3] [--include-norms-embed]
 """
 
 import argparse
-import datetime
 import json
 import os
-import shutil
 import sys
-import tempfile
 
-import numpy as np
-import safetensors
-import torch
-from safetensors import safe_open
-from safetensors.torch import save_file
+SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, SCRIPTS_DIR)
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import (check_tau_manifest, diffusiongemma_to_gemma4, git_commit,
-                     is_norm_or_embed, list_source_sidecar_files, tau_filename)
+import torch  # noqa: E402
+
+from a2d import (FAMILY_EMBED, FAMILY_NORMS, GEMMA4_TO_DIFFUSIONGEMMA, LegacyNpySource,
+                 MergeConfig, MergeError, MergeRefused, NameMapping, family_of,
+                 merge_checkpoint, module_of)
+from a2d.sources import load_weight_map  # noqa: E402
+
+LEGACY_MAPPING_ID = "gemma4-diffusiongemma"
+
+
+def legacy_mapping(include_norms_embed: bool) -> NameMapping:
+    """Mapping Gemma 4 -> DiffusionGemma du chemin historique.
+
+    Par defaut : embeddings, normalisations, tete de sortie et vision sont
+    inchanges (A2D App. A.2) ; le routeur est fusionne (famille declaree).
+    `--include-norms-embed` ajoute les normes et les embeddings.
+    """
+    base = GEMMA4_TO_DIFFUSIONGEMMA
+    families = set(base.fusible_families)
+    if include_norms_embed:
+        families |= {FAMILY_NORMS, FAMILY_EMBED}
+    return NameMapping(id=base.id, description=base.description, rename=base.rename,
+                       inverse=base.inverse, fusible_families=frozenset(families),
+                       router_policy=base.router_policy,
+                       embedding_policy=base.embedding_policy)
+
+
+def count_skipped(recipient: str, mapping: NameMapping) -> int:
+    """Nombre de tenseurs du receveur ecartes par la politique norms/embed."""
+    skipped = 0
+    for tensor_name in load_weight_map(recipient):
+        module = module_of(tensor_name)
+        if mapping.source(module) is None:
+            continue
+        if not mapping.is_fusable(family_of(module)):
+            skipped += 1
+    return skipped
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Merge: Jainius = D_p + alpha * tau_A")
+    parser = argparse.ArgumentParser(description="[DEPRECATED] Merge: Jainius = D_p + alpha * tau_A")
     parser.add_argument("--diffusiongemma", required=True, help="Path to DiffusionGemma IT checkpoint (D_p)")
     parser.add_argument("--tau-dir", default="_artefact/tau_a", help="Directory with tau_A numpy files")
     parser.add_argument("--output", required=True, help="Output directory for Jainius checkpoint")
     parser.add_argument("--alpha", type=float, default=0.3, help="Interpolation weight (default: 0.3, 0.8 deprecie)")
     parser.add_argument("--include-norms-embed", action="store_true",
                         help="INCLUT embeddings/normalisations dans le merge "
-                             "(defaut : exclus, variante papier A2D)")
+                             "(defaut : exclus, conforme A2D App. A.2)")
     parser.add_argument("--allow-missing-tau-manifest", action="store_true",
                         help="Autorise un tau sans tau_manifest.json (provenance non verifiable)")
     parser.add_argument("--on-shape-mismatch", choices=["error", "warn"], default="error",
@@ -54,175 +90,88 @@ def main():
         print(f"ERREUR: --alpha={args.alpha} hors [0,1].")
         raise SystemExit(2)
 
-    os.makedirs(args.output, exist_ok=True)
-    pre_existing = [f for f in os.listdir(args.output) if f.endswith(".safetensors")]
-    if pre_existing and not args.overwrite:
-        print(f"ERREUR: {args.output} contient deja {len(pre_existing)} shards. "
-              f"Relancer avec --overwrite (nettoyage des shards obsoletes) "
-              f"ou vers un dossier vide. Pas de merge partiel.")
-        raise SystemExit(2)
-
-    # Supprime index/manifest perimes de la sortie : un crash en cours de merge
-    # ne doit jamais laisser un ancien index/ manifeste qui parait valide.
-    for stale in ("model.safetensors.index.json", "merge_config.json"):
-        stale_path = os.path.join(args.output, stale)
-        if os.path.exists(stale_path):
-            os.remove(stale_path)
-            print(f"  Suppression de l'ancien {stale} (reecrit en fin de merge).")
-
-    index_path = os.path.join(args.diffusiongemma, "model.safetensors.index.json")
-    with open(index_path) as f:
-        dg_index = json.load(f)
-    dg_weight_map = dg_index["weight_map"]
-
-    # Controle du manifest tau (traçabilite : pas de tau perime/incomplet silencieux)
-    tau_manifest, tau_err = check_tau_manifest(
-        args.tau_dir, allow_missing=args.allow_missing_tau_manifest)
-    if tau_err:
-        print(f"ERREUR: {tau_err}")
-        raise SystemExit(2)
-    if tau_manifest is None:
+    # Controle du manifest tau (tracabilite : pas de tau perime/incomplet silencieux)
+    manifest_path = os.path.join(args.tau_dir, "tau_manifest.json")
+    npy = sorted(f for f in os.listdir(args.tau_dir) if f.endswith(".npy")) \
+        if os.path.isdir(args.tau_dir) else []
+    tau_manifest = None
+    if not os.path.exists(manifest_path):
+        if not args.allow_missing_tau_manifest:
+            print(f"ERREUR: {manifest_path} absent : provenance du tau non verifiable. "
+                  f"Recalculer tau avec compute_tau_a.py, ou passer "
+                  f"--allow-missing-tau-manifest.")
+            raise SystemExit(2)
         print("ATTENTION: tau_manifest.json absent et --allow-missing-tau-manifest "
               "fourni : mapping base sur l'existence des .npy, provenance non verifiee.")
+    else:
+        with open(manifest_path) as f:
+            tau_manifest = json.load(f)
+        declared = tau_manifest.get("n_tensors")
+        if declared is not None and declared != len(npy):
+            print(f"ERREUR: manifest incoherent : n_tensors={declared} mais {len(npy)} "
+                  f"fichiers .npy presents dans {args.tau_dir}")
+            raise SystemExit(2)
+        filt = tau_manifest.get("filter")
+        if filt not in (None, "all", "decoder"):
+            print(f"ERREUR: manifest : filter='{filt}' invalide (attendu 'all' ou 'decoder')")
+            raise SystemExit(2)
 
-    # Build mapping dg_name -> g4_name (+ detection collision fichier tau)
-    mapping = {}
-    seen_files = {}
-    n_skipped_norms_embed = 0
-    for dg_name in dg_weight_map:
-        g4_name = diffusiongemma_to_gemma4(dg_name)
-        if g4_name is None:
-            continue
-        if not args.include_norms_embed and is_norm_or_embed(dg_name):
-            n_skipped_norms_embed += 1
-            continue
-        tau_path = os.path.join(args.tau_dir, tau_filename(g4_name))
-        if os.path.exists(tau_path):
-            if tau_path in seen_files:
-                print(f"ERREUR: collision tau: {tau_path} pour "
-                      f"'{seen_files[tau_path]}' et '{dg_name}'. Abandon.")
-                raise SystemExit(1)
-            seen_files[tau_path] = dg_name
-            mapping[dg_name] = g4_name
+    mapping = legacy_mapping(args.include_norms_embed)
+    skipped = count_skipped(args.diffusiongemma, mapping)
 
-    print(f"Mapped tensors (Gemma4 -> DiffusionGemma): {len(mapping)}"
+    source = LegacyNpySource(args.tau_dir)
+    cfg = MergeConfig(
+        mode="ablation-dp-plus-tau-a",
+        recipient=args.diffusiongemma,
+        output=args.output,
+        alpha=args.alpha,
+        lam=0.0,
+        mapping=mapping,
+        tau_a=source,
+        tau_d=None,
+        dtype=torch.bfloat16,
+        on_shape_mismatch="error" if args.on_shape_mismatch == "error" else "skip",
+        overwrite=args.overwrite,
+        extra_manifest={
+            "method": "Dp + alpha*tau_A (ablation inspiree A2D, pas de tau_D)",
+            "deprecated": True,
+            "deprecation_note": ("wrapper : la logique de fusion vit dans scripts/a2d/ ; "
+                                 "le pipeline conforme est scripts/merge_a2d.py "
+                                 "(tau calcule a la volee, jamais persiste)"),
+            "include_norms_embed": args.include_norms_embed,
+            "n_skipped_norms_embed": skipped,
+            "diffusiongemma": os.path.abspath(args.diffusiongemma),
+            "tau_dir": os.path.abspath(args.tau_dir),
+            "tau_manifest": tau_manifest,
+        },
+    )
+
+    from a2d.merge import build_plan
+    plan, _counters = build_plan(load_weight_map(args.diffusiongemma), cfg)
+    print(f"Mapped tensors (Gemma4 -> DiffusionGemma): {len(plan)}"
           + (" (variante AVEC norms/embed)" if args.include_norms_embed
-             else f" ({n_skipped_norms_embed} norms/embed exclus)"))
+             else f" ({skipped} norms/embed exclus)"))
 
-    dg_by_file = {}
-    for dg_name, fname in dg_weight_map.items():
-        dg_by_file.setdefault(fname, []).append(dg_name)
+    try:
+        result = merge_checkpoint(cfg)
+    except MergeRefused as exc:
+        print(f"ERREUR: {exc}")
+        raise SystemExit(2)
+    except MergeError as exc:
+        print(f"ERREUR: {exc}")
+        raise SystemExit(1)
 
-    print("\nWriting output files (incremental, ~5GB/file)...")
-    import time
-    t0 = time.time()
-    total_written = 0
-    total_tensors = len(dg_weight_map)
-    shape_errors = []
-
-    for n_file, fname in enumerate(sorted(dg_by_file.keys()), 1):
-        tensors_in_file = sorted(dg_by_file[fname])
-        tensor_dict = {}
-        with safe_open(os.path.join(args.diffusiongemma, fname), framework="pt") as f:
-            for dg_name in tensors_in_file:
-                d_p = f.get_tensor(dg_name).to(torch.float32).numpy()
-                if dg_name in mapping:
-                    g4_name = mapping[dg_name]
-                    tau_a = np.load(os.path.join(args.tau_dir, tau_filename(g4_name)))
-                    if tau_a.shape != d_p.shape:
-                        msg = (f"{dg_name}: tau_A={tau_a.shape} vs "
-                               f"D_p={d_p.shape}")
-                        if args.on_shape_mismatch == "error":
-                            print(f"  SHAPE ERROR: {msg} — abandon (--on-shape-mismatch=error)")
-                            raise SystemExit(1)
-                        print(f"  SHAPE WARNING: {msg} — D_p inchange")
-                        shape_errors.append(msg)
-                        jainius = d_p
-                    else:
-                        jainius = d_p + args.alpha * tau_a
-                else:
-                    jainius = d_p
-                tensor_dict[dg_name] = torch.from_numpy(
-                    np.ascontiguousarray(jainius)).to(torch.bfloat16)
-
-        # Ecriture atomique : tmp dans le dossier cible + replace
-        fd, tmp_path = tempfile.mkstemp(dir=args.output, prefix=fname + ".tmp-")
-        os.close(fd)
-        try:
-            save_file(tensor_dict, tmp_path)
-            os.replace(tmp_path, os.path.join(args.output, fname))
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-        del tensor_dict
-        total_written += len(tensors_in_file)
-        elapsed = time.time() - t0
-        done = total_written / total_tensors
-        eta = elapsed / done * (1 - done) if done else 0
-        print(f"    [{time.strftime('%H:%M:%S')}] fichier {n_file}/{len(dg_by_file)}: "
-              f"{fname} ({len(tensors_in_file)} tenseurs) — "
-              f"total {total_written}/{total_tensors} — ETA ~{eta/60:.1f}min")
-
-    # Nettoie les shards obsoletes d'une execution precedente
-    expected_files = set(dg_by_file.keys())
-    for entry in os.listdir(args.output):
-        if entry.endswith(".safetensors") and entry not in expected_files:
-            print(f"  Nettoyage shard obsolete : {entry}")
-            os.remove(os.path.join(args.output, entry))
-
-    # Index + total_size (standard HF)
-    weight_map = {dg_name: fname for fname, names in dg_by_file.items() for dg_name in names}
-    total_size = 0
-    for fname in expected_files:
-        total_size += os.path.getsize(os.path.join(args.output, fname))
-    index_out = {"metadata": {"total_size": total_size}, "weight_map": weight_map}
-    with open(os.path.join(args.output, "model.safetensors.index.json"), "w") as f:
-        json.dump(index_out, f, indent=2)
-
-    # Recopie TOUS les sidecars source (pas de liste en dur : LICENSE, etc. préservés)
-    for entry in list_source_sidecar_files(args.diffusiongemma):
-        src = os.path.join(args.diffusiongemma, entry)
-        dst = os.path.join(args.output, entry)
-        if os.path.isdir(src):
-            shutil.copytree(src, dst, dirs_exist_ok=True)
-        else:
-            shutil.copy2(src, dst)
-
-    # README.md : ne JAMAIS ecraser la model card de la destination (Jainius).
-    readme_src = os.path.join(args.diffusiongemma, "README.md")
-    readme_dst = os.path.join(args.output, "README.md")
-    if os.path.exists(readme_dst):
-        print("  README.md de destination conserve (non ecrase).")
-    elif os.path.exists(readme_src):
-        shutil.copy2(readme_src, readme_dst)
-        print("  README.md source copie (destination sans model card).")
-
-    manifest = {
-        "method": "Dp + alpha*tau_A (ablation inspiree A2D, pas de tau_D)",
-        "alpha": args.alpha,
-        "include_norms_embed": args.include_norms_embed,
-        "n_skipped_norms_embed": n_skipped_norms_embed,
-        "diffusiongemma": os.path.abspath(args.diffusiongemma),
-        "tau_dir": os.path.abspath(args.tau_dir),
-        "tau_manifest": tau_manifest,
-        "n_mapped": len(mapping),
-        "n_unchanged": len(weight_map) - len(mapping),
-        "n_tensors": len(weight_map),
-        "shape_errors": shape_errors,
-        "date": datetime.datetime.now().astimezone().isoformat(),
-        "git_commit": git_commit(),
-        "torch_version": torch.__version__,
-        "safetensors_version": safetensors.__version__,
-    }
+    manifest = result.manifest
+    manifest["shape_errors"] = [note for note in manifest.get("notes", [])
+                                if note.startswith("SHAPE WARNING")]
     with open(os.path.join(args.output, "merge_config.json"), "w") as f:
-        json.dump(manifest, f, indent=2)
+        json.dump(manifest, f, indent=2, ensure_ascii=False)
 
     print(f"\nJainius checkpoint saved to: {args.output}")
-    print(f"  Total tensors: {len(weight_map)}")
-    print(f"  Mapped (merge applique): {len(mapping)}")
-    print(f"  Unchanged (DiffusionGemma-only): {len(weight_map) - len(mapping)}")
+    print(f"  Total tensors: {manifest['n_tensors']}")
+    print(f"  Mapped (merge applique): {manifest['n_mapped']}")
+    print(f"  Unchanged (DiffusionGemma-only): {manifest['n_unchanged']}")
     print(f"  Manifest: merge_config.json")
-    print(f"  Time: {time.time()-t0:.1f}s")
 
 
 if __name__ == "__main__":

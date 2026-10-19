@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 """
-Compute AR post-training task vector: tau_A = A_p - A_b.
+LEGACY — Compute AR post-training task vector: tau_A = A_p - A_b.
+
+CHAMP LEGACY : ce script persiste tau_A sur disque (`.npy`). Il n'est
+utilise que par le wrapper deprecie `scripts/merge_jainius.py`. Le pipeline
+A2D conforme (`scripts/merge_a2d.py` + `scripts/a2d/`) calcule tau_A a la
+volee depuis les checkpoints sources (3-4 handles `safe_open`) et ne persiste
+JAMAIS de vecteur de tache (la provenance est portee par les hashes d'index
+des sources dans le manifeste). Ce script n'est pas supprime : il reste utile
+pour l'outillage existant et pour le wrapper legacy.
+
 Saves intermediate numpy files for later merge step.
 Lecture via safetensors.safe_open (bits exacts), ~2-3 GB peak RAM.
 
