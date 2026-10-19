@@ -8,7 +8,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install safetensors torch numpy pytest
+      - run: pip install safetensors torch numpy pytest pyyaml
       - run: python -c "import ast,glob; [ast.parse(open(f,encoding='utf-8').read()) for f in sorted(glob.glob('scripts/*.py'))]; print('syntax OK')"
       - run: |
           python - <<'EOF'
@@ -31,17 +31,10 @@ jobs:
           python scripts/verify_checkpoint.py --checkpoint /tmp/dummy_out
           python scripts/measure_effect.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --alphas 0.3 --output /tmp/measure.json
       - run: pytest scripts/tests -q
-      # Tests vLLM (docker-compose.yml non modifié dans le commit, tests de non-régression)
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install pyyaml>=6.0 pytest>=8.0 vllm
-      - name: Test docker-compose.yml (structure, entrypoint/command)
-        shell: bash
-        run: |
-          cd /mnt/d/Intelligence_Artificielle/Projects/Academiia/vLLM
-          pip install pyyaml pytest
-          pytest scripts/tests/test_compose.py -v
+      # Test compose vLLM (docker-compose.yml, sans Docker : YAML + simulation bash)
+      - run: pytest vLLM/scripts/tests -q
+      - run: bash -n vLLM/diagnose_image.sh vLLM/smoke.sh
+      - run: python -m py_compile vLLM/smoke_chat.py
 
 # Fin de la section checks.
 

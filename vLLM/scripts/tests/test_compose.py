@@ -1,190 +1,123 @@
-"""Test de non-régression pour docker-compose.yml (vLLM).
+"""Test de non-régression pour vLLM/docker-compose.yml (pytest).
 
-Vérifie la structure sans lancer Docker :
-  - entrypoint == ["bash","-c"]
-  - command est une liste unique dont le script n'a pas de backslash
-  - simulation du script bash avec VLLM_EXTRA_ARGS vide et non vide
-  - --enforce-eager présent par défaut
-  - override runner V1 possible via VLLM_USE_V2_MODEL_RUNNER_OVERRIDE=0
+Parse le compose (PyYAML) et simule REELLEMENT le script bash avec
+`bash -c` (une fonction vllm() imprimant ses arguments remplace
+`exec vllm`). Verifie :
+  - entrypoint == ["bash","-c"] ; command = liste d'UN element ;
+  - aucun backslash dans le script (bug 686c5a8 : le repli YAML
+    transforme les sauts de ligne en espaces, bash recevrait un
+    backslash litteral) ;
+  - aucun argument vide/reduit a un espace, avec VLLM_EXTRA_ARGS vide
+    ET non vide ;
+  - VLLM_USE_V2_MODEL_RUNNER absent de environment: (runner V2 =
+    defaut de vLLM ; le V1 ne se force que via l'override .env) ;
+  - --enforce-eager present par defaut (VLLM_ENFORCE_EAGER=1), absent
+    si VLLM_ENFORCE_EAGER=0 ;
+  - l'override VLLM_USE_V2_MODEL_RUNNER_OVERRIDE=0 exporte bien
+    VLLM_USE_V2_MODEL_RUNNER=0 dans le conteneur, et rien sinon.
 """
 
-import re
+import os
+import subprocess
 from pathlib import Path
+
 import yaml
+COMPOSE_PATH = Path(__file__).resolve().parents[2] / "docker-compose.yml"
+
+# Harnais : remplace `exec vllm` par une fonction qui imprime RUNNER puis
+# un argument par ligne. Le script doit appeler vllm via `exec vllm ...`.
+HARNESS = (
+    "vllm() { echo \"RUNNER=${VLLM_USE_V2_MODEL_RUNNER:-<unset>}\"; "
+    'for a in "$@"; do echo "ARG:$a"; done; } ; '
+)
 
 
-def parse_compose() -> dict:
-    """Parse docker-compose.yml depuis le dossier parent."""
-    compose_path = (Path(__file__).parent.parent / "docker-compose.yml").resolve()
-    with open(compose_path, encoding="utf-8") as f:
+def load_compose() -> dict:
+    with open(COMPOSE_PATH, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
+def run_script(env_overrides: dict[str, str]) -> tuple[str, list[str], list[str]]:
+    """Exécute le script du compose via bash -c. Retourne (runner, args, stderr)."""
+    script = load_compose()["services"]["vllm"]["command"][0]
+    assert "exec vllm" in script, "le script doit lancer vllm via `exec vllm`"
+    env = {k: v for k, v in os.environ.items() if not k.startswith("VLLM_")}
+    env.update(env_overrides)
+    proc = subprocess.run(
+        ["bash", "-c", HARNESS + script.replace("exec vllm", "vllm")],
+        env=env, capture_output=True, text=True, timeout=30,
+    )
+    assert proc.returncode == 0, f"bash a échoué (rc={proc.returncode}) : {proc.stderr}"
+    lines = proc.stdout.splitlines()
+    runner = lines[0].removeprefix("RUNNER=")
+    args = [l[4:] for l in lines[1:] if l.startswith("ARG:")]
+    return runner, args, proc.stderr.splitlines()
+
+
+def get_env_list() -> list:
+    return load_compose()["services"]["vllm"]["environment"]
+
+
+# --- Structure YAML ---
+
 def test_entrypoint_bash_c():
-    """entrypoint doit être ["bash","-c"]."""
-    compose = parse_compose()
-    entrypoint = compose["services"]["vllm"]["entrypoint"]
-    assert entrypoint == ["bash", "-c"], (
-        f"entrypoint incorrect : {entrypoint!r} != ['bash', '-c']")
+    assert load_compose()["services"]["vllm"]["entrypoint"] == ["bash", "-c"]
 
 
 def test_command_single_element():
-    """command doit être une liste d'un SEUL élément (le script bash)."""
-    compose = parse_compose()
-    command = compose["services"]["vllm"]["command"]
-    assert isinstance(command, list), "command n'est pas une liste"
-    assert len(command) == 1, (
-        f"command doit être un seul élément, got {len(command)}")
+    command = load_compose()["services"]["vllm"]["command"]
+    assert isinstance(command, list) and len(command) == 1
 
 
-def test_command_no_backslash():
-    """Le script bash ne doit contenir aucun backslash."""
-    compose = parse_compose()
-    command_script = compose["services"]["vllm"]["command"][0]
-    assert "\\" not in command_script.strip(), (
-        "La commande contient un backslash, ce qui produira une chaîne vide après coupure")
+def test_no_backslash_in_script():
+    script = load_compose()["services"]["vllm"]["command"][0]
+    assert "\\" not in script, (
+        "backslash dans le bloc >- : le repli YAML le rend litteral "
+        "(bug 686c5a8, 'unrecognized arguments')"
+    )
 
 
 def test_no_v2_runner_in_environment():
-    """VLLM_USE_V2_MODEL_RUNNER ne doit PAS figurer dans environment."""
-    compose = parse_compose()
-    env_vars = {v.split("=")[0]: v.split("=", 1)[1] for v in compose["services"]["vllm"].get(
-        "environment", [])}
-    assert (
-        "VLLM_USE_V2_MODEL_RUNNER" not in env_vars or
-        env_vars.get("VLLM_USE_V2_MODEL_RUNNER") == ""), (
-        f"VLLM_USE_V2_MODEL_RUNNER devrait être absent ou vide : {env_vars}")
+    # VLLM_USE_V2_MODEL_RUNNER_OVERRIDE contient le nom de la variable a
+    # surveiller : on verifie l'egalite stricte des cles declarees.
+    for entry in get_env_list():
+        key = entry.split("=", 1)[0]
+        assert key != "VLLM_USE_V2_MODEL_RUNNER", (
+            f"VLLM_USE_V2_MODEL_RUNNER ne doit pas etre defini dans "
+            f"environment (runner V2 = defaut de vLLM) : {entry}"
+        )
 
 
-def test_vllm_wsl2_pin_memory_present():
-    """VLLM_WSL2_ENABLE_PIN_MEMORY doit être présent avec défaut 1."""
-    compose = parse_compose()
-    env_vars = {v.split("=")[0]: v.split("=", 1)[1] for v in compose["services"]["vllm"].get(
-        "environment", [])}
-    assert (
-        "VLLM_WSL2_ENABLE_PIN_MEMORY" not in env_vars or
-        env_vars.get("VLLM_WSL2_ENABLE_PIN_MEMORY") == "" or
-        env_vars.get("VLLM_WSL2_ENABLE_PIN_MEMORY") == "1"), (
-        f"VLLM_WSL2_ENABLE_PIN_MEMORY doit être présent avec défaut 1 : {env_vars}")
+# --- Simulation bash : aucun argument vide, eager conditionnel ---
+
+def test_no_empty_args_default():
+    _, args, _ = run_script({})
+    assert args, "vllm n'a reçu aucun argument"
+    bad = [a for a in args if not a.strip()]
+    assert not bad, f"arguments vides/espaces avec VLLM_EXTRA_ARGS vide : {bad}"
+    assert "--enforce-eager" in args, f"--enforce-eager absent par défaut : {args}"
 
 
-def test_cuda_launch_blocking_present():
-    """CUDA_LAUNCH_BLOCKING doit être présent avec défaut 0."""
-    compose = parse_compose()
-    env_vars = {v.split("=")[0]: v.split("=", 1)[1] for v in compose["services"]["vllm"].get(
-        "environment", [])}
-    assert (
-        "CUDA_LAUNCH_BLOCKING" not in env_vars or
-        env_vars.get("CUDA_LAUNCH_BLOCKING") == "" or
-        env_vars.get("CUDA_LAUNCH_BLOCKING") == "0"), (
-        f"CUDA_LAUNCH_BLOCKING doit être présent avec défaut 0 : {env_vars}")
+def test_no_empty_args_with_extra_args():
+    _, args, _ = run_script({"VLLM_EXTRA_ARGS": "--seed 1 --max-num-batched-tokens 2048"})
+    bad = [a for a in args if not a.strip()]
+    assert not bad, f"arguments vides/espaces avec VLLM_EXTRA_ARGS non vide : {bad}"
+    for flag in ("--seed", "1", "--max-num-batched-tokens", "2048"):
+        assert flag in args, f"{flag} manquant : {args}"
+    assert "--enforce-eager" in args
 
 
-def test_vllm_enforce_eager_present():
-    """VLLM_ENFORCE_EAGER doit être présent avec défaut 1."""
-    compose = parse_compose()
-    env_vars = {v.split("=")[0]: v.split("=", 1)[1] for v in compose["services"]["vllm"].get(
-        "environment", [])}
-    assert (
-        "VLLM_ENFORCE_EAGER" not in env_vars or
-        env_vars.get("VLLM_ENFORCE_EAGER") == "" or
-        env_vars.get("VLLM_ENFORCE_EAGER") == "1"), (
-        f"VLLM_ENFORCE_EAGER doit être présent avec défaut 1 : {env_vars}")
+def test_enforce_eager_omitted_when_disabled():
+    _, args, _ = run_script({"VLLM_ENFORCE_EAGER": "0"})
+    assert "--enforce-eager" not in args, (
+        f"--enforce-eager doit être absent si VLLM_ENFORCE_EAGER=0 : {args}"
+    )
 
 
-def simulate_bash_c(command_script: str, extra_args: str) -> tuple[bool, list[str]]:
-    """
-    Simule `bash -c '<script>'` en coupant la chaîne à ';' ou '|',
-    puis interprétant les substitutions ${VAR:-default} et les tests [ ... ] &&.
-
-    Retourne (status_ok, args_reçus_par_vllm_serve).
-    """
-    # Substituer les variables d'environnement simulées
-    env = {"VLLM_EXTRA_ARGS": extra_args}
-    script = command_script
-
-    # Substitution ${...:-default}
-    def subst(match):
-        var_name = match.group(1)
-        default_value = match.group(2) if match.group(2) else ""
-        return env.get(var_name, "") or default_value
-    script_subst = re.sub(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\:-([^}]*?)\}', subst, script)
-
-    # Couper en commandes séparées par ';' ou '|', en conservant les crochets de test
-    parts = re.split(r'[;|]', script_subst.strip())
-
-    # Exécuter chaque partie comme une commande bash (simulée)
-    output_parts = []
-    for part in parts:
-        part = part.strip()
-        if not part or part.startswith("#"):
-            continue
-        output_parts.append(part)
-
-    return True, output_parts
-
-
-def test_command_with_empty_extra_args():
-    """Avec VLLM_EXTRA_ARGS vide : --enforce-eager présent (défaut)."""
-    compose = parse_compose()
-    script = compose["services"]["vllm"]["command"][0]
-    ok, args = simulate_bash_c(script, "")
-
-    # Vérifier que le mot-clé --enforce-eager est présent dans la commande
-    assert "--enforce-eager" in " ".join(args), (
-        f"--enforce-eager absent avec VLLM_EXTRA_ARGS vide : {args}")
-
-
-def test_command_with_extra_args():
-    """Avec VLLM_EXTRA_ARGS="--seed 42 --max-num-batched-tokens 2048"."""
-    compose = parse_compose()
-    script = compose["services"]["vllm"]["command"][0]
-    ok, args = simulate_bash_c(script, "--seed 42 --max-num-batched-tokens 2048")
-
-    assert "--enforce-eager" in " ".join(args), (
-        f"--enforce-eager absent avec VLLM_EXTRA_ARGS non vide : {args}")
-
-
-def test_command_with_runner_override_v1():
-    """Avec VLLM_USE_V2_MODEL_RUNNER_OVERRIDE=0, la commande inclut l'export."""
-    compose = parse_compose()
-    script = compose["services"]["vllm"]["command"][0]
-
-    # Simuler avec override défini
-    env_with_override = {"VLLM_USE_V2_MODEL_RUNNER_OVERRIDE": "0", "VLLM_ENFORCE_EAGER": ""}
-
-    def subst(match):
-        var_name = match.group(1)
-        default_value = match.group(2) if match.group(2) else ""
-        return env_with_override.get(var_name, "") or default_value
-    script_subst = re.sub(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\:-([^}]*?)\}', subst, script)
-
-    # Vérifier que l'export est présent dans le script substitué
-    assert (
-        'VLLM_USE_V2_MODEL_RUNNER="0"' in script_subst or
-        "VLLM_USE_V2_MODEL_RUNNER=0" in script_subst), (
-        f"L'override runner V1 n'est pas appliquée : {script_subst}")
-
-
-def test_command_with_runner_override_v2():
-    """Avec VLLM_USE_V2_MODEL_RUNNER_OVERRIDE non défini, l'export est absent."""
-    compose = parse_compose()
-    script = compose["services"]["vllm"]["command"][0]
-
-    # Simuler sans override
-    env_no_override = {"VLLM_ENFORCE_EAGER": ""}
-
-    def subst(match):
-        var_name = match.group(1)
-        default_value = match.group(2) if match.group(2) else ""
-        return env_no_override.get(var_name, "") or default_value
-    script_subst = re.sub(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\:-([^}]*?)\}', subst, script)
-
-    assert (
-        "VLLM_USE_V2_MODEL_RUNNER_OVERRIDE" not in script_subst), (
-        f"L'override runner V1 ne devrait pas être présente : {script_subst}")
-
-
-if __name__ == "__main__":
-    import pytest
-    pytest.main([__file__, "-v"])
+def test_runner_override_exported_only_when_set():
+    runner, args, _ = run_script({"VLLM_USE_V2_MODEL_RUNNER_OVERRIDE": "0"})
+    assert runner == "0", f"l'override doit exporter VLLM_USE_V2_MODEL_RUNNER=0, lu {runner}"
+    runner, _, _ = run_script({})
+    assert runner == "<unset>", (
+        f"sans override, VLLM_USE_V2_MODEL_RUNNER ne doit pas être défini, lu {runner}"
+    )

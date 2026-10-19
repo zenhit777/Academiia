@@ -22,6 +22,3 @@ venv/
 build/
 dist/
 
-# Scripts vLLM (non partagés, tests de fumée)
-vLLM/smoke_chat.py
-vLLM/diagnose_image.sh

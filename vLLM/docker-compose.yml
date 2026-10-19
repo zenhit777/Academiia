@@ -4,7 +4,6 @@
 #
 # Image : le support DiffusionGemma (blog vLLM 2026-06-10, PR #45163) est
 # fourni par le tag `gemma`, PAS par `latest` (non reproductible).
-# Voir vLLM recipe diffusiongemma-26B-A4B-it (2026-09-23) : `docker pull vllm/vllm-openai:gemma`.
 # Surcharger via VLLM_IMAGE uniquement pour tester une image plus recente.
 #
 # ENTRYPOINT de l'image : vllm/vllm-openai definit ENTRYPOINT ["vllm","serve"]
@@ -14,6 +13,11 @@
 # l'entrypoint avec `entrypoint: ["bash","-c"]` et on fournit tout le script
 # comme UN SEUL element de `command` (bash -c ne lit que le premier argument
 # comme script ; les elements suivants deviendraient $0, $1... et seraient ignores).
+#
+# IMPORTANT (bug corrige en 686c5a8, ne pas reintroduire) : AUCUN backslash
+# dans le bloc `>-`. Le repli YAML transforme les sauts de ligne en ESPACES :
+# bash recevrait un backslash litteral suivi d'un espace, pas une continuation.
+# Les instructions sont separees par des `;` en fin de ligne.
 
 name: jainius-vllm
 
@@ -44,34 +48,37 @@ services:
     environment:
       # Optionnel : seulement pour contenus gates sur le Hub.
       - HF_TOKEN=${HF_TOKEN:-}
-      # === Configuration WSL2 + GPU (défauts explicites) ===
-      # VLLM_WSL2_ENABLE_PIN_MEMORY=1 : active la mémoire épinglée sous WSL2.
-      #   Nécessaire si le runner V2 échoue avec "UVA is not available".
+      # VLLM_WSL2_ENABLE_PIN_MEMORY=1 : reactive la memoire epinglee sous WSL2
+      #   (desactivee par defaut sous WSL2), precondition d'UVA pour le runner
+      #   V2. Variable introduite dans vLLM main ; a verifier dans l'image via
+      #   ./diagnose_image.sh (peut y etre inconnue -> sans effet).
       - VLLM_WSL2_ENABLE_PIN_MEMORY=${VLLM_WSL2_ENABLE_PIN_MEMORY:-1}
-      # CUDA_LAUNCH_BLOCKING=0 : exécution parallèle (défaut). Mettre à 1 pour
-      #   debug GPU (synchronise les lances, ralentit mais localise le crash).
+      # CUDA_LAUNCH_BLOCKING=0 : defaut (execution parallele). Mettre a 1 pour
+      #   debug GPU : synchronise les lances CUDA, ralentit mais localise le
+      #   crash reel (les erreurs CUDA sont asynchrones).
       - CUDA_LAUNCH_BLOCKING=${CUDA_LAUNCH_BLOCKING:-0}
-      # VLLM_ENFORCE_EAGER=1 : désactive les CUDA graphs. Obligatoire sous WSL2
-      #   avec runner V2 + offload CPU (GPU mémoire limitée ~80 Go). Par défaut 1.
+      # VLLM_ENFORCE_EAGER=1 : desactive les CUDA graphs (--enforce-eager).
+      #   Etait NECESSAIRE avec le runner V1 + offload CPU sous WSL2
+      #   (test du 2026-10-18). Defaut 1 ; le flag n'est passe que si =1.
       - VLLM_ENFORCE_EAGER=${VLLM_ENFORCE_EAGER:-1}
-      # Override du runner : NE PAS définir dans le compose par défaut.
-      # Si vous devez forcer le runner V1 (pour tester une image antérieure ou
-      # dépanner), définissez cette variable dans .env comme :
-      #   VLLM_USE_V2_MODEL_RUNNER_OVERRIDE=0  (force runner V1)
-      # C'est déconseillé : le runner V1 est incompatible avec la génération par diffusion.
+      # Override runner V1 : NE PAS definir VLLM_USE_V2_MODEL_RUNNER ici
+      #   (le runner V2 est le defaut de vLLM). Pour forcer le runner V1
+      #   (DECONSEILLE : le test du 2026-10-18 a montre que la 1re generation
+      #   plante avec une assertion GPU scatter/gather), definir dans .env :
+      #     VLLM_USE_V2_MODEL_RUNNER_OVERRIDE=0
       - VLLM_USE_V2_MODEL_RUNNER_OVERRIDE=${VLLM_USE_V2_MODEL_RUNNER_OVERRIDE:-}
       # Evite les surprises d'allocation memoire PyTorch dans le conteneur.
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     # Pas de restart auto : un OOM doit se voir, pas boucler.
     restart: "no"
-    # `command` = liste d'UN SEUL element = le script entier passe a `bash -c`
-    # (entrypoint ci-dessus). Si on decoupait en plusieurs elements, bash -c ne
-    # --enforce-eager activé par défaut (VLLM_ENFORCE_EAGER=1) pour WSL2 + offload CPU.
-    # Décommentez `export VLLM_ENFORCE_EAGER=` dans .env pour le désactiver si besoin.
+    # `command` = liste d'UN SEUL element = le script entier passe a `bash -c`.
+    # Pas de backslash (voir note en tête de fichier) ; ${VLLM_EXTRA_ARGS:-}
+    # non cite en DERNIER : vide -> aucun argument vide (decoupage par le shell).
     command:
       - >-
-        [ -n "${VLLM_USE_V2_MODEL_RUNNER_OVERRIDE:-}" ] && export VLLM_USE_V2_MODEL_RUNNER="$VLLM_USE_V2_MODEL_RUNNER_OVERRIDE" ; \
-        if [ -z "${VLLM_ENFORCE_EAGER:-1}" ]; then exec vllm serve /data/Jainius --served-model-name "${VLLM_SERVED_MODEL_NAME:-jainius}" --host 0.0.0.0 --port 8000 --dtype "${VLLM_DTYPE:-bfloat16}" --cpu-offload-gb "${VLLM_CPU_OFFLOAD_GB:-30}" --max-model-len "${VLLM_MAX_MODEL_LEN:-4096}" --max-num-seqs "${VLLM_MAX_NUM_SEQS:-1}" --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.90}" ${VLLM_EXTRA_ARGS:-} ; \
-        else exec vllm serve /data/Jainius --served-model-name "${VLLM_SERVED_MODEL_NAME:-jainius}" --host 0.0.0.0 --port 8000 --dtype "${VLLM_DTYPE:-bfloat16}" --cpu-offload-gb "${VLLM_CPU_OFFLOAD_GB:-30}" --max-model-len "${VLLM_MAX_MODEL_LEN:-4096}" --max-num-seqs "${VLLM_MAX_NUM_SEQS:-1}" --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.90}" --enforce-eager ${VLLM_EXTRA_ARGS:-} ; fi
+        [ -n "${VLLM_USE_V2_MODEL_RUNNER_OVERRIDE:-}" ] && export VLLM_USE_V2_MODEL_RUNNER="$VLLM_USE_V2_MODEL_RUNNER_OVERRIDE" ;
+        EAGER="" ;
+        [ "${VLLM_ENFORCE_EAGER:-1}" = "1" ] && EAGER="--enforce-eager" ;
+        exec vllm serve /data/Jainius --served-model-name "${VLLM_SERVED_MODEL_NAME:-jainius}" --host 0.0.0.0 --port 8000 --dtype "${VLLM_DTYPE:-bfloat16}" --cpu-offload-gb "${VLLM_CPU_OFFLOAD_GB:-30}" --max-model-len "${VLLM_MAX_MODEL_LEN:-4096}" --max-num-seqs "${VLLM_MAX_NUM_SEQS:-1}" --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.90}" ${EAGER} ${VLLM_EXTRA_ARGS:-}
 volumes:
   vllm-hf-cache:
