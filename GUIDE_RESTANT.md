@@ -16,127 +16,89 @@ Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipelin
 
 ### 1a. Lancer vLLM avec le checkpoint Jainius
 
- # Méthode recommandée : via docker-compose (déjà configuré dans `vLLM/docker-compose.yml`)
- ```bash
- cd vLLM
- # Vérifier que l'image est disponible :
- docker images | grep vllm/vllm-openai:gemma
- # → doit afficher 9c719fc0c869 (~29.5 Go)
- 
- # Lancer (démarrage ~14,5 min pour charger 52 Go BF16 ; observé via /mnt/d en 9P) :
- docker compose up -d
- ```
+```bash
+cd vLLM
+# Vérifier que l'image est disponible :
+docker images | grep vllm/vllm-openai:gemma
+# → doit afficher 9c719fc0c869 (~29.5 Go)
 
- > **Note** : `--cpu-offload-gb 30` est configuré dans `docker-compose.yml`. Jainius fait ~52 Go et la RAM hôte (~67 Go) absorbe le reste en mémoire CPU (pas de swap).
- > **WSL2** : `VLLM_USE_V2_MODEL_RUNNER=0` force le runner V1 et résout l'erreur UVA (confirmé). Le chargement prend ~14,5 min (observé via /mnt/d en 9P). Si un blocage `torch.compile` survient ensuite, ajouter `--enforce-eager` (désactive les CUDA graphs ; débit réduit mais test de cohérence possible).
+# Lancer :
+docker compose up -d
+```
 
- ```bash
- cd vLLM
- docker run --rm -it \
-     -p 8000:8000 \
-     --gpus all \
-     --ipc host \
-     -v "$(pwd)/../checkpoints/Jainius:/data/Jainius:ro" \
-     --entrypoint bash \
-     vllm/vllm-openai:gemma -c 'exec vllm serve /data/Jainius \
-         --served-model-name "jainius" \
-         --host 0.0.0.0 --port 8000 \
-         --dtype bfloat16 \
-         --cpu-offload-gb 30 \
-         --max-model-len 4096 \
-         --max-num-seqs 1 \
-         --gpu-memory-utilization 0.90 \
-         --enforce-eager'
- ```
+> **Note** : `--cpu-offload-gb 30` est configuré dans `docker-compose.yml`. Jainius fait ~52 Go et la RAM hôte (~67 Go) absorbe le reste en mémoire CPU.
+
+> **Statut WSL2 (test du 2026-10-18)** : avec le runner V1 forcé
+> (`VLLM_USE_V2_MODEL_RUNNER=0`), le serveur démarre et charge Jainius, mais la
+> **première génération échoue** (assert GPU scatter/gather ; cause probable non
+> prouvée : incompatibilité du runner V1 avec la diffusion — voir
+> `vLLM/KNOWN_ISSUES.md`). Le compose force donc désormais le **runner V2**
+> (défaut de vLLM) avec `VLLM_WSL2_ENABLE_PIN_MEMORY=1` ; suivre l'arbre de
+> décision du `vLLM/README.md` (commencer par `./diagnose_image.sh`).
+
+> **Durées observées (2026-10-18, WSL2, /mnt/d en 9P)** : ~14,5 min jusqu'à
+> "Application startup complete", dont ~3 min de lecture des poids (9P) et
+> ~6 min de profilage/autotune ; 1re requête plus lente (JIT Triton). Copier le
+> checkpoint dans le FS natif WSL (ex. `~/models/Jainius`, ajuster
+> `VLLM_MODEL_HOST_PATH`) accélère la lecture des poids.
 
 ### 1b. Vérifier que le serveur répond
 
-# Si le conteneur est déjà lancé, tester depuis l'intérieur :
 ```bash
 cd vLLM && docker compose ps | grep vllm
 # → doit afficher "Up"
-docker exec -i $(docker compose ps -q vllm) python3 -c 'import urllib.request; print(urllib.request.urlopen("http://localhost:8000/v1/models", timeout=30).read().decode())'
-# → doit afficher "jainius" dans les modèles disponibles
-```
-
-# Ou depuis WSL (si le port est bien publié) :
-```bash
-curl -s http://localhost:8000/v1/models | python3 -m json.tool
-```
-### 1b. Vérifier que le serveur répond
-
-```bash
-# Dans un autre terminal :
 curl -s http://localhost:8000/v1/models | python3 -m json.tool
 # → doit afficher "jainius" dans les modèles disponibles
 ```
 
 ### 1c. Test de génération (smoke)
 
- ```bash
-# Test de génération via l'endpoint chat (Jainius est un modèle Instruct) :
-curl -s http://localhost:8000/v1/chat/completions \
-    -H "Content-Type: application/json" \
-    -d '{
-        "model": "jainius",
-        "messages": [{"role": "user", "content": "Combien font 7 × 8 ? Réponds en une phrase."}],
-        "max_tokens": 50,
-        "temperature": 0.7
-    }' | python3 -m json.tool
+```bash
+# Depuis WSL, serveur déjà lancé (Jainius est un modèle Instruct) :
+python vLLM/smoke_chat.py
+# → POST /v1/chat/completions, max_tokens 64, temperature 0,
+#   contrôles objectifs (HTTP 200, texte non vide, pas de répétition dégénérée),
+#   sauvegarde eval/smoke_jainius_<horodatage>.json
 ```
-> **Note** : avec `--enforce-eager`, le débit est très réduit (pas de CUDA graphs + offload CPU). La première requête peut prendre plusieurs minutes. Le timeout par défaut du serveur est 900 s.
 
-> **Attendu** : une réponse cohérente (ex: "97"). Si le serveur crash ou retourne des tokens illisibles → problème de checkpoint.
- ### 1d. Diagnostic `smoke_int8.py` (si échec d'import AutoProcessor)
+> **Note** : avec `--enforce-eager` (défaut), le débit est très réduit (pas de CUDA graphs + offload CPU). La première requête peut prendre plusieurs minutes. Le timeout par défaut du serveur est 900 s.
 
- Si le script affiche `AutoProcessor indisponible`, la cause est une dépendance manquante (très probablement `torchvision`). Diagnostiquez :
- ```bash
- python -c "from transformers import AutoProcessor"
- # → si erreur, installer le paquet manquant puis relancer
- pip install torchvision
- ```
+> **En cas d'erreur 5xx** : `docker logs --tail 200 jainius-vllm`, et relancer avec
+> `CUDA_LAUNCH_BLOCKING=1` dans `.env` pour localiser l'opération fautive (les
+> erreurs CUDA sont asynchrones — le point affiché est trompeur).
 
- ## Étape 2 — LICENSE
+### 1d. Témoin D_p (indispensable avant toute conclusion sur le merge)
 
- Le checkpoint Jainius contient des poids dérivés de Gemma. Vérifier la licence dans les dépôts sources réels (`google/gemma-4` et `google/diffusiongemma`). Si le merge a déjà recopié un fichier `LICENSE`, le conserver ; sinon, ajouter celui du dépôt source approprié.
+Si la génération échoue sur Jainius, rejouer la MÊME config avec
+`D_p` (`checkpoints/diffusiongemma_it`) : un `D_p` qui plante pareil = problème
+de configuration, pas du merge. Un seul modèle à la fois (~52 Go chacun) :
 
- ---
+```bash
+# .env : VLLM_MODEL_HOST_PATH=../checkpoints/diffusiongemma_it
+docker compose down && docker compose up -d
+python vLLM/smoke_chat.py --model diffusiongemma_it
+```
 
- ## Étape 3 — Bench vs D_p (qualité d'inférence)
+### 1e. Diagnostic `smoke_int8.py` (si échec d'import AutoProcessor)
 
- Les mesures de poids (`measure_effect.py`) montrent **l'amplitude** du merge mais pas sa **qualité**. Il faut évaluer la génération.
+Si le script affiche `AutoProcessor indisponible`, la cause est une dépendance manquante (très probablement `torchvision`). Diagnostiquez :
+```bash
+python -c "from transformers import AutoProcessor"
+# → si erreur, installer le paquet manquant puis relancer
+pip install torchvision
+```
 
- > **Note** : la perplexité classique ne s'applique pas directement à un modèle de diffusion. Restez sur l'évaluation par génération (latence, débit, format respecté).
+## Étape 2 — LICENSE
+
+Le checkpoint Jainius contient des poids dérivés de Gemma. Vérifier la licence dans les dépôts sources réels (`google/gemma-4` et `google/diffusiongemma`). Si le merge a déjà recopié un fichier `LICENSE`, le conserver ; sinon, ajouter celui du dépôt source approprié.
 
 ---
 
- ### 3b. Interroger les modèles via vLLM OpenAI-compatible (un par un)
-
- > **Important** : D_p et Jainius font ~52 Go chacun. Ils ne tiennent pas simultanément sur un GPU de 32 Go ni dans la RAM (~67 Go). Lancer-les l'un après l'autre.
-
- ```bash
- # Lancer D_p (port 8000) :
- cd vLLM && docker compose up -d --scale vllm=1
- # ... attendre le chargement (~14,5 min ; observé via /mnt/d en 9P) ...
- python scripts/eval_compare.py \
-     --base http://localhost:8000/v1/completions \
-     --model "diffusiongemma_it" \
-     --prompts eval/prompts.jsonl \
-     --output eval/results_Dp.json
- # ... évaluer, puis arrêter D_p ...
- docker compose down
- 
- # Lancer Jainius (port 8001) :
- cd vLLM && VLLM_SERVED_MODEL_NAME=jainius docker compose up -d --scale vllm=1
- # ... attendre le chargement (~14,5 min ; observé via /mnt/d en 9P) ...
- python scripts/eval_compare.py \
-     --base http://localhost:8001/v1/completions \
-     --model "jainius" \
-     --prompts eval/prompts.jsonl \
-     --output eval/results_jainius.json
- ```
+## Étape 3 — Évaluation par génération vs D_p
 
 Les mesures de poids (`measure_effect.py`) montrent **l'amplitude** du merge mais pas sa **qualité**. Il faut évaluer la génération.
+
+> **Note** : la perplexité classique ne s'applique pas directement à un modèle de diffusion. Restez sur l'évaluation par génération (latence, débit, format respecté).
 
 ### 3a. Préparer les prompts
 
@@ -152,6 +114,35 @@ Format JSONL : un objet par ligne :
 {"id": "math_03", "prompt": "Combien font 7 × 8 ?", "expected": "56"}
 ```
 
+### 3b. Interroger les modèles via vLLM OpenAI-compatible (un par un)
+
+> **Important** : D_p et Jainius font ~52 Go chacun. Ils ne tiennent pas simultanément sur un GPU de 32 Go ni dans la RAM (~67 Go). Lancer-les l'un après l'autre.
+
+```bash
+# Lancer D_p :
+#   .env : VLLM_MODEL_HOST_PATH=../checkpoints/diffusiongemma_it
+#          VLLM_SERVED_MODEL_NAME=diffusiongemma_it
+cd vLLM && docker compose up -d
+# ... attendre le chargement (~14,5 min observés via /mnt/d en 9P) ...
+python scripts/eval_compare.py \
+    --base http://localhost:8000/v1/completions \
+    --model "diffusiongemma_it" \
+    --prompts eval/prompts.jsonl \
+    --output eval/results_Dp.json
+# ... évaluer, puis arrêter ...
+docker compose down
+
+# Lancer Jainius :
+#   .env : VLLM_MODEL_HOST_PATH=../checkpoints/Jainius
+#          VLLM_SERVED_MODEL_NAME=jainius
+VLLM_SERVED_MODEL_NAME=jainius docker compose up -d
+# ... attendre le chargement (~14,5 min observés via /mnt/d en 9P) ...
+python scripts/eval_compare.py \
+    --base http://localhost:8000/v1/completions \
+    --model "jainius" \
+    --prompts eval/prompts.jsonl \
+    --output eval/results_jainius.json
+```
 
 ### 3c. Analyser les résultats
 
@@ -176,27 +167,26 @@ python scripts/verify_checkpoint.py --checkpoint checkpoints/Jainius
 # 2. Headers safetensors = "BF16" (pas "U16")
 # Vérifié automatiquement par verify_checkpoint.py
 
-
-# 4. Scripts compilent
+# 3. Scripts compilent
 python -c "import ast,glob; [ast.parse(open(f,encoding='utf-8').read()) for f in sorted(glob.glob('scripts/*.py'))]"
 # → OK
 
-# 5. Chemins par défaut -> checkpoints/ et _artefact/tau_a (pas /tmp/)
+# 4. Chemins par défaut -> checkpoints/ et _artefact/tau_a (pas /tmp/)
 python scripts/merge_jainius.py --help | grep -E "alpha|shape-mismatch"
 # → "--alpha 0.3", "--on-shape-mismatch error"
 
-# 6. Manifest merge_config.json écrit
+# 5. Manifest merge_config.json écrit
 test -f checkpoints/Jainius/merge_config.json && echo OK || echo MANQUANT
 
-# 7. git status propre (sauf _artefact/)
+# 6. git status propre (sauf _artefact/)
 git status --short
 # → doit être vide
 
-# 8. Structure HuggingFace complète
+# 7. Structure HuggingFace complète
 ls checkpoints/Jainius/config.json checkpoints/Jainius/README.md
 python -c "import json; c=json.load(open('checkpoints/Jainius/config.json')); assert 'DiffusionGemmaForBlockDiffusion' in c['architectures']; print('OK')"
 
-# 9. Conformité à la source (optionnel mais recommandé)
+# 8. Conformité à la source (optionnel mais recommandé)
 python scripts/verify_checkpoint.py --checkpoint checkpoints/Jainius --reference checkpoints/diffusiongemma_it
 ```
 
@@ -220,20 +210,22 @@ hf upload <user>/<repo> checkpoints/Jainius/ --repo-type model
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  Étape 1 : Test inférence GPU (vLLM + smoke)       │
-│  → ~14,5 min chargement (observé via /mnt/d en 9P), ~5 min génération            │
+│  Étape 1 : Test inférence GPU (vLLM + smoke)        │
+│  → ~14,5 min chargement (observé via /mnt/d en 9P,  │
+│    dont ~3 min lecture poids + ~6 min profilage),   │
+│    1re requête plus lente (JIT Triton)              │
 ├─────────────────────────────────────────────────────┤
 │  Étape 2 : LICENSE Gemma                            │
 │  → 2 min                                            │
 ├─────────────────────────────────────────────────────┤
-│  Étape 3 : Évaluation par génération vs D_p                │
-│  → ~1-4 h (dépend du GPU et du nombre de prompts)  │
+│  Étape 3 : Évaluation par génération vs D_p         │
+│  → ~1-4 h (dépend du GPU et du nombre de prompts)   │
 ├─────────────────────────────────────────────────────┤
 │  Étape 4 : CHECKLIST finale                         │
 │  → ~5 min                                           │
 ├─────────────────────────────────────────────────────┤
 │  Étape 5 : Push GitHub + Upload HF                  │
-│  → instantané                                       │
+│  → instantané                                      │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -243,27 +235,30 @@ hf upload <user>/<repo> checkpoints/Jainius/ --repo-type model
 
 - ✅ Pipeline Dp+ατA complet (compute_tau_a, merge_jainius, measure_effect v2)
 - ✅ 9 tests pytest passent (merge non vide, shape mismatch, manifest τ, README préservé, --include-norms-embed, verify --reference)
-- ✅ Docker compose validé (`:gemma`, entrypoint bash -c + command liste 1 élément)
+- ✅ Docker compose validé structurellement (`:gemma`, entrypoint bash -c + command liste 1 élément, test `vLLM/scripts/tests/test_compose.py`)
 - ✅ `verify_checkpoint.py` : strict, headers BF16, NaN/Inf, --check-values, --reference
 - ✅ `merge_jainius.py` : défaut α=0.3, --include-norms-embed (opt-in), suppression index/manifest périmés, contrôle manifest τ
 - ✅ `compute_tau_a.py` : défaut --filter decoder (~35 Go économisés)
 - ✅ `smoke_int8.py` : docstring clarifié, max_memory_allocated ajouté
-- ✅ fix_dtype.py supprimé + toutes références retirées
 - ✅ Tailles harmonisées (~155 Go téléchargement / ~264 Gio sur disque)
-- ✅ CI étendue (pytest dans `.github/workflows/ci.yml`)
+- ✅ CI étendue (pytest + test compose dans `.github/workflows/ci.yml`)
 
 ---
 
-## Scripts vLLM ajoutés (2026-10-18)
+## Outils vLLM (révisés le 2026-10-19)
 
-- ✅ `vLLM/smoke_chat.py` : smoke-test de chat complet avec DiffusionGemma + Jainius. Usage :
+- `vLLM/smoke_chat.py` — client HTTP **stdlib uniquement** : POST `/v1/chat/completions`
+  sur un serveur vLLM déjà lancé (ne charge pas le modèle). Contrôles objectifs
+  (HTTP 200, texte non vide, pas de répétition dégénérée évidente), sauvegarde
+  `eval/smoke_<modèle>_<horodatage>.json`. Usage :
   ```bash
-  python vLLM/smoke_chat.py /path/to/image.png --prompt "Quel est l'objet principal ?" --max-tokens 128
+  python vLLM/smoke_chat.py --url http://localhost:8000 --model jainius
   ```
-- ✅ `vLLM/diagnose_image.sh` : vérifie la validité d'une image d'entrée (PNG/WEBP). Usage :
+- `vLLM/diagnose_image.sh` — diagnostic de l'**image Docker vLLM** sans GPU ni
+  chargement de modèle : version, variables WSL2/runner dans `envs.py`,
+  `platforms/cuda.py`, `req_states` dans `diffusion_gemma.py`. Usage :
   ```bash
-  ./vLLM/diagnose_image.sh /path/to/image.png 560 960
+  cd vLLM && ./diagnose_image.sh [image]
   ```
-
-Ces scripts complètent `smoke_int8.py` pour les tests de non-régression vLLM.
-
+- `vLLM/smoke.sh` — health-check curl rapide (`/v1/models` + génération brute) ;
+  `smoke_chat.py` est l'outil de référence pour la génération contrôlée.

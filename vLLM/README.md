@@ -9,6 +9,11 @@ Chiffres du Technical Report (1× H100, FP8, batch 1) : ~1500 tok/s,
 ~20 tokens/forward, ~12 steps effectifs (max 48). Avantage diffusion jusqu'à
 ~32 requêtes concurrentes ; au-delà, l'AR repasse devant.
 
+**Statut (2026-10-18, WSL2) :** chargement et démarrage validés ; la 1re
+génération a crashé (assertion GPU scatter/gather) avec le runner V1 forcé.
+Cause probable (non prouvée) : incompatibilité runner V1 avec la diffusion.
+Voir `KNOWN_ISSUES.md` et l'arbre de décision ci-dessous.
+
 ## Prérequis
 
 - WSL2 + Docker avec runtime NVIDIA (`nvidia-smi` OK sous WSL).
@@ -19,13 +24,38 @@ Chiffres du Technical Report (1× H100, FP8, batch 1) : ~1500 tok/s,
 
 ```bash
 cd vLLM
-cp .env.template .env   # déjà fait : ajuster si besoin
-docker compose up       # Ctrl+C pour arrêter
-./smoke.sh              # test de génération (autre terminal)
+cp .env.template .env   # ajuster si besoin
+docker compose up       # Ctrl+C pour arrêter ; ~14,5 min de chargement (WSL2, /mnt/d en 9P)
 ```
 
 Le serveur écoute `http://localhost:8000` (API OpenAI-compatible,
-modèle `${VLLM_SERVED_MODEL_NAME}`, défaut `jainius`).
+modèle `${VLLM_SERVED_MODEL_NAME}`, défaut `jainius`). Test de génération :
+
+```bash
+python smoke_chat.py    # autre terminal ; stdlib uniquement
+```
+
+## Arbre de décision (dépannage WSL2)
+
+1. **`./diagnose_image.sh`** (sans GPU, sans chargement) : version de vLLM
+   dans l'image, présence de `VLLM_WSL2_ENABLE_PIN_MEMORY`,
+   `VLLM_WEIGHT_OFFLOADING_DISABLE_UVA`, `VLLM_USE_V2_MODEL_RUNNER` dans
+   `envs.py`, de `WSL2_ENABLE_PIN_MEMORY` dans `platforms/cuda.py`, usage de
+   `req_states` dans `diffusion_gemma.py`.
+2. **Si `VLLM_WSL2_ENABLE_PIN_MEMORY` est connue de l'image :** lancer le
+   compose par défaut (runner V2 = défaut de vLLM, pin memory activée).
+   N'utilisez `VLLM_USE_V2_MODEL_RUNNER_OVERRIDE=0` (runner V1) qu'en dernier
+   recours — le test du 2026-10-18 a crashé à la 1re génération avec lui.
+3. **Sinon :** la variable n'a aucun effet dans cette image → tester une image
+   plus récente (tag à déterminer via `docker search`/Docker Hub, ne pas
+   inventer de tag) ou une machine Linux native / GPU ≥ 80 Go sans offload CPU.
+4. **Si le serveur démarre :** `python smoke_chat.py` sur Jainius **puis sur
+   `D_p`** (même config, un seul modèle à la fois : ~52 Go chacun) ; comparer.
+   Un `D_p` qui plante pareil = problème de configuration, pas du merge.
+5. **En cas de nouveau crash :** mettre `CUDA_LAUNCH_BLOCKING=1` dans `.env`
+   pour localiser l'opération fautive (les erreurs CUDA sont asynchrones —
+   le point affiché par défaut est trompeur), puis
+   `docker logs --tail 200 jainius-vllm`.
 
 ## Variables (`.env`)
 
@@ -41,6 +71,10 @@ modèle `${VLLM_SERVED_MODEL_NAME}`, défaut `jainius`).
 | `VLLM_MAX_MODEL_LEN` | `4096` | Contexte max (baisser à 2048 si OOM) |
 | `VLLM_MAX_NUM_SEQS` | `1` | 1 pour l'eval reproductible |
 | `VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | Marge VRAM pour sampler diffusion |
+| `VLLM_WSL2_ENABLE_PIN_MEMORY` | `1` | Réactive la mémoire épinglée sous WSL2 (précondition UVA pour le runner V2). Variable de vLLM main : sans effet si absente de l'image (voir `diagnose_image.sh`) |
+| `CUDA_LAUNCH_BLOCKING` | `0` | `1` = debug GPU (localise le crash, ralentit) |
+| `VLLM_ENFORCE_EAGER` | `1` | `1` = `--enforce-eager` (nécessaire avec runner V1 + offload CPU sous WSL2, 2026-10-18 ; nécessité avec runner V2 non testée) |
+| `VLLM_USE_V2_MODEL_RUNNER_OVERRIDE` | (vide) | Force le runner V1 si `0`. **Déconseillé** : crash à la 1re génération (2026-10-18). Vide = runner V2 (défaut vLLM) |
 | `VLLM_EXTRA_ARGS` | (vide) | Flags supplementaires, decoupes par shell (multi-flags OK) |
 
 ## Entrypoint (pourquoi `entrypoint: ["bash","-c"]`)
@@ -51,6 +85,10 @@ vLLM rejetterait ces arguments. Le compose neutralise l'entrypoint avec
 `entrypoint: ["bash","-c"]` et fournit tout le script comme **UN SEUL élément**
 de `command` (avec `bash -c`, seul le premier argument est lu comme script).
 
+**Aucun backslash dans le bloc `>-`** : le repli YAML transforme les sauts de
+ligne en espaces, bash recevrait un backslash littéral suivi d'un espace
+(bug corrigé en 686c5a8, regression testée par `scripts/tests/test_compose.py`).
+
 Vérification de l'entrypoint de l'image :
 
 ```bash
@@ -58,22 +96,32 @@ docker image inspect vllm/vllm-openai:gemma --format '{{json .Config.Entrypoint}
 # -> ["vllm","serve"]
 ```
 
-C'est cette forme qui permet à `VLLM_EXTRA_ARGS` de contenir **plusieurs** flags
-(découpés par le shell du conteneur). Attention : avec cet entrypoint,
-`docker compose run --rm vllm --version` **ne fonctionne pas** (bash reçoit
-`--version` comme script) — pour un smoke du conteneur, passer une commande
-complète en un seul argument, p.ex. :
+## Tests sans Docker
 
-```bash
-docker compose run --rm -T --no-deps vllm 'echo OK; vllm --version'
-```
+`scripts/tests/test_compose.py` (pytest + PyYAML) valide le compose :
+structure, pas de backslash, simulation `bash -c` du script (aucun argument
+vide, `--enforce-eager` conditionnel, override runner). C'est ce test qui
+tourne dans la CI.
+
+## Outils de ce dossier
+
+- `smoke_chat.py` — client HTTP stdlib : `POST /v1/chat/completions`,
+  contrôles objectifs (HTTP 200, texte non vide, pas de répétition dégénérée
+  évidente), sauvegarde `eval/smoke_<modèle>_<horodatage>.json`. Ces fichiers
+  sont de petites preuves (~1 Ko) : ils ne sont PAS ignorés par git.
+- `diagnose_image.sh` — diagnostic de l'image Docker sans GPU ni chargement
+  (version vLLM, variables `envs.py`, `platforms/cuda.py`, `req_states`).
+- `smoke.sh` — smoke minimal via curl (remplacé par `smoke_chat.py` pour la
+  génération ; conservé pour le health-check rapide).
 
 ## Notes
 
 - **VRAM** : pas de `load_in_8bit` ici (dépannage `transformers` uniquement).
   Le fit tient via `--cpu-offload-gb` ; la RAM hôte (~67 Go) l'absorbe.
-- **Montage Windows** : via `/mnt/d`, le chargement des ~52 Go est lent.
-  Pour du bench : copier le checkpoint dans le FS WSL et ajuster `VLLM_MODEL_HOST_PATH`.
+- **Montage Windows** : via `/mnt/d` (9P), ~3 min de lecture des 52 Go —
+  copier le checkpoint dans le FS natif WSL (`~/models/Jainius`) et ajuster
+  `VLLM_MODEL_HOST_PATH` accélère le démarrage (~14,5 min observés dont
+  ~6 min de profilage/autotune ; 1re requête plus lente, JIT Triton).
 - **Débit max** : batch 1, sampler par défaut (adaptive stopping ON),
   mode no-think pour le volume. Mesurer TPF/steps effectifs/TPS
   (éq. 10/12 du rapport) avant toute allégation — faiblesse n°2 de `AUDIT.md`.

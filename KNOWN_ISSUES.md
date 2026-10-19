@@ -3,7 +3,7 @@
 ## ✅ Suite audit Sonnet 2026-10-16 (appliquée, en attente du balayage α)
 
 - **Méthode renommée :** ce n'est PAS le A2D-Merge (`D_p + λ(τ_A − τ_D)`, τ_D inexistant publiquement) mais l'ablation `D_p + ατ_A` (Tab. 9). README/AGENTS corrigés, défaut **α=0.3** (0.8 déprécié : −3.8 pts SLAKE dans le papier).
- - **Parseur maison en retrait :** `compute_tau_a.py` + `merge_jainius.py` lisent via `safe_open`, helpers partagés `scripts/_common.py`. `fix_dtype.py` supprimé (commit git conserve l'historique).
+ - **Parseur maison en retrait :** `compute_tau_a.py` + `merge_jainius.py` lisent via `safe_open`, helpers partagés `scripts/_common.py`. Le merge sauvegarde déjà en BF16 canonique.
 - **Merge durci :** shape mismatch → erreur par défaut, manifest `merge_config.json`, écriture atomique, nettoyage shards obsolètes (`--overwrite` exigé), recopie de TOUS les sidecars (LICENSE...), `total_size` dans l'index. `verify_checkpoint.py` : égalité index/headers exigée, contrôle bon-fichier par tenseur, `--check-values` NaN/Inf, HF files requis.
 - **Serving :** compose en forme shell (multi-flags `VLLM_EXTRA_ARGS` OK), image épinglée `vllm/vllm-openai:gemma`, `ipc: host`, `VLLM_MAX_MODEL_LEN=4096`, `MAX_NUM_SEQS=1`, `GPU_MEMORY_UTILIZATION=0.90`. `.gitignore` : `__pycache__/`, `*.pyc`, `.venv/`, `*.npy`.
  - **Mesure poids (résultats 2026-10-17, v2) :** `scripts/measure_effect.py` sur les 656 tenseurs (25.2B éléments) — % reellement modifies apres arrondi BF16 : α=0.05→94.8%, 0.1→97.3%, 0.2→98.5%, **0.3→99.1%**, 0.5→99.4%. Variante sans norms/embed (355 tenseurs) quasi identique. Par famille a 0.3 : attn ratio_rel med=2.98%, cos=0.998 ; mlp/experts ratio_rel med=2.82%, cos=0.998 ; embed ratio_rel med=2.66%, cos=0.998 ; norms ratio_rel med=0.044%, cos=0.61 (arrondi BF16 detruit la direction) ; routeur τ≈0. Le % d'elements modifies NE mesure PAS l'ampleur du changement : un ULP BF16 minuscule suffit a faire "bouger" des bits sans effet numerique significatif. La quantification n'absorbe presque rien — α pilote reellement le merge, d'où l'importance du balayage et de l'éval vs `D_p`. JSON : `_artefact/measure_effect_v2*.json`.
@@ -35,4 +35,11 @@
 
 ## ℹ️ Limites non-bugs (inchangées)
 - A2D partiel : 656 tenseurs decoder fusionnes, 391 vision inchanges (architectural).
+
+## 🔴 Inférence GPU vLLM (2026-10-18) — incident ouvert
+
+- **Symptôme :** avec le runner V1 forcé sous WSL2, le serveur démarre et charge Jainius (~14,5 min), `GET /v1/models` OK, mais la **première génération** crash EngineCore (`ScatterGatherKernel.cu:163 index out of bounds` → `device-side assert`). Dump scheduler : 256 tokens `-1` (canevas diffusion).
+- **Hypothèses (non prouvées) :** runner V1 incompatible avec le chemin de génération par diffusion (`req_states`/`draft_tokens` = structures V2) ; cause d'origine = UVA indisponible sous WSL2 (mémoire épinglée désactivée ; `VLLM_WSL2_ENABLE_PIN_MEMORY=1` peut la réactiver — présence dans l'image à vérifier via `vLLM/diagnose_image.sh`).
+- **Non prouvé :** rôle des poids fusionnés Jainius — témoin `D_p` requis (même config).
+- Détails + arbre de décision : `vLLM/KNOWN_ISSUES.md` et `vLLM/README.md`.
 - Pas de test d'inference GPU (recommande avant publication).
