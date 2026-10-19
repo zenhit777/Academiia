@@ -6,7 +6,7 @@ Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipelin
 
 ## Prérequis
 
-- GPU NVIDIA avec ≥ 32 Go VRAM (pour vLLM BF16 offloadé ; Jainius fait ~52 Go). INT8 n'est pas applicable ici.
+- GPU NVIDIA avec ≥ 32 Go VRAM (pour vLLM BF16 offloadé ; Jainius fait 48,10 GiB (~52 Go)). INT8 n'est pas applicable ici.
 - Docker Desktop / Engine avec runtime NVIDIA (`nvidia-smi` sous WSL2)
 - `huggingface_hub`, `transformers>=5.10` (≥ 5.11 pour DiffusionGemmaForBlockDiffusion), `safetensors.torch`, `bitsandbytes` (pour smoke INT8)
 
@@ -26,7 +26,7 @@ docker images | grep vllm/vllm-openai:gemma
 docker compose up -d
 ```
 
-> **Note** : `--cpu-offload-gb 30` est configuré dans `docker-compose.yml`. Jainius fait ~52 Go et la RAM hôte (~67 Go) absorbe le reste en mémoire CPU.
+> **Note** : `--cpu-offload-gb 30` est configuré dans `docker-compose.yml`. Jainius fait 48,10 GiB (~52 Go) et la RAM hôte (~67 Go) absorbe le reste en mémoire CPU.
 
 > **Statut WSL2 (test du 2026-10-18)** : avec le runner V1 forcé
 > (`VLLM_USE_V2_MODEL_RUNNER=0`), le serveur démarre et charge Jainius, mais la
@@ -71,7 +71,7 @@ python vLLM/smoke_chat.py
 
 Si la génération échoue sur Jainius, rejouer la MÊME config avec
 `D_p` (`checkpoints/diffusiongemma_it`) : un `D_p` qui plante pareil = problème
-de configuration, pas du merge. Un seul modèle à la fois (~52 Go chacun) :
+de configuration, pas du merge. Un seul modèle à la fois (48,10 GiB (~52 Go) chacun) :
 
 ```bash
 # .env : VLLM_MODEL_HOST_PATH=../checkpoints/diffusiongemma_it
@@ -116,7 +116,7 @@ Format JSONL : un objet par ligne :
 
 ### 3b. Interroger les modèles via vLLM OpenAI-compatible (un par un)
 
-> **Important** : D_p et Jainius font ~52 Go chacun. Ils ne tiennent pas simultanément sur un GPU de 32 Go ni dans la RAM (~67 Go). Lancer-les l'un après l'autre.
+> **Important** : D_p et Jainius font 48,10 GiB (~52 Go) chacun. Ils ne tiennent pas simultanément sur un GPU de 32 Go ni dans la RAM (~67 Go). Lancer-les l'un après l'autre.
 
 ```bash
 # Lancer D_p :
@@ -124,7 +124,7 @@ Format JSONL : un objet par ligne :
 #          VLLM_SERVED_MODEL_NAME=diffusiongemma_it
 cd vLLM && docker compose up -d
 # ... attendre le chargement (~14,5 min observés via /mnt/d en 9P) ...
-python scripts/eval_compare.py \
+python scripts/eval_compare.py \   # À ÉCRIRE (J5) — inexistant à ce jour ; sorties attendues ci-dessous
     --base http://localhost:8000/v1/completions \
     --model "diffusiongemma_it" \
     --prompts eval/prompts.jsonl \
@@ -137,7 +137,7 @@ docker compose down
 #          VLLM_SERVED_MODEL_NAME=jainius
 VLLM_SERVED_MODEL_NAME=jainius docker compose up -d
 # ... attendre le chargement (~14,5 min observés via /mnt/d en 9P) ...
-python scripts/eval_compare.py \
+python scripts/eval_compare.py \   # À ÉCRIRE (J5) — inexistant ; sorties attendues § 3c
     --base http://localhost:8000/v1/completions \
     --model "jainius" \
     --prompts eval/prompts.jsonl \
@@ -151,7 +151,7 @@ Le script doit produire un JSON avec :
 - Débit (tokens/s) par modèle
 - Score de format respecté (%)
 - Réponses non vides / répétitions dégénérées (%)
-- Comparaison α ∈ {0.1, 0.3} (chaque α nécessite un checkpoint ~52 Go ; faire les tests un par un).
+- Comparaison α ∈ {0.1, 0.3} (chaque α nécessite un checkpoint 48,10 GiB ; faire les tests un par un).
 
 ---
 

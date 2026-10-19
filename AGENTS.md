@@ -42,6 +42,7 @@ Academiia/
 3. **Le checkpoint final est `Jainius`** — c'est le résultat de l'application A2D sur DiffusionGemma.
 4. **`checkpoints/` est à la racine** — ignoré par git, contient les modèles binaires (~245 Go). Ne jamais le modifier directement.
 5. **`_artefact/` est un dossier temporaire agents** — tous les fichiers générés par les agents qui n'ont pas vocation à être partagés (logs, exports intermédiaires, résultats de tests) doivent y être placés. Ce dossier est ignoré par git et ne doit jamais être commité.
+6. **GPU/VRAM (inférence vLLM)** : Docker et le GPU (RTX 5090 32 Go) fonctionnent dans WSL2 (observé 2026-10-18/19 ; les commandes Docker se lancent depuis WSL). Avant TOUTE opération GPU : mesurer `nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free --format=csv` ; besoin vLLM ≈ `VLLM_GPU_MEMORY_UTILIZATION × total` (0,90 → ≈ 28,8 GiB). Si un modèle LM Studio est chargé ET `memory.free < besoin + 1 GiB` : STOPPER et demander la permission (citer mémoire libre, besoin, modèle détecté). Ne JAMAIS décharger un modèle LM Studio ni tuer de processus. Après chaque série GPU : `docker compose down`, re-mesurer. Détails : `vLLM/README.md` (règle VRAM).
 
 ### Pipeline Dp + ατA (ablation inspirée A2D — PAS le A2D-Merge complet)
 

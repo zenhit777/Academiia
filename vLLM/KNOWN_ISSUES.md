@@ -7,6 +7,7 @@ compose avec `VLLM_USE_V2_MODEL_RUNNER=0` (runner V1 forcé) + `--enforce-eager`
 + `--cpu-offload-gb 30`.
 
 **Symptômes (observés, log du 2026-10-18) :**
+
 - Chargement OK : 11 shards, ~14,5 min jusqu'à "Application startup complete".
 - `GET /v1/models` OK.
 - **Première** `POST /v1/chat/completions` : EngineCore meurt avec
@@ -38,6 +39,35 @@ crash à la 1re génération (assertion GPU scatter/gather).
 `VLLM_WSL2_ENABLE_PIN_MEMORY=1` et `CUDA_LAUNCH_BLOCKING=0` avec défauts
 explicites ; le runner V1 ne se force que via `VLLM_USE_V2_MODEL_RUNNER_OVERRIDE=0`
 dans `.env` (déconseillé). Voir l'arbre de décision dans `README.md`.
+## 2026-10-19 (WSL2, RTX 5090 32 Go) — runner V2 : faits nouveaux
+
+**Diagnostiqué puis exécuté (sorties brutes dans le rapport J4Bis-bis) :**
+- `gemma` (vLLM 0.22.1rc1.dev357) : `VLLM_WSL2_ENABLE_PIN_MEMORY` est
+  **INCONNUE** de l'image — log serveur : `WARNING [envs.py:2111] Unknown
+  vLLM environment variable detected: VLLM_WSL2_ENABLE_PIN_MEMORY` (le
+  défaut=1 du compose est donc sans effet).
+- `gemma` + runner V2 (compose par défaut) : échec à l'init en ~22 s —
+  `gpu_worker.py:333 → GPUModelRunnerV2 → states.py:33 → buffer_utils.py:48 :
+  RuntimeError("UVA is not available")`. L'UvaBuffer (offload des poids)
+  exige UVA, indisponible sous WSL2 (pin_memory désactivé :
+  `WARNING [interface.py:757] Using 'pin_memory=False' as WSL is detected`).
+- `gemma` + `VLLM_WEIGHT_OFFLOADING_DISABLE_UVA=1` : testé, ne contourne
+  pas (même erreur UVA).
+- `latest` (vLLM 0.24.0, présente localement) : la variable pin memory est
+  **CONNUE** (`envs.py` + `platforms/cuda.py`), l'init UVA **passe**, mais
+  échec à `load_model` → `RuntimeError: CUDA driver error: device not ready`
+  (`routed_experts.py:168`, allocation MoE) — **reproduit 2 fois**, non résolu.
+- `req_states` présent dans `diffusion_gemma.py` des deux images (lignes
+  954/1083/1153/... : `prepare_inputs(self, input_batch, req_states)`,
+  `req_states.draft_tokens[...]`) — le chemin diffusion utilise bien les
+  structures du runner V2.
+
+**Non prouvé :** cause racine du `device not ready` (0.24.0) — piste non
+testée : désactiver l'offload CPU (`VLLM_CPU_OFFLOAD_GB=0`) exigerait
+≥ 48,10 GiB de VRAM, impossible sur 32 Go ; tag plus récent ; Linux natif.
+Le témoin D_p n'a pas été exécuté : les trois échecs surviennent à l'init /
+au chargement, indépendamment du checkpoint (l'incident V1 du 2026-10-18
+reste le seul crash de génération).
 
 ## WSL2 : UVA indisponible avec le runner V2
 

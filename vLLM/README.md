@@ -9,10 +9,16 @@ Chiffres du Technical Report (1× H100, FP8, batch 1) : ~1500 tok/s,
 ~20 tokens/forward, ~12 steps effectifs (max 48). Avantage diffusion jusqu'à
 ~32 requêtes concurrentes ; au-delà, l'AR repasse devant.
 
-**Statut (2026-10-18, WSL2) :** chargement et démarrage validés ; la 1re
-génération a crashé (assertion GPU scatter/gather) avec le runner V1 forcé.
-Cause probable (non prouvée) : incompatibilité runner V1 avec la diffusion.
-Voir `KNOWN_ISSUES.md` et l'arbre de décision ci-dessous.
+**Statut (2026-10-19, WSL2, RTX 5090 32 Go) :**
+- `gemma` (vLLM 0.22.1rc1.dev357) : runner V2 → échec à l'init
+  (`RuntimeError: UVA is not available`, `buffer_utils.py:48`) ; runner V1
+  forcé (2026-10-18) → démarrage OK mais crash à la 1re génération (assert GPU
+  scatter/gather). `VLLM_WSL2_ENABLE_PIN_MEMORY` est INCONNUE de cette image
+  (log : « Unknown vLLM environment variable detected »).
+- `latest` (vLLM 0.24.0) : `VLLM_WSL2_ENABLE_PIN_MEMORY` CONNUE, plus d'erreur
+  UVA, mais échec à `load_model` : `CUDA driver error: device not ready`
+  (reproduit 2 fois) — non résolu à ce jour.
+- Voir `KNOWN_ISSUES.md` et l'arbre de décision ci-dessous.
 
 ## Prérequis
 
@@ -46,16 +52,42 @@ python smoke_chat.py    # autre terminal ; stdlib uniquement
    compose par défaut (runner V2 = défaut de vLLM, pin memory activée).
    N'utilisez `VLLM_USE_V2_MODEL_RUNNER_OVERRIDE=0` (runner V1) qu'en dernier
    recours — le test du 2026-10-18 a crashé à la 1re génération avec lui.
-3. **Sinon :** la variable n'a aucun effet dans cette image → tester une image
-   plus récente (tag à déterminer via `docker search`/Docker Hub, ne pas
-   inventer de tag) ou une machine Linux native / GPU ≥ 80 Go sans offload CPU.
+3. **Sinon :** la variable n'a aucun effet dans cette image. **Testé le
+   2026-10-19 :** `vllm/vllm-openai:latest` (vLLM 0.24.0, déjà présente
+   localement) CONNAÎT la variable et passe l'init UVA, mais échoue ensuite à
+   `load_model` (`CUDA driver error: device not ready`, reproduit 2 fois —
+   non résolu). `VLLM_WEIGHT_OFFLOADING_DISABLE_UVA=1` sur `gemma` : testé,
+   ne contourne pas (même erreur UVA). Reste à tester : tag plus récent que
+   `latest`, ou Linux natif / GPU ≥ 80 Go sans offload CPU.
 4. **Si le serveur démarre :** `python smoke_chat.py` sur Jainius **puis sur
-   `D_p`** (même config, un seul modèle à la fois : ~52 Go chacun) ; comparer.
+   `D_p`** (même config, un seul modèle à la fois : 48,10 GiB (~52 Go) chacun) ; comparer.
    Un `D_p` qui plante pareil = problème de configuration, pas du merge.
 5. **En cas de nouveau crash :** mettre `CUDA_LAUNCH_BLOCKING=1` dans `.env`
    pour localiser l'opération fautive (les erreurs CUDA sont asynchrones —
    le point affiché par défaut est trompeur), puis
    `docker logs --tail 200 jainius-vllm`.
+
+## Lancer les diagnostics depuis Windows
+
+Vérifié le 2026-10-19 depuis un shell WSL : `docker --version` (29.6.1) et
+`nvidia-smi` (RTX 5090, 32 607 MiB) répondent directement ; `wsl.exe -e
+nvidia-smi` échoue (`execvpe(nvidia-smi) failed`) car on est déjà dans WSL.
+Depuis Windows (PowerShell/CMD), les commandes WSL s'invoquent via
+`wsl.exe -e <cmd>` (p. ex. `wsl.exe -e docker compose -f vLLM/docker-compose.yml config`).
+Non testé depuis un shell Windows natif ce jour.
+
+## Règle VRAM (LM Studio) — pour les agents
+
+Avant TOUTE opération GPU : mesurer
+`nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free --format=csv`
+(`memory.used` inclut ce qu'occupe LM Studio). Besoin vLLM ≈
+`VLLM_GPU_MEMORY_UTILIZATION × total` (défaut 0,90 → ≈ 28,8 GiB sur 32 GiB).
+Si un modèle LM Studio est chargé ET que `memory.free < besoin + 1 GiB` :
+STOPPER et demander la permission à l'utilisateur (citer mémoire libre
+mesurée, besoin estimé, modèle détecté). Ne JAMAIS décharger un modèle LM
+Studio, tuer un processus ou modifier ses réglages. Après chaque série de
+tests GPU : `docker compose down`, re-mesurer et rapporter `memory.used`.
+Opérations CPU seules (pytest, merge, verify) : aucune permission requise.
 
 ## Variables (`.env`)
 
@@ -67,7 +99,7 @@ python smoke_chat.py    # autre terminal ; stdlib uniquement
 | `VLLM_PORT` | `8000` | Port hôte |
 | `HF_TOKEN` | (vide) | Optionnel, contenus gatés uniquement |
 | `VLLM_DTYPE` | `bfloat16` | `fp8` exige un checkpoint pré-quantifié (non fourni) |
-| `VLLM_CPU_OFFLOAD_GB` | `30` | MoE délestés en RAM (51.6 Go vs ~31 Go VRAM) |
+| `VLLM_CPU_OFFLOAD_GB` | `30` | MoE délestés en RAM (48,10 GiB lu par vLLM vs ~31 Go VRAM) |
 | `VLLM_MAX_MODEL_LEN` | `4096` | Contexte max (baisser à 2048 si OOM) |
 | `VLLM_MAX_NUM_SEQS` | `1` | 1 pour l'eval reproductible |
 | `VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | Marge VRAM pour sampler diffusion |
