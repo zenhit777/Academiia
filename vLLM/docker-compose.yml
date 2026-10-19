@@ -71,14 +71,19 @@ services:
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     # Pas de restart auto : un OOM doit se voir, pas boucler.
     restart: "no"
-    # `command` = liste d'UN SEUL element = le script entier passe a `bash -c`.
-    # Pas de backslash (voir note en tête de fichier) ; ${VLLM_EXTRA_ARGS:-}
-    # non cite en DERNIER : vide -> aucun argument vide (decoupage par le shell).
+    # `$$` = littéral `$` pour le SHELL du conteneur (Compose interpole tout
+    # `$VAR`/`${VAR}` AVANT ; seul `$$` lui échappe). Sont interpolés par
+    # Compose (valeurs du .env) : ${VLLM_SERVED_MODEL_NAME:-jainius},
+    # ${VLLM_DTYPE:-bfloat16}, ${VLLM_CPU_OFFLOAD_GB:-30},
+    # ${VLLM_MAX_MODEL_LEN:-4096}, ${VLLM_MAX_NUM_SEQS:-1},
+    # ${VLLM_GPU_MEMORY_UTILIZATION:-0.90}, ${VLLM_ENFORCE_EAGER:-1},
+    # ${VLLM_EXTRA_ARGS:-}. Sont lus par le shell : $$EAGER (interne),
+    # $${VLLM_USE_V2_MODEL_RUNNER_OVERRIDE} (passe par environment:).
     command:
       - >-
-        [ -n "${VLLM_USE_V2_MODEL_RUNNER_OVERRIDE:-}" ] && export VLLM_USE_V2_MODEL_RUNNER="$VLLM_USE_V2_MODEL_RUNNER_OVERRIDE" ;
+        [ -n "$${VLLM_USE_V2_MODEL_RUNNER_OVERRIDE:-}" ] && export VLLM_USE_V2_MODEL_RUNNER="$$VLLM_USE_V2_MODEL_RUNNER_OVERRIDE" ;
         EAGER="" ;
         [ "${VLLM_ENFORCE_EAGER:-1}" = "1" ] && EAGER="--enforce-eager" ;
-        exec vllm serve /data/Jainius --served-model-name "${VLLM_SERVED_MODEL_NAME:-jainius}" --host 0.0.0.0 --port 8000 --dtype "${VLLM_DTYPE:-bfloat16}" --cpu-offload-gb "${VLLM_CPU_OFFLOAD_GB:-30}" --max-model-len "${VLLM_MAX_MODEL_LEN:-4096}" --max-num-seqs "${VLLM_MAX_NUM_SEQS:-1}" --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.90}" ${EAGER} ${VLLM_EXTRA_ARGS:-}
+        exec vllm serve /data/Jainius --served-model-name "${VLLM_SERVED_MODEL_NAME:-jainius}" --host 0.0.0.0 --port 8000 --dtype "${VLLM_DTYPE:-bfloat16}" --cpu-offload-gb "${VLLM_CPU_OFFLOAD_GB:-30}" --max-model-len "${VLLM_MAX_MODEL_LEN:-4096}" --max-num-seqs "${VLLM_MAX_NUM_SEQS:-1}" --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.90}" $${EAGER} ${VLLM_EXTRA_ARGS:-}
 volumes:
   vllm-hf-cache:
