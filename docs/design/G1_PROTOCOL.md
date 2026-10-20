@@ -130,12 +130,35 @@ qu'à lot identique. Le harnais le fixe par défaut (`harness/dream/run_evals.sh
 
 ### 4.1 Critères principaux
 
-| # | Critère | Seuil | Tâches |
+> **Amendement M1 (2026-10-21, revue N2 externe — HEAD `16a0232`)** : les seuils
+> ne portent plus sur l'**estimation ponctuelle** seule. Un écart ponctuel
+> ≥ +10 points peut être compatible avec un intervalle de confiance qui
+> contient 0 (IC 95 % de ±4,3 à ±7,1 points sur les effectifs de J6) : le
+> critère est donc **double** (point estimate **et** borne basse de l'IC
+> apparié), et les non-régressions sont **requalifiées** en « non-régression
+> **non réfutée** ». Effectifs, tâches et reste du protocole : **inchangés**.
+
+| # | Critère | Seuil (amendé) | Tâches |
 |---|---|---|---|
-| **C1** | **Transfer − Base** | **≥ +10 points** | MATH-175 |
-| **C2** | **Transfer − Base** | **≥ +8 points** | GSM8K |
-| **C3** | **Merge − Instruct** | **≥ −2 points** (non-régression) | MATH-175 |
-| **C4** | **Merge − Instruct** | **≥ −2 points** (non-régression) | GSM8K |
+| **C1** | **Transfer − Base** | **≥ +10 points** *et* **borne basse de l'IC bootstrap apparié 95 % > 0** | MATH-175 |
+| **C2** | **Transfer − Base** | **≥ +8 points** *et* **borne basse de l'IC bootstrap apparié 95 % > 0** | GSM8K |
+| **C3** | **Merge − Instruct** | **non-régression non réfutée** : borne basse de l'IC ≥ −2 ; *non-régression établie* seulement si borne basse ≥ 0 | MATH-175 |
+| **C4** | **Merge − Instruct** | **non-régression non réfutée** : borne basse de l'IC ≥ −2 ; *non-régression établie* seulement si borne basse ≥ 0 | GSM8K |
+
+* **C1/C2 — double condition.** Le critère est satisfait si **et seulement si**
+  (i) l'estimation ponctuelle de l'écart est **≥** au seuil (10 resp. 8
+  points) **et** (ii) la **borne basse** de l'IC bootstrap apparié 95 % est
+  **strictement positive**. (i) seule est compatible avec un effet nul ;
+  (ii) seule est compatible avec un effet plus faible que le seuil.
+* **C3/C4 — formulation du verdict.** Le seuil de **−2 points** est inchangé,
+  mais il s'applique à la **borne basse** de l'IC apparié et non au point
+  estimate. Le verdict se formule ainsi :
+  * « **non-régression non réfutée** » si la **borne basse ≥ −2** : le seuil de
+    dégradation n'est pas atteint, sans que l'on puisse affirmer l'absence de
+    dégradation ;
+  * « **non-régression établie** » **seulement** si la **borne basse ≥ 0** ;
+  * « **régression** » si la **borne basse < −2**.
+  Le point estimate est **rapporté**, mais ne suffit plus à conclure.
 
 * Les seuils C1/C2 sont **calés sur l'article** : sur la paire Dream-7B
   (Qwen2.5-7B → Dream-7B, Figure 2a = transfert, Figure 2b = merge ; le
@@ -152,13 +175,20 @@ qu'à lot identique. Le harnais le fixe par défaut (`harness/dream/run_evals.sh
   Nemotron-LD-3B, IFEval 25,2 → 59,6), +36,7 (Ministral-3-8B-Instruct →
   Nemotron-LD-8B, IFEval 28,2 → 64,9) et +29,4 (Ministral-3-8B-Reasoning →
   Nemotron-LD-8B, IFEval 28,2 → 57,6).)
-* C3/C4 sont des **non-régressions** : le merge ne doit pas dégrader le
+* C3/C4 restent des **non-régressions** : le merge ne doit pas dégrader le
   modèle post-entraîné. Le seuil de 2 points correspond à l'ordre de grandeur
   du bruit d'échantillonnage observé (IC 95 % de ±4,3 à ±7,1 points sur les
-  effectifs de J6).
+  effectifs de J6) ; avec l'amendement M1, il s'applique à la **borne basse**
+  de l'IC (voir ci-dessus), et non au point estimate.
+* **Plancher de bruit de décodage** (amendement M2, mesuré en Phase 1 de J7 :
+  M1 rejoué à **graine alternative**, GSM8K n=300, lot 4, protocole figé) : il
+  est **rapporté avec chaque écart** et sert de **référence d'interprétation**
+  — un écart dont l'IC est de l'ordre du bruit mesuré n'est pas un effet. Il
+  ne constitue **pas** un critère supplémentaire et ne modifie aucun seuil.
 * Chaque écart est rapporté **avec son intervalle de confiance bootstrap
   apparié** (§4.2). Un écart dont l'IC contient 0 est rapporté comme tel : il
-  n'est ni un gain ni une perte.
+  n'est ni un gain ni une perte. La **borne basse** (percentile 2,5 %) est celle
+  sur laquelle portent C1–C4 (§4.1).
 
 ### 4.2 Rapport des intervalles
 
@@ -167,6 +197,8 @@ Pour chaque comparaison (M2−M0, M3−M1, sur chaque tâche) :
 * **IC bootstrap apparié à 95 %** : 10 000 ré-échantillonnages des items
   (avec remise), **appariés** (le même item est tiré pour les deux modèles),
   percentile 2,5 % / 97,5 %, **graine fixée** (0 par défaut) ;
+* **borne basse** = percentile **2,5 %** de cet IC : c'est la quantité sur
+  laquelle portent C1–C4 (§4.1) ;
 * décompte des paires discordantes (type McNemar) : `B seul`, `A seul`,
   `both`, `neither` ;
 * IC de Wilson de chaque précision individuelle.
