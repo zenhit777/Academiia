@@ -60,8 +60,9 @@ from .sources import VectorSource, load_weight_map
 
 MODES = ("transfer", "merge", "ablation-dp-plus-tau-a", "ablation-dp-minus-tau-d")
 
-#: Seuil d'avertissement pour ALPHA (au-dela, le merge degrade generalement le
-#: modele, cf. A2D Fig. 8). L'eq. (1) ne plafonne pas alpha (Table 6 : 1.4).
+#: Seuil d'avertissement pour ALPHA : CHOIX DE PROJET (seuil d'avertissement
+#: arbitraire ; la Fig. 8 du papier est le diagramme des succes communs, elle
+#: ne justifie pas ce seuil). L'eq. (1) ne plafonne pas alpha (Table 6 : 1.4).
 COEFFICIENT_WARNING_THRESHOLD = 1.5
 #: L'eq. (2) ne borne lambda que dans [0,1] : hors de cet intervalle, le role
 #: de D_b et de D_p s'inverse.
@@ -341,7 +342,9 @@ def validate_config(cfg: MergeConfig) -> List[str]:
     if cfg.alpha > COEFFICIENT_WARNING_THRESHOLD:
         warnings.append(
             f"alpha={cfg.alpha} > {COEFFICIENT_WARNING_THRESHOLD} : au-dela de cette "
-            f"valeur le merge degrade generalement le modele (cf. A2D Fig. 8)")
+            f"valeur le merge degrade generalement le modele (choix de projet : "
+            f"seuil d'avertissement arbitraire ; la Fig. 8 du papier est le "
+            f"diagramme des succes communs)")
     if cfg.lam > LAMBDA_MAX:
         warnings.append(
             f"lambda={cfg.lam} > {LAMBDA_MAX} : l'eq. (2) ne borne lambda que dans "

@@ -63,8 +63,9 @@ traités de la même façon par le papier :
   combinaison convexe que pour `λ ∈ [0,1]` ; hors de cet intervalle, le rôle de D_b et D_p
   s'inverse. La bibliothèque **avertit** pour λ > 1 (et refuse λ < 0).
 
-L'avertissement de la bibliothèque est émis à partir de 1,5 pour α (seuil de dégradation
-observé, cf. A2D Fig. 8) et à partir de 1 pour λ (borne de l'eq. 2).
+L'avertissement de la bibliothèque est émis à partir de 1,5 pour α (**choix de projet** :
+seuil d'avertissement arbitraire ; la Fig. 8 du papier est le diagramme des succès communs,
+elle ne justifie pas ce seuil) et à partir de 1 pour λ (borne de l'eq. 2).
 
 ---
 
