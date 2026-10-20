@@ -135,7 +135,8 @@ def main() -> int:
                           coverage=args.coverage, allow_empty=args.allow_empty,
                           allow_empty_coefficient=args.allow_empty_coefficient,
                           overwrite=args.overwrite, tol_abs=args.tolerance,
-                          verify=not args.no_verify)
+                          verify=not args.no_verify,
+                          verify_skip_reason="--no-verify")
     else:
         cfg = MergeConfig(mode=args.mode, recipient=recipient, output=args.output,
                           alpha=args.alpha, lam=args.lam,
@@ -145,7 +146,8 @@ def main() -> int:
                           coverage=args.coverage, allow_empty=args.allow_empty,
                           allow_empty_coefficient=args.allow_empty_coefficient,
                           overwrite=args.overwrite, tol_abs=args.tolerance,
-                          verify=not args.no_verify)
+                          verify=not args.no_verify,
+                          verify_skip_reason="--no-verify")
 
     try:
         result = merge_checkpoint(cfg)
@@ -177,6 +179,10 @@ def main() -> int:
               f"c_d_eff={verification.get('c_d_eff')} "
               f"max_ulp={verification.get('max_ulp_deviation')} "
               f"-> {'OK' if verification.get('ok') else 'ECHEC'}")
+    else:
+        skipped = result.manifest.get("post_write_verification") or {}
+        if skipped.get("skipped"):
+            print(f"  Verification v2 : SKIPPEE ({skipped.get('reason')})")
     guard = result.manifest.get("coefficient_guard") or {}
     if guard.get("status") == "bypassed":
         print("  Garde-fou coeff. nul : BYPASSED (--allow-empty-coefficient) "

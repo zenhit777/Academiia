@@ -157,6 +157,7 @@ class MergeConfig:
     tol_abs: float = 0.02
     max_ulp: float = 1.0
     verify: bool = True
+    verify_skip_reason: str = "verification desactivee"
     copy_sidecars: bool = True
     extra_manifest: dict = field(default_factory=dict)
 
@@ -1059,6 +1060,13 @@ def merge_checkpoint(cfg: MergeConfig, log=print) -> MergeResult:
             raise MergeError(
                 "verification post-ecriture FAILED : "
                 + json.dumps(verification.get("failures", []), ensure_ascii=False))
+    else:
+        # La verification est « obligatoire » (README, .cursorrules) : sa
+        # desactivation doit laisser une trace explicite au manifeste.
+        manifest["post_write_verification"] = {
+            "skipped": True,
+            "reason": cfg.verify_skip_reason,
+        }
 
     _atomic_write_json(output / "merge_config.json", manifest)
     return MergeResult(manifest=manifest, verification=verification,

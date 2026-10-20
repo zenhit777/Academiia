@@ -51,7 +51,8 @@ scripts/verify_merge.py # vérification post hoc (alpha_eff, lambda_eff par fami
   obligatoire** (v2 : coefficients **signés** `c_a_eff` / `c_d_eff` par régression des moindres
   carrés sur [τ_A, τ_D], bornes dérivées du résidu BF16 **mesuré**, tenseurs non fusionnés
   **bit-identiques** à la référence, écart à `round_bf16(expected)` ≤ 1 ULP ; échec dur hors
-  tolérance).
+  tolérance). `--no-verify` la désactive mais **laisse une trace** au manifeste
+  (`post_write_verification.skipped`).
 * **Garde-fou « coefficient nul »** : un transfert à `α = 0` (eq. 1) ou un merge à `λ = 0`
   (eq. 2) n'écrirait qu'une **copie de la référence** (`D_b` / `D_p`) — indiscernable d'un
   modèle non fusionné, la vérification post-écriture ne pouvant pas le voir (elle compare les

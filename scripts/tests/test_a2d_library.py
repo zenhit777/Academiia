@@ -9,6 +9,7 @@ Garanties verifiees :
   * coefficient nul refuse (F2) : transfert a alpha=0 et merge a lambda=0 sont
     refuses (ils n'ecriraient qu'une copie de la reference) ; l'opt-in
     --allow-empty-coefficient est trace au manifeste
+  * --no-verify trace au manifeste (F3)
   * linearite en alpha
   * source LoRA identique a peft.merge_and_unload
   * alpha_eff / lambda_eff : round-trip et detection d'un alpha erroné
@@ -575,6 +576,22 @@ def test_cli_allow_empty_coefficient_is_accepted_and_declared(tmp_path):
     manifest = json.loads((out / "merge_config.json").read_text())
     assert manifest["coefficient_guard"]["status"] == "bypassed"
     assert any("--allow-empty-coefficient" in w for w in manifest["warnings"])
+
+
+def test_cli_no_verify_is_traced_in_the_manifest(tmp_path):
+    """F3 : --no-verify laisse une trace explicite dans le manifeste."""
+    base, post = pair(tmp_path)
+    out = tmp_path / "out"
+    cmd = [sys.executable, str(SCRIPTS / "merge_a2d.py"), "--mode", "transfer",
+           "--diffusion-base", str(base),
+           "--tau-a-post", str(post), "--tau-a-base", str(base),
+           "--alpha", "0.5", "--no-verify", "--output", str(out)]
+    done = subprocess.run(cmd, capture_output=True, text=True)
+    assert done.returncode == 0, done.stdout + done.stderr
+    manifest = json.loads((out / "merge_config.json").read_text())
+    assert manifest["post_write_verification"] == {"skipped": True,
+                                                    "reason": "--no-verify"}
+    assert "SKIPPEE" in done.stdout
 
 
 def test_legacy_npy_source_still_readable(tmp_path):
