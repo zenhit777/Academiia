@@ -21,9 +21,10 @@ règles de mapping, chaque valeur référencée par son tableau/section.
 
 | Porte | Contenu | Statut |
 |---|---|---|
-| **G1** | mécanique de fusion validée sur la paire publique Qwen2.5-7B → Dream-7B (Tableaux 6, 16, 21) | ouvert (J6) |
-| **G2** | reproduction du setup médical DiffusionGemma du papier (adaptateurs publiés, voir [`docs/VP_ADAPTERS.md`](docs/VP_ADAPTERS.md)) | **hors périmètre de J6** |
-| **G3** | raisonnement (hors papier : conception d'abord) | **hors périmètre de J6** |
+| **G1** | mécanique de fusion sur la paire publique Qwen2.5-7B → Dream-7B (Tableaux 6, 16, 21) | **OUVERTE** (revue N2 du 2026-10-20, J6 REFUSÉ). géométrie Table 21 : **écarts mesurés ≤ 0,11 %** ; baseline D_b/D_p **exécutée** sur GSM8K (n=300) et MATH-175 (n=175) ; **critère de reproduction ±3 pts NON atteint** (Base MATH-175 +3,2 ; IFEval n=8 non concluant) ; **aucun modèle fusionné n'a été évalué** — la bibliothèque n'est validée que *mécaniquement*. Protocole de remplacement : [`docs/design/G1_PROTOCOL.md`](docs/design/G1_PROTOCOL.md) |
+| **G1b** | faisabilité Nemotron-Labs-Diffusion-3B (Ministral-3-3B) | **non démarrée** — étude de faisabilité en lecture seule : [`docs/design/G1B_NEMOTRON3B.md`](docs/design/G1B_NEMOTRON3B.md) |
+| **G2** | reproduction du setup médical DiffusionGemma du papier (adaptateurs publiés, voir [`docs/VP_ADAPTERS.md`](docs/VP_ADAPTERS.md)) | **BLOQUÉE (B7)** — les adaptateurs de diffusion DG doivent rester **non fusionnés** et être mis à l'échelle (App. A.2) ; conception : [`docs/design/G2_adapter_scaling.md`](docs/design/G2_adapter_scaling.md) |
+| **G3** | raisonnement (hors papier : conception d'abord) | **non démarrée** |
 
 ## Bibliothèque A2D (pipeline conforme)
 
@@ -43,7 +44,8 @@ scripts/verify_merge.py # vérification post hoc (alpha_eff, lambda_eff par fami
 * **Mapping** : identité (Qwen→Dream : *tous* les paramètres, embeddings et tête inclus) et
   Gemma4→DiffusionGemma (vision, embeddings, normes, tête inchangés ; routeur = famille à
   part, fusionné par défaut et déclaré).
-* α et λ ≥ 0 **sans plafond** (avertissement au-delà de 1.5) ; τ_D absent ⇒ le merge
+* **α** ≥ 0 **sans plafond** (le papier va jusqu'à α = 1.4, Table 6 ; avertissement au-delà de 1.5) ;
+  **λ** borné par l'eq. (2) à [0,1] (avertissement au-delà de 1) ; τ_D absent ⇒ le merge
   dégénère en transfert (et le signale).
 * Arithmétique FP32, **un seul** cast BF16, écriture atomique, **vérification post-écriture
   obligatoire** (`α_eff` / `λ_eff`, échec dur hors tolérance).
@@ -71,23 +73,38 @@ python scripts/verify_merge.py --merged checkpoints/dream_transfer_a09 \
 ## Baseline Dream-7B (porte G1) — protocole A2D App. A.1
 
 Harnais : **fork lm-evaluation-harness de Dream** (`DreamLM/Dream`, `eval_instruct/lm_eval`,
-modèle `diffllm`) dans un venv **séparé** (`requirements-dream.txt`) ; `temperature=0.1`,
-`top_p=0.9`, `alg=entropy`, `diffusion_steps = max_new_tokens` (un pas de débruitage par token),
-bfloat16, chat template appliqué, 0-shot pour GSM8K et MATH-500, prompt système GSM8K de
-l'App. A.1 cité mot pour mot.
+modèle `diffllm`) dans un venv **séparé** (`harness/dream/requirements-dream.txt`) ;
+`temperature=0.1`, `top_p=0.9`, `alg=entropy`, `diffusion_steps = max_new_tokens` (un pas de
+débruitage par token), bfloat16, chat template appliqué, 0-shot pour GSM8K et MATH-175,
+prompt système GSM8K de l'App. A.1 cité mot pour mot.
 
-| Modèle | Tâche | Métrique paper-compatible | Score | n | IC 95 % (Wilson) | Table 16 | Écart |
+| Modèle | Tâche | Métrique paper-compatible | Score | n | IC 95 % (Wilson) | Cible Table 16 | Écart |
 |---|---|---|---|---|---|---|---|
 | Dream-7B-Base | GSM8K | flexible-extract | 68,7 % | 300 | [63,2 ; 73,7] | 66,5 | +2,2 |
-| Dream-7B-Base | MATH-500 | math_verify | 24,0 % | 175 | [18,3 ; 30,8] | 20,8 | +3,2 |
+| Dream-7B-Base | MATH-175 | math_verify | 24,0 % | 175 | [18,3 ; 30,8] | 20,8 *(MATH-500)* | +3,2 |
 | Dream-7B-Instruct | GSM8K | flexible-extract | 84,0 % | 300 | [79,4 ; 87,7] | 83,0 | +1,0 |
-| Dream-7B-Instruct | MATH-500 | math_verify | 36,6 % | 175 | [29,8 ; 43,9] | 38,4 | −1,8 |
+| Dream-7B-Instruct | MATH-175 | math_verify | 36,6 % | 175 | [29,8 ; 43,9] | 38,4 *(MATH-500)* | −1,8 |
 
-La valeur du papier tombe **dans l'intervalle de confiance** de chaque mesure ⇒ la mécanique
-d'évaluation, les identifiants de checkpoints et la bibliothèque de fusion sont validés.
-Détail, samples et commande de rejeu : `docs/reports/J6.md`, `eval/dream_a2d/SUMMARY.md`.
+> **MATH-175** = sous-ensemble `minerva_math` du fork Dream (25 problèmes × 7 sujets = 175,
+> sur les 5 000 du test MATH). Le jeu du papier est **MATH-500** (500 problèmes, split PRM800K) :
+> la comparaison ci-dessus est **à périmètre différent** et ne vaut pas reproduction
+> (MAJ-04 de `docs/reports/AUDIT_J6.md`).
 
-## Géométrie des vecteurs (Table 21 du papier) — reproduite
+**Ce que cette campagne établit, et ce qu'elle n'établit pas.** Elle établit que la
+**mécanique d'évaluation** (harnais, tâches, prompts système, extraction, scoring) fonctionne
+de bout en bout et que les **checkpoints de référence** D_b / D_p ont été **exécutés** dans le
+protocole App. A.1. Elle **n'établit pas** la validité scientifique de la **bibliothèque de
+fusion** : au 2026-10-20, **aucun modèle fusionné n'a été évalué** ; la seule vérification sur
+un modèle 7B est **mécanique** (fusion transfert α = 0,9 sur Dream-7B-Base, `α_eff` mesuré,
+sans évaluation). Par ailleurs, « la cible du papier tombe dans l'IC 95 % » est une
+**non-rejection**, pas une preuve d'équivalence à ±3 points : le critère C0.5 est **NON
+atteint** (Base MATH-175 : +3,2, hors ±3 ; IFEval : n = 8, non concluant) et la porte **G1
+reste ouverte** (revue N2 ; protocole de remplacement : `docs/design/G1_PROTOCOL.md`).
+
+Détail, échantillons et commande de rejeu : `docs/reports/J6.md`, `docs/reports/J6bis.md`,
+`eval/dream_a2d/SUMMARY.md`.
+
+## Géométrie des vecteurs (Table 21 du papier) — écarts mesurés ≤ 0,11 %
 
 `scripts/measure_geometry.py` recalcule, sur le backbone (attention + MLP + normes ;
 embeddings et tête exclus) :

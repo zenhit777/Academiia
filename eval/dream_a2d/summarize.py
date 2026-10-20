@@ -18,10 +18,23 @@ import os
 import re
 from collections import defaultdict
 
-# Cibles du papier (A2D Table 16, PDF p. 25)
+# Cibles du papier (A2D Table 16, PDF p. 25). Attention : la cible MATH du
+# papier porte sur MATH-500 (500 problemes, split PRM800K, App. A.1) ; ce que
+# nous mesurons est le sous-ensemble `minerva_math` (175 problemes sur 5000).
+# La comparaison est donc A PERIMETRE DIFFERENT : la cle de notre metrique est
+# "MATH-175", celle de la cible du papier reste "MATH-500" (rectificatif J6bis,
+# MAJ-04).
 TARGETS = {
     "dream_7b_base": {"IFEval": 49.7, "GSM8K": 66.5, "MATH-500": 20.8},
     "dream_7b_instruct": {"IFEval": 63.0, "GSM8K": 83.0, "MATH-500": 38.4},
+}
+# Metrique mesuree -> cle de la cible du papier.
+PAPER_TARGET_KEY = {"GSM8K": "GSM8K", "IFEval": "IFEval", "MATH-175": "MATH-500"}
+# Perimetre de la cible, affiche dans les tableaux.
+TARGET_SCOPE = {
+    "GSM8K": "GSM8K (meme jeu, sous-ensemble)",
+    "IFEval": "IFEval (meme jeu, sous-ensemble)",
+    "MATH-175": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT",
 }
 TASK_TO_BENCH = {
     "gsm8k_cot_a2d": "GSM8K",
@@ -30,9 +43,16 @@ TASK_TO_BENCH = {
 
 
 def benchmark_of(task: str) -> str:
-    """Nom de benchmark : les 7 sous-taches minerva_math_* sont MATH-500."""
+    """Nom de la metrique MESUREE.
+
+    Les 7 sous-taches `minerva_math_*` du fork Dream couvrent le test MATH
+    complet (5 000 problemes) ; l'evaluation J6 en a retenu 25 par sujet, soit
+    175 problemes. Cette metrique est donc notee MATH-175 (et non MATH-500 :
+    le jeu canonique du papier, 500 problemes du split PRM800K, n'est pas
+    disponible dans le harnais). Rectificatif J6bis : MAJ-04.
+    """
     if task.startswith("minerva_math"):
-        return "MATH-500"
+        return "MATH-175"
     return TASK_TO_BENCH.get(task, task)
 
 
@@ -110,14 +130,22 @@ def main():
                 "run": run_key, "model": model, "task": task, "benchmark": bench,
                 "metric": metric, "value": m["value"], "n": m["n"],
                 "stderr": m["stderr"], "wilson95": m["wilson95"],
-                "target": TARGETS.get(model, {}).get(bench),
+                "target": TARGETS.get(model, {}).get(PAPER_TARGET_KEY.get(bench, bench)),
+                "target_scope": TARGET_SCOPE.get(bench),
             })
 
     out = {"runs": summary, "rows": rows,
            "targets_a2d_table16": TARGETS,
+           "metric_names": {"MATH-175": ("sous-ensemble minerva_math du fork Dream, "
+                                         "175 problemes sur 5000 ; le jeu du papier est "
+                                         "MATH-500 (500 problemes, split PRM800K)")},
            "note": ("Effectifs reduits : le budget GPU local ne permet pas les jeux complets "
                     "(mesure : 162 s/prompt pour IFEval a 1280 pas de debruitage). "
-                    "L'intervalle de Wilson est donne pour chaque score.")}
+                    "L'intervalle de Wilson est donne pour chaque score. "
+                    "MATH-175 != MATH-500 : la cible Table 16 porte sur 500 problemes, "
+                    "la mesure porte sur 175 — comparaison a PERIMETRE DIFFERENT, "
+                    "ce n'est pas une reproduction. IFEval (n=8) est un controle de "
+                    "fonctionnement, pas une mesure.")}
 
     # agregation par (modele, benchmark, filtre) : les 7 sous-taches minerva_math
     # sont regroupees (moyenne ponderee par l'effectif, IC sur le total)
@@ -138,7 +166,8 @@ def main():
         aggregated.append({
             "model": model, "benchmark": bench, "filter": filt, "value": value,
             "n": a["n"], "wilson95": [lo, hi],
-            "target": TARGETS.get(model, {}).get(bench),
+            "target": TARGETS.get(model, {}).get(PAPER_TARGET_KEY.get(bench, bench)),
+            "target_scope": TARGET_SCOPE.get(bench),
             "tasks": sorted(set(a["tasks"])),
         })
     out["aggregated"] = aggregated
@@ -159,6 +188,7 @@ def main():
             "model": model, "benchmark": "IFEval", "filter": "moyenne des 4 metriques",
             "value": mean_value, "n": n, "wilson95": [lo, hi],
             "target": TARGETS.get(model, {}).get("IFEval"),
+            "target_scope": TARGET_SCOPE.get("IFEval"),
             "tasks": sorted(set(t for a in group for t in a["tasks"])),
         })
     if args.out:
@@ -169,6 +199,10 @@ def main():
         lines = ["# Resume des evaluations Dream-7B (J6, porte G1)", "",
                  "Harnais : fork lm-eval de Dream (`diffllm`), T=0.1, top_p=0.9, alg=entropy,",
                  "diffusion_steps = max_new_tokens, bfloat16, chat template, 0-shot (GSM8K/MATH).", "",
+                 "**MATH-175** = sous-ensemble `minerva_math` (175 problemes sur 5000). Le jeu du",
+                 "papier est **MATH-500** (500 problemes) : la cible Table 16 ci-dessous est donc",
+                 "comparee a un PERIMETRE DIFFERENT — ce n'est pas une reproduction. IFEval (n=8)",
+                 "est un controle de fonctionnement, pas une mesure.", "",
                  "| modele | benchmark | filtre | score | n | IC 95 % (Wilson) | cible Table 16 | ecart |",
                  "|---|---|---|---|---|---|---|---|"]
         for a in aggregated:

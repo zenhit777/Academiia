@@ -813,7 +813,8 @@
         0.37197260006995525,
         0.4832151029963794
       ],
-      "target": 66.5
+      "target": 66.5,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)"
     },
     {
       "run": "dream_7b_base_gsm8k_cot_a2d",
@@ -828,7 +829,8 @@
         0.6320966534895827,
         0.7365164659779293
       ],
-      "target": 66.5
+      "target": 66.5,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)"
     },
     {
       "run": "dream_7b_base_ifeval_a2d",
@@ -843,7 +845,8 @@
         0.21521252682444186,
         0.7847874731755582
       ],
-      "target": 49.7
+      "target": 49.7,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
     },
     {
       "run": "dream_7b_base_ifeval_a2d",
@@ -858,7 +861,8 @@
         0.30573785458380187,
         0.863158240538479
       ],
-      "target": 49.7
+      "target": 49.7,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
     },
     {
       "run": "dream_7b_base_ifeval_a2d",
@@ -873,7 +877,8 @@
         0.21521252682444186,
         0.7847874731755582
       ],
-      "target": 49.7
+      "target": 49.7,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
     },
     {
       "run": "dream_7b_base_ifeval_a2d",
@@ -888,13 +893,14 @@
         0.30573785458380187,
         0.863158240538479
       ],
-      "target": 49.7
+      "target": 49.7,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
     },
     {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
       "task": "minerva_math_algebra",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "exact_match,none",
       "value": 0.0,
       "n": 25,
@@ -903,13 +909,14 @@
         0.0,
         0.13319649395317873
       ],
-      "target": 20.8
+      "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
       "task": "minerva_math_algebra",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "math_verify,none",
       "value": 0.48,
       "n": 25,
@@ -918,13 +925,14 @@
         0.30031003928960015,
         0.6650178204685269
       ],
-      "target": 20.8
+      "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
       "task": "minerva_math_counting_and_prob",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "exact_match,none",
       "value": 0.0,
       "n": 25,
@@ -933,13 +941,14 @@
         0.0,
         0.13319649395317873
       ],
-      "target": 20.8
+      "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
       "task": "minerva_math_counting_and_prob",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "math_verify,none",
       "value": 0.12,
       "n": 25,
@@ -948,13 +957,14 @@
         0.04166741357068093,
         0.2995619218337349
       ],
-      "target": 20.8
+      "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
       "task": "minerva_math_geometry",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "exact_match,none",
       "value": 0.0,
       "n": 25,
@@ -963,13 +973,14 @@
         0.0,
         0.13319649395317873
       ],
-      "target": 20.8
+      "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
       "task": "minerva_math_geometry",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "math_verify,none",
       "value": 0.28,
       "n": 25,
@@ -978,13 +989,14 @@
         0.1428367383738157,
         0.47576971896558296
       ],
-      "target": 20.8
+      "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
       "task": "minerva_math_intermediate_algebra",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "exact_match,none",
       "value": 0.0,
       "n": 25,
@@ -993,13 +1005,14 @@
         0.0,
         0.13319649395317873
       ],
-      "target": 20.8
+      "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
       "task": "minerva_math_intermediate_algebra",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "math_verify,none",
       "value": 0.04,
       "n": 25,
@@ -1008,13 +1021,14 @@
         0.007096050386699165,
         0.19544472405022525
       ],
-      "target": 20.8
+      "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
       "task": "minerva_math_num_theory",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "exact_match,none",
       "value": 0.0,
       "n": 25,
@@ -1023,13 +1037,14 @@
         0.0,
         0.13319649395317873
       ],
-      "target": 20.8
+      "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
       "task": "minerva_math_num_theory",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "math_verify,none",
       "value": 0.28,
       "n": 25,
@@ -1038,13 +1053,14 @@
         0.1428367383738157,
         0.47576971896558296
       ],
-      "target": 20.8
+      "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
       "task": "minerva_math_prealgebra",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "exact_match,none",
       "value": 0.0,
       "n": 25,
@@ -1053,13 +1069,14 @@
         0.0,
         0.13319649395317873
       ],
-      "target": 20.8
+      "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
       "task": "minerva_math_prealgebra",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "math_verify,none",
       "value": 0.48,
       "n": 25,
@@ -1068,13 +1085,14 @@
         0.30031003928960015,
         0.6650178204685269
       ],
-      "target": 20.8
+      "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
       "task": "minerva_math_precalc",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "exact_match,none",
       "value": 0.0,
       "n": 25,
@@ -1083,13 +1101,14 @@
         0.0,
         0.13319649395317873
       ],
-      "target": 20.8
+      "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
       "task": "minerva_math_precalc",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "math_verify,none",
       "value": 0.0,
       "n": 25,
@@ -1098,7 +1117,8 @@
         0.0,
         0.13319649395317873
       ],
-      "target": 20.8
+      "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_instruct_gsm8k_cot_a2d",
@@ -1113,7 +1133,8 @@
         0.6046734114246599,
         0.7112806909760647
       ],
-      "target": 83.0
+      "target": 83.0,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)"
     },
     {
       "run": "dream_7b_instruct_gsm8k_cot_a2d",
@@ -1128,7 +1149,8 @@
         0.7942554091313135,
         0.8771470584702262
       ],
-      "target": 83.0
+      "target": 83.0,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)"
     },
     {
       "run": "dream_7b_instruct_ifeval_a2d",
@@ -1143,7 +1165,8 @@
         0.21521252682444186,
         0.7847874731755582
       ],
-      "target": 63.0
+      "target": 63.0,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
     },
     {
       "run": "dream_7b_instruct_ifeval_a2d",
@@ -1158,7 +1181,8 @@
         0.40926987910258916,
         0.9285223111419724
       ],
-      "target": 63.0
+      "target": 63.0,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
     },
     {
       "run": "dream_7b_instruct_ifeval_a2d",
@@ -1173,7 +1197,8 @@
         0.21521252682444186,
         0.7847874731755582
       ],
-      "target": 63.0
+      "target": 63.0,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
     },
     {
       "run": "dream_7b_instruct_ifeval_a2d",
@@ -1188,13 +1213,14 @@
         0.40926987910258916,
         0.9285223111419724
       ],
-      "target": 63.0
+      "target": 63.0,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
     },
     {
       "run": "dream_7b_instruct_minerva_math_algebra",
       "model": "dream_7b_instruct",
       "task": "minerva_math_algebra",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "exact_match,none",
       "value": 0.0,
       "n": 25,
@@ -1203,13 +1229,14 @@
         0.0,
         0.13319649395317873
       ],
-      "target": 38.4
+      "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_instruct_minerva_math_algebra",
       "model": "dream_7b_instruct",
       "task": "minerva_math_algebra",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "math_verify,none",
       "value": 0.6,
       "n": 25,
@@ -1218,13 +1245,14 @@
         0.40739127785127344,
         0.7659694233580909
       ],
-      "target": 38.4
+      "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_instruct_minerva_math_algebra",
       "model": "dream_7b_instruct",
       "task": "minerva_math_counting_and_prob",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "exact_match,none",
       "value": 0.0,
       "n": 25,
@@ -1233,13 +1261,14 @@
         0.0,
         0.13319649395317873
       ],
-      "target": 38.4
+      "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_instruct_minerva_math_algebra",
       "model": "dream_7b_instruct",
       "task": "minerva_math_counting_and_prob",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "math_verify,none",
       "value": 0.28,
       "n": 25,
@@ -1248,13 +1277,14 @@
         0.1428367383738157,
         0.47576971896558296
       ],
-      "target": 38.4
+      "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_instruct_minerva_math_algebra",
       "model": "dream_7b_instruct",
       "task": "minerva_math_geometry",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "exact_match,none",
       "value": 0.0,
       "n": 25,
@@ -1263,13 +1293,14 @@
         0.0,
         0.13319649395317873
       ],
-      "target": 38.4
+      "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_instruct_minerva_math_algebra",
       "model": "dream_7b_instruct",
       "task": "minerva_math_geometry",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "math_verify,none",
       "value": 0.28,
       "n": 25,
@@ -1278,13 +1309,14 @@
         0.1428367383738157,
         0.47576971896558296
       ],
-      "target": 38.4
+      "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_instruct_minerva_math_algebra",
       "model": "dream_7b_instruct",
       "task": "minerva_math_intermediate_algebra",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "exact_match,none",
       "value": 0.0,
       "n": 25,
@@ -1293,13 +1325,14 @@
         0.0,
         0.13319649395317873
       ],
-      "target": 38.4
+      "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_instruct_minerva_math_algebra",
       "model": "dream_7b_instruct",
       "task": "minerva_math_intermediate_algebra",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "math_verify,none",
       "value": 0.2,
       "n": 25,
@@ -1308,13 +1341,14 @@
         0.08860454100652487,
         0.3913133553653824
       ],
-      "target": 38.4
+      "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_instruct_minerva_math_algebra",
       "model": "dream_7b_instruct",
       "task": "minerva_math_num_theory",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "exact_match,none",
       "value": 0.0,
       "n": 25,
@@ -1323,13 +1357,14 @@
         0.0,
         0.13319649395317873
       ],
-      "target": 38.4
+      "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_instruct_minerva_math_algebra",
       "model": "dream_7b_instruct",
       "task": "minerva_math_num_theory",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "math_verify,none",
       "value": 0.36,
       "n": 25,
@@ -1338,13 +1373,14 @@
         0.20247656431735636,
         0.5548184539895337
       ],
-      "target": 38.4
+      "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_instruct_minerva_math_algebra",
       "model": "dream_7b_instruct",
       "task": "minerva_math_prealgebra",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "exact_match,none",
       "value": 0.0,
       "n": 25,
@@ -1353,13 +1389,14 @@
         0.0,
         0.13319649395317873
       ],
-      "target": 38.4
+      "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_instruct_minerva_math_algebra",
       "model": "dream_7b_instruct",
       "task": "minerva_math_prealgebra",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "math_verify,none",
       "value": 0.72,
       "n": 25,
@@ -1368,13 +1405,14 @@
         0.5242302810344169,
         0.8571632616261843
       ],
-      "target": 38.4
+      "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_instruct_minerva_math_algebra",
       "model": "dream_7b_instruct",
       "task": "minerva_math_precalc",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "exact_match,none",
       "value": 0.0,
       "n": 25,
@@ -1383,13 +1421,14 @@
         0.0,
         0.13319649395317873
       ],
-      "target": 38.4
+      "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     },
     {
       "run": "dream_7b_instruct_minerva_math_algebra",
       "model": "dream_7b_instruct",
       "task": "minerva_math_precalc",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "metric": "math_verify,none",
       "value": 0.12,
       "n": 25,
@@ -1398,7 +1437,8 @@
         0.04166741357068093,
         0.2995619218337349
       ],
-      "target": 38.4
+      "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     }
   ],
   "targets_a2d_table16": {
@@ -1413,7 +1453,10 @@
       "MATH-500": 38.4
     }
   },
-  "note": "Effectifs reduits : le budget GPU local ne permet pas les jeux complets (mesure : 162 s/prompt pour IFEval a 1280 pas de debruitage). L'intervalle de Wilson est donne pour chaque score.",
+  "metric_names": {
+    "MATH-175": "sous-ensemble minerva_math du fork Dream, 175 problemes sur 5000 ; le jeu du papier est MATH-500 (500 problemes, split PRM800K)"
+  },
+  "note": "Effectifs reduits : le budget GPU local ne permet pas les jeux complets (mesure : 162 s/prompt pour IFEval a 1280 pas de debruitage). L'intervalle de Wilson est donne pour chaque score. MATH-175 != MATH-500 : la cible Table 16 porte sur 500 problemes, la mesure porte sur 175 — comparaison a PERIMETRE DIFFERENT, ce n'est pas une reproduction. IFEval (n=8) est un controle de fonctionnement, pas une mesure.",
   "aggregated": [
     {
       "model": "dream_7b_base",
@@ -1426,6 +1469,7 @@
         0.7365164659779293
       ],
       "target": 66.5,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)",
       "tasks": [
         "gsm8k_cot_a2d"
       ]
@@ -1441,6 +1485,7 @@
         0.4832151029963794
       ],
       "target": 66.5,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)",
       "tasks": [
         "gsm8k_cot_a2d"
       ]
@@ -1456,6 +1501,7 @@
         0.863158240538479
       ],
       "target": 49.7,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
       "tasks": [
         "ifeval_a2d"
       ]
@@ -1471,6 +1517,7 @@
         0.863158240538479
       ],
       "target": 49.7,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
       "tasks": [
         "ifeval_a2d"
       ]
@@ -1486,6 +1533,7 @@
         0.7847874731755582
       ],
       "target": 49.7,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
       "tasks": [
         "ifeval_a2d"
       ]
@@ -1501,13 +1549,14 @@
         0.7847874731755582
       ],
       "target": 49.7,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
       "tasks": [
         "ifeval_a2d"
       ]
     },
     {
       "model": "dream_7b_base",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "filter": "exact_match,none",
       "value": 0.0,
       "n": 175,
@@ -1516,6 +1565,7 @@
         0.021480460921843688
       ],
       "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT",
       "tasks": [
         "minerva_math_algebra",
         "minerva_math_counting_and_prob",
@@ -1528,7 +1578,7 @@
     },
     {
       "model": "dream_7b_base",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "filter": "math_verify,none",
       "value": 0.24,
       "n": 175,
@@ -1537,6 +1587,7 @@
         0.3084277985274028
       ],
       "target": 20.8,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT",
       "tasks": [
         "minerva_math_algebra",
         "minerva_math_counting_and_prob",
@@ -1558,6 +1609,7 @@
         0.8771470584702262
       ],
       "target": 83.0,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)",
       "tasks": [
         "gsm8k_cot_a2d"
       ]
@@ -1573,6 +1625,7 @@
         0.7112806909760647
       ],
       "target": 83.0,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)",
       "tasks": [
         "gsm8k_cot_a2d"
       ]
@@ -1588,6 +1641,7 @@
         0.9285223111419724
       ],
       "target": 63.0,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
       "tasks": [
         "ifeval_a2d"
       ]
@@ -1603,6 +1657,7 @@
         0.9285223111419724
       ],
       "target": 63.0,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
       "tasks": [
         "ifeval_a2d"
       ]
@@ -1618,6 +1673,7 @@
         0.7847874731755582
       ],
       "target": 63.0,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
       "tasks": [
         "ifeval_a2d"
       ]
@@ -1633,13 +1689,14 @@
         0.7847874731755582
       ],
       "target": 63.0,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
       "tasks": [
         "ifeval_a2d"
       ]
     },
     {
       "model": "dream_7b_instruct",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "filter": "exact_match,none",
       "value": 0.0,
       "n": 175,
@@ -1648,6 +1705,7 @@
         0.021480460921843688
       ],
       "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT",
       "tasks": [
         "minerva_math_algebra",
         "minerva_math_counting_and_prob",
@@ -1660,7 +1718,7 @@
     },
     {
       "model": "dream_7b_instruct",
-      "benchmark": "MATH-500",
+      "benchmark": "MATH-175",
       "filter": "math_verify,none",
       "value": 0.3657142857142857,
       "n": 175,
@@ -1669,6 +1727,7 @@
         0.4392464231208755
       ],
       "target": 38.4,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT",
       "tasks": [
         "minerva_math_algebra",
         "minerva_math_counting_and_prob",
@@ -1690,6 +1749,7 @@
         0.863158240538479
       ],
       "target": 49.7,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
       "tasks": [
         "ifeval_a2d"
       ]
@@ -1705,6 +1765,7 @@
         0.863158240538479
       ],
       "target": 63.0,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
       "tasks": [
         "ifeval_a2d"
       ]

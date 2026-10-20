@@ -1,14 +1,15 @@
 # CHECKLIST.md — Vérifications avant de considérer le projet "prêt"
 
-## État des portes (au 2026-10-20)
+## État des portes (au 2026-10-20, après revue N2 et mission J6bis)
 
 | Porte | Contenu | État | Preuve |
 |---|---|---|---|
 | **J4Bis** | infrastructure GPU/service (compose, service FP8, smoke) | **OK (infra)** — validée le 2026-10-19 | `vLLM/RAPPORT_J4BIS-BIS.md` |
 | **J5** | campagne d'évaluation par génération (103 prompts) | **NON CONFORME** au protocole du papier (FP8, `temperature=0`, 128 tokens, texte libre, sans juge) : contrôle de non-régression, pas une mesure de qualité | `eval/RESULTS.md` |
-| **G1** | mécanique A2D validée sur Qwen2.5-7B → Dream-7B (Tableaux 6, 16, 21) | **ouverte, critères de reproduction atteints** — géométrie (Table 21) reproduite à ≤ 0,11 % ; baseline GSM8K et MATH-500 du Base reproduites (cible du papier dans l'IC 95 %) ; fusion réelle α=0.9 vérifiée (`α_eff` = 0,913, couvert par la borne BF16) | `docs/reports/J6.md`, `docs/A2D_SPEC.md`, `eval/dream_a2d/SUMMARY.md` |
-| **G2** | reproduction du setup médical DiffusionGemma du papier (adapters publiés) | **non entamée** (hors périmètre J6) | `docs/VP_ADAPTERS.md` |
-| **G3** | raisonnement (hors papier) | **non entamée** (conception d'abord) | — |
+| **G1** | mécanique A2D sur Qwen2.5-7B → Dream-7B (Tableaux 6, 16, 21) | **OUVERTE.** *Fait et mesuré* : géométrie Table 21 (écarts ≤ 0,11 %) ; baseline D_b/D_p **exécutée** sur GSM8K (n=300) et MATH-175 (n=175), IFEval n=8 (contrôle de fonctionnement) ; fusion transfert α=0,9 **vérifiée mécaniquement** (`α_eff` = 0,913, borne BF16). *Non atteint* : critère de reproduction ±3 pts (Base MATH-175 **+3,2** ; IFEval n=8 non concluant) ; **aucun modèle fusionné évalué** ⇒ la bibliothèque n'est validée que mécaniquement. Définition de franchissement : `docs/design/G1_PROTOCOL.md` | `docs/reports/J6.md`, `docs/reports/J6bis.md`, `docs/reports/AUDIT_J6.md`, `docs/reports/REVIEW_N2_J6.md`, `docs/A2D_SPEC.md`, `eval/dream_a2d/SUMMARY.md` |
+| **G1b** | faisabilité Nemotron-Labs-Diffusion-3B (Ministral-3-3B) | **NON DÉMARRÉE.** Étude de faisabilité en lecture seule (aucun poids téléchargé) : identifiants/licences/taille, noms de paramètres, brouillon de mapping App. A.2, pile d'évaluation, cibles chiffrées des Tableaux 1c/17/21, conclusion GO/NO-GO | `docs/design/G1B_NEMOTRON3B.md` |
+| **G2** | reproduction du setup médical DiffusionGemma du papier (adapters publiés) | **BLOQUÉE (B7).** Les adaptateurs de diffusion DG doivent rester **non fusionnés** et être **mis à l'échelle** (App. A.2) ; la bibliothèque fusionne aujourd'hui τ_D dans les poids, ce qui ne serait pas conforme. Conception (aucun code) : `docs/design/G2_adapter_scaling.md` | `docs/VP_ADAPTERS.md`, `docs/design/G2_adapter_scaling.md` |
+| **G3** | raisonnement (hors papier) | **NON DÉMARRÉE** (conception d'abord) | — |
 
 > Rappel : la conclusion « Jainius ne marche pas » (J4Bis) **n'est pas** une conclusion sur la
 > méthode A2D. Le build `Jainius` est une ablation hors papier (τ_A général appliqué à un

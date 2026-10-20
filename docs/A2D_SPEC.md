@@ -53,10 +53,18 @@ L'identité est exacte **sur le support effectivement fusionné** : dans les fam
 cross-architecture, certains paramètres sont exclus (§5, App. A.2), et l'identité ne
 vaut alors que sur les tenseurs fusionnés.
 
-**Plafond des coefficients.** Le papier n'impose **aucun plafond** : la Table 6 va
-jusqu'à α = 1.4 (Ministral-3-8B → Nemotron-LD-8B) et les balayages de la Table 8
-montrent des effets non linéaires au-delà. Un plafond α ∈ [0,1] est donc un choix
-**hors papier**.
+**Plafond des coefficients (rectifié J6bis, MIN-01).** Les deux coefficients ne sont **pas**
+traités de la même façon par le papier :
+
+* **α n'est pas plafonné.** L'eq. (1) pose `α ≥ 0` sans borne supérieure ; la Table 6 va
+  jusqu'à α = 1.4 (Ministral-3-8B → Nemotron-LD-8B) et les balayages de la Table 8 montrent des
+  effets non linéaires au-delà. Un plafond α ∈ [0,1] serait donc un choix **hors papier**.
+* **λ est borné par l'eq. (2)** : `D_Merge(λ) = D_b + (1−λ)·τ_D + λ·τ_A` n'est une
+  combinaison convexe que pour `λ ∈ [0,1]` ; hors de cet intervalle, le rôle de D_b et D_p
+  s'inverse. La bibliothèque **avertit** pour λ > 1 (et refuse λ < 0).
+
+L'avertissement de la bibliothèque est émis à partir de 1,5 pour α (seuil de dégradation
+observé, cf. A2D Fig. 8) et à partir de 1 pour λ (borne de l'eq. 2).
 
 ---
 
@@ -175,7 +183,7 @@ Ces vecteurs **ne transfèrent pas** (Table 15, PDF p. 25).
 |---|---|---|---|---|---|---|
 | **Qwen-derived** (Dream, Dream-Coder, DiffuCoder, DreamReasoner) | identiques à ceux du parent AR → *« direct element-wise combination of all parameters, with no remapping, freezing, or masking* » | fusionnés | fusionnées | fusionnée | — | — |
 | **Nemotron / Ministral** | mapping explicite ; 14 ids de vocabulaire divergents (+ ids 34–35 Base vs Instruct) | 16 lignes **protégées** (valeur du receveur), exclues de `+τ_A` et de `−τ_D` ; +1 ligne (id 100, token de masque) gelée en Base-transfer | fusionnées (backbone) | **valeur du receveur** | paramètres sans équivalent AR : gardés du receveur | — |
-| **DiffusionGemma / Gemma 4** | mapping AR → projections du decoder ; encodeur et décodeur **partagent** les poids de base | **inchangés** | **inchangées** | **inchangée** | pas d'équivalent AR (self-conditioning) ; les adapters « *stay unmerged and are scaled according to the experimental formula* » | **inchangée** |
+| **DiffusionGemma / Gemma 4** | mapping AR → projections du decoder ; encodeur et décodeur **partagent** les poids de base | **inchangés** | **inchangées** | **inchangée** | routeur / experts : **équivalents AR** (Gemma 4 en a) → **fusionnés par défaut**, famille déclarée (`--router-policy skip` pour ne pas les fusionner) ; **self-conditioning** (projections propres à la diffusion) : **pas d'équivalent AR** → conservées ; adapters « *stay unmerged and are scaled according to the experimental formula* » | **inchangée** |
 
 Pour DiffusionGemma, « *The diffusion encoder and decoder share their base weights, so each AR
 update is applied once to the shared parameter and affects both branches.* »

@@ -1,6 +1,26 @@
 # Guide — Travaux restants avant publication de Jainius
 
-Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipeline A2D-Dp+ατA complet).
+> ## ⚠️ DOCUMENT OBSOLÈTE (rectificatif J6bis, MIN-06)
+>
+> Ce guide décrit le **pipeline legacy** (`D_p + α·τ_A` appliqué à DiffusionGemma-IT, build
+> `checkpoints/Jainius`) et la procédure de publication d'un checkpoint **hors papier**.
+> Il est **conservé pour l'historique** et n'est plus la référence :
+>
+> * le pipeline **conforme** est `scripts/merge_a2d.py` + `scripts/a2d/` (transfert
+>   `D_b + α·τ_A`, merge `D_p + λ·(τ_A − τ_D)`) ; le build `Jainius` est une **ablation
+>   hors papier** (τ_A *général*, α non sélectionné sur ancre, aucun gain mesuré) ;
+> * la trajectoire de recherche est **par portes** (G1 → G2 → G3) : voir `CHECKLIST.md` ;
+> * l'étape 5 (« `hf upload … Jainius` ») est **sans objet** : la publication d'un checkpoint
+>   n'est plus prévue, et `git push` est réservé à l'utilisateur ;
+> * la checklist de publication utile est `CHECKLIST.md` ;
+> * l'état réel des portes est `docs/reports/J6bis.md` (vérifié) et
+>   `docs/reports/AUDIT_J6.md` + `docs/reports/REVIEW_N2_J6.md` (revues).
+>
+> **Ce guide ne doit pas être suivi tel quel.** Le texte ci-dessous est inchangé hormis
+> cette bannière.
+
+Ce guide couvre les étapes à réaliser **après** le commit `50b69bd` (pipeline legacy
+`D_p + α·τ_A`, **hors papier**).
 **État au 2026-10-19** : Étapes 1, 2 et 3 faites (voir § « Ce qui est déjà fait »). Restent
 l'étape 4 (checklist finale), l'étape 5 (push/upload) — et une décision éditoriale :
 le merge n'améliore pas le témoin `D_p` (mesuré, cf. `eval/RESULTS.md`).

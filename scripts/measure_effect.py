@@ -27,7 +27,10 @@ Usage :
         --tau-dir _artefact/tau_a \
         --alphas 0.05,0.1,0.2,0.3 \
         --output _artefact/measure_effect_v2.json
-    # Variante papier A2D : INCLURE norms/embeddings (exclus par defaut) :
+    # Variante NON conforme a l'App. A.2 : INCLURE norms/embeddings (exclus par
+    # defaut). Pour DiffusionGemma, l'App. A.2 dit que les embeddings, les normes
+    # et la tete de sortie restent INCHANGES ; cette variante n'est donc pas la
+    # configuration du papier (rectificatif J6bis : MIN-06).
     python scripts/measure_effect.py --include-norms-embed ...
 """
 
