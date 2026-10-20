@@ -33,7 +33,7 @@
 | **B3** | **Une seule** fonction `expected_tensor(ref, tau_a, tau_d, c_a, c_d, family, policy)` définit la valeur attendue ; elle est utilisée par le **writer** (`merge_checkpoint`) **et** par le vérificateur (`verify_checkpoint`, donc par `verify_merge`). L'alignement des embeddings (intersection des lignes) est fait **à l'intérieur** ⇒ les deux chemins ne peuvent plus diverger (cause de MAJ-03). `verify_written` et `compute_effective_coefficients` partagent désormais `verify_checkpoint`. | `scripts/a2d/merge.py` (`expected_tensor`, `_align_delta`, `verify_checkpoint`) |
 | **B4** | **Vérification v2** : régression des **moindres carrés signés** de (out − ref) sur [τ_A, τ_D] (Gram **float64**), par famille et globalement ; les coefficients **signés** `c_a_eff` / `c_d_eff` sont comparés à ceux **attendus du mode** (transfert (α,0) ; merge (λ,−λ) ; ablations). Les bornes de tolérance sont **dérivées du résidu BF16 mesuré** (matrice de la moindres carrées appliquée au résidu), et **non** de l'écart réel du tenseur écrit — une corruption ne peut donc pas élargir la tolérance. Repli sur des **projections simples** si \|cos(τ_A,τ_D)\| ≥ 0,99 (mal conditionné), avec signalement. Deux contrôles supplémentaires : les tenseurs **non fusionnés sont bit-identiques** à la référence (comparaison des motifs d'octets) ; l'écart maximal à `round_bf16(expected)` recalculé indépendamment est **≤ 1 ULP** du dtype cible. | `scripts/a2d/merge.py` (`verify_checkpoint`, `_solve`, `_acc_add`, `_ulp`, `_bit_identical`) |
 | **B5** | `verify_merge` appelle `validate_config` : `--mode merge` **exige** τ_D (sortie **2**, message explicite) ; `--mode ablation-dp-minus-tau-d` n'exige plus τ_A. Le mode `merge` sans τ_D était **accepté** avant (MAJ-01) : c'est corrigé. | `scripts/verify_merge.py`, `scripts/a2d/merge.py` (`compute_effective_coefficients` → `validate_config`) |
-| **B6** | **19 tests de mutation** (`scripts/tests/test_a2d_mutation.py`, pytest paramétré) : inversion de signe, permutation α↔λ, permutation τ_A↔τ_D, coefficient faux, τ_D partiel sous `strict` (refusé) et sous `zero-fill` (déclaré), τ_A absent, plan vide (refusé / `--allow-empty`), tenseur non fusionné altéré, mode erroné, lignes d'embedding intersectées (vérifiables **et** mutables), seuils ULP BF16 (1 ULP passe, 2 ULP échoue), choix explicite de couverture exigé pour une source LoRA, couverture déclarée au manifeste. Les sondes **BLK-01** et **BLK-02** sont des tests de non-régression. La **CI** les exécute : étape `Tests adversariaux (mutations)` + 4 étapes CLI (ablation-minus, merge sans τ_D refusé, τ_D partiel refusé en `strict`, `zero-fill` déclaré). | `scripts/tests/test_a2d_mutation.py`, `.github/workflows/ci.yml` |
+| **B6** | **20 tests de mutation** (`scripts/tests/test_a2d_mutation.py`, pytest paramétré) : inversion de signe, permutation α↔λ, permutation τ_A↔τ_D, coefficient faux, τ_D partiel sous `strict` (refusé) et sous `zero-fill` (déclaré), τ_A absent, plan vide (refusé / `--allow-empty`), tenseur non fusionné altéré, mode erroné, lignes d'embedding intersectées (vérifiables **et** mutables), seuils ULP BF16 (1 ULP passe, 2 ULP échoue), choix explicite de couverture exigé pour une source LoRA, couverture déclarée au manifeste. Les sondes **BLK-01** et **BLK-02** sont des tests de non-régression. La **CI** les exécute : étape `Tests adversariaux (mutations)` + 4 étapes CLI (ablation-minus, merge sans τ_D refusé, τ_D partiel refusé en `strict`, `zero-fill` déclaré). | `scripts/tests/test_a2d_mutation.py`, `.github/workflows/ci.yml` |
 | **B7** | **Conception seule** (`docs/design/G2_adapter_scaling.md`) : l'App. A.2 (les adaptateurs de diffusion DG **restent non fusionnés** et sont **mis à l'échelle**), la réécriture `D_Merge(λ) = [D_b + λτ_A] + (1−λ)·adaptateurs`, le mode « base + adaptateur remis à l'échelle » (3 options analysées, 2 retenues), le traitement des **poids partagés** encodeur/décodeur (vérifié sur l'index du checkpoint : **une seule copie** des poids ; les 413 modules de l'adaptateur = 205 décodeur + 205 encodeur + 3 self-conditioning ⇒ le delta effectif est la **somme** des deux jeux), le plan de vérification V1–V8, et **10 hypothèses dont 5 non vérifiées** contre le PDF. **Aucun code écrit.** | `docs/design/G2_adapter_scaling.md` |
 
 ### C — Harnais : conformité au workspace
@@ -245,21 +245,22 @@ attribution n'en est déduite.
 ```
 $ python3 -m pytest scripts/tests -q
 ........................................................                 [100%]
-56 passed in 26.87s
+57 passed in 26.91s
 
 $ python3 -m pytest vLLM/scripts/tests -q
 .................                                                        [100%]
 17 passed in 2.47s
 ```
 
-* 56 = 22 (A2D, `test_a2d_library.py`) + 19 (mutation, `test_a2d_mutation.py`)
+* 57 = 22 (A2D, `test_a2d_library.py`) + 20 (mutation, `test_a2d_mutation.py`)
   + 15 autres (`test_pipeline.py`, `test_eval_compare.py`).
-* Les 19 tests de mutation couvrent : inversion de signe · permutation α↔λ ·
+* Les 20 tests de mutation couvrent : inversion de signe · permutation α↔λ ·
   permutation τ_A↔τ_D · coefficient faux · τ_D partiel (`strict` refusé /
   `zero-fill` déclaré) · τ_A absent · plan vide (refusé / `--allow-empty`) ·
   tenseur non fusionné altéré · mode erroné · lignes d'embedding intersectées ·
   seuils ULP BF16 (1 ULP passe, 2 ULP échoue) · couverture LoRA explicite ·
-  couverture au manifeste.
+  couverture au manifeste ; famille couverte par une seule source
+  (`zero-fill`) — vérifiée et non ignorée.
 
 ### 6.5 Ce qui existe hors du dépôt
 

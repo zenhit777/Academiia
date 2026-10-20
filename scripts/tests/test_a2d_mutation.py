@@ -446,6 +446,36 @@ def test_bf16_bound_covers_the_measured_deviation(tmp_path):
 # CLI : couverture declaree au manifeste
 # --------------------------------------------------------------------------- #
 
+def test_zero_fill_family_with_single_source_is_still_checked(tmp_path):
+    """Une famille couverte par UNE seule source doit etre verifiee, pas ignoree.
+
+    En politique `zero-fill`, la famille `embed` n'est couverte que par tau_A
+    (tau_D ne couvre pas l'embedding) : son coefficient `c_a` doit tout de meme
+    etre estime et compare, et une mutation doit etre detectee.
+    """
+    ar_base, ar_post, diff_base, diff_post = ar_and_diffusion(tmp_path)
+    partial_base = build_checkpoint(tmp_path, PARTIAL, seed=81, name="partial_base")
+    partial_post = build_checkpoint(tmp_path, PARTIAL, seed=82, name="partial_post")
+    tau_a = CheckpointPairSource(ar_post, ar_base)
+    tau_d = CheckpointPairSource(partial_post, partial_base)
+    out = tmp_path / "out"
+    merge_checkpoint(config("merge", diff_post, out, lam=0.6, tau_a=tau_a, tau_d=tau_d,
+                            coverage="zero-fill"))
+    report = verify(out, diff_post, mode="merge", lam=0.6, tau_a=tau_a, tau_d=tau_d,
+                    coverage="zero-fill")
+    assert report["ok"], report["failures"]
+    embed = report["families"]["embed"]
+    assert embed["c_a_eff"] == pytest.approx(0.6, abs=1e-2), embed
+    assert embed["c_d_eff"] is None          # tau_D ne couvre pas cette famille
+    assert embed["ok"]
+    # une mutation sur cette famille doit etre detectee
+    mutate(out, "model.embed_tokens.weight", lambda t: t + 0.5)
+    report = verify(out, diff_post, mode="merge", lam=0.6, tau_a=tau_a, tau_d=tau_d,
+                    coverage="zero-fill")
+    assert not report["ok"]
+    assert report["families"]["embed"]["ok"] is False
+
+
 def test_cli_merge_declares_coverage(tmp_path):
     """Le manifeste declare la politique et les effectifs de couverture."""
     ar_base, ar_post, diff_base, diff_post = ar_and_diffusion(tmp_path)

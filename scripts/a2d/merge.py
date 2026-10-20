@@ -735,7 +735,12 @@ def verify_checkpoint(cfg: MergeConfig, merged_dir, reference_dir,
     # ---- coefficients par famille et globaux --------------------------------
     families: Dict[str, dict] = {}
     for family, acc in sorted(acc_family.items()):
-        report = _report_family(family, acc, has_a, has_d, checked, c_a, c_d,
+        # Les regresseurs disponibles sont ceux du plan de CETTE famille :
+        # une famille couverte par une seule source (cas `zero-fill`) doit etre
+        # verifiee par une projection simple, pas declaree non estimable.
+        fam_has_a = acc["aa"] > 0
+        fam_has_d = acc["dd"] > 0
+        report = _report_family(family, acc, fam_has_a, fam_has_d, checked, c_a, c_d,
                                  coeff_name, coeff_value, cfg)
         families[family] = report
         failures.extend(report["failures"])
