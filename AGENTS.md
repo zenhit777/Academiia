@@ -19,14 +19,17 @@ Academiia/
 ├── README.md              # Documentation projet
 ├── .gitignore             # Fichiers exclus du versioning
 ├── requirements.txt       # Runtime principal
-├── requirements-dream.txt # Harnais d'évaluation Dream (venv séparé)
+├── harness/               # Harnais d'évaluation (convention harness/<famille>/)
+│   ├── README.md          # la convention
+│   └── dream/             # harnais Dream-7B (setup.sh, run_evals.sh, tasks/, summarize.py)
 ├── docs/
 │   ├── 2610.08108v1 - A2D.pdf              # papier A2D (source primaire)
 │   ├── 2608.00146v1 - DiffusionGemma.pdf  # rapport technique DG
 │   ├── A2D_SPEC.md        # SPÉCIFICATION (équations, Table 6, cibles chiffrées)
 │   ├── VP_ADAPTERS.md     # inspection des adaptateurs médicaux publiés
 │   ├── AUDIT_A2D_vs_PAPIER.md  # audit 19/10 (source secondaire)
-│   └── reports/           # rapports de mission (J6.md ...)
+│   ├── design/            # notes de conception (G1_PROTOCOL, G2_adapter_scaling, …)
+│   └── reports/           # rapports de mission (J6.md, J6bis.md ...)
 ├── scripts/
 │   ├── a2d/               # BIBLIOTHÈQUE A2D (naming, sources, moteur de fusion)
 │   ├── merge_a2d.py       # CLI : transfert / merge / ablations  ← pipeline CONFORME
@@ -38,9 +41,10 @@ Academiia/
 │   ├── measure_effect.py  # LEGACY : metrologie de l'arrondi BF16
 │   ├── eval_compare.py    # LEGACY : 103 prompts texte, FP8 (non conforme au papier)
 │   ├── verify_checkpoint.py # integrite stricte HF
+│   ├── restructure_eval_dirs.py # renommage portable des dossiers de résultats
 │   ├── smoke_int8.py      # test rapide INT8 (iteration, pas preuve)
 │   ├── _common.py         # mapping Gemma4<->DiffusionGemma, helpers
-│   └── tests/             # pytest (dont test_a2d_library.py)
+│   └── tests/             # pytest (test_a2d_library.py, test_a2d_mutation.py)
 ├── checkpoints/           # Checkpoints binaires (non partages)
 │   ├── gemma4_base/       # A_b — Gemma 4 AR base
 │   ├── gemma4_it/         # A_p — Gemma 4 AR post-trained
@@ -65,6 +69,9 @@ Academiia/
 6. **GPU/VRAM (inférence vLLM et harnais Dream)** : Docker et le GPU (RTX 5090 32 Go) fonctionnent dans WSL2. Avant TOUTE opération GPU : mesurer `nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free --format=csv` ; besoin vLLM ≈ `VLLM_GPU_MEMORY_UTILIZATION × total` (0,90 → ≈ 28,8 GiB). Si un modèle LM Studio est chargé ET `memory.free < besoin + 1 GiB` : STOPPER et demander la permission (citer mémoire libre, besoin, modèle détecté). Ne JAMAIS décharger un modèle LM Studio ni tuer de processus. Après chaque série GPU : `docker compose down`, re-mesurer. Détails : `vLLM/README.md` (règle VRAM).
 7. **Trajectoire par portes** : **G1** mécanique validée sur Qwen2.5-7B → Dream-7B → **G2** reproduction du cas DiffusionGemma médical du papier → **G3** raisonnement (hors papier, conception d'abord). Ne pas commencer une porte avant d'avoir franchi la précédente ; consigner l'état de chaque porte dans `CHECKLIST.md`.
 8. **Toute évaluation générative consigne** : modèle, dtype/quantification, décodeur, paramètres, graine, nombre de prompts, et l'intervalle de confiance si l'effectif est réduit.
+9. **Aucune écriture hors du dépôt.** Tout ce qui est écrit doit vivre dans l'arborescence du dépôt (`_artefact/`, `harness/<famille>/.cache/`, `eval/`, `checkpoints/`…). Les caches d'outils (`~/.cache/huggingface`, `~/.cache/pip`, `/tmp`, `~/.cache/uv`) doivent être **redirigés** vers le dépôt, pas utilisés en plus. Une écriture déjà présente hors du dépôt est **inventoriée** (`docs/reports/OUT_OF_WORKSPACE.md`) et **jamais supprimée sans accord écrit de l'utilisateur**.
+10. **Harnais d'évaluation : convention `harness/<famille>/`.** Un harnais (lanceur, tâches, environnement, synthèse) vit dans `harness/<famille>/` : `setup.sh` (idempotent), `requirements-*.txt`, `tasks/`, `run_evals.sh`, `summarize.py`. Ce qui n'est pas partageable (`.venv/`, `.fork/`, `.cache/`) reste dans le dossier de la famille et est ignoré par git. Les résultats vont dans `eval/<famille>/<modèle>/<tâche>/`, **sans chemin absolu dans les noms de dossiers**. Voir `harness/README.md`.
+11. **`git push` est réservé à l'utilisateur.** L'agent produit des **commits locaux atomiques** et ne pousse jamais. Le reflog n'identifie pas l'auteur d'un push : ne rien en déduire.
 
 ### Pipeline CONFORME (bibliothèque A2D) — à utiliser par défaut
 

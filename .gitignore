@@ -2,6 +2,12 @@
 checkpoints/
 _artefact/
 
+# Harnais d'évaluation : l'environnement n'est pas partageable (venv, clone du
+# fork, caches) et vit DANS le dépôt (règle « aucune écriture hors du dépôt »).
+harness/**/.venv/
+harness/**/.fork/
+harness/**/.cache/
+
 # Secrets locaux (ne pas commiter) :
 # - `.env` à TOUS les niveaux (racine, vLLM/, futurs dossiers...).
 # - `**` = récursif ; un `git add -A` n'ajoutera jamais ces fichiers.

@@ -250,7 +250,7 @@ borne d'entropie `b = 0.1`, température `τ_max = 0.8 → τ_min = 0.4`, diffus
 | FP32 séquentiel + un seul cast BF16 (App. A.3) | `a2d.merge.merge_checkpoint` |
 | contrôle post-écriture `α_eff` / `λ_eff` | `a2d.merge.verify_written` + `scripts/verify_merge.py` |
 | Table 21 (géométrie) | `scripts/measure_geometry.py` |
-| protocole Dream (App. A.1) | `eval/dream_a2d/` + `requirements-dream.txt` |
+| protocole Dream (App. A.1) | `harness/dream/` (harnais versionné) + `eval/dream_a2d/` (résultats) |
 
 ---
 

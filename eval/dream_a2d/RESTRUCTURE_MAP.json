@@ -1,0 +1,182 @@
+{
+  "tool": "scripts/restructure_eval_dirs.py",
+  "root": "eval/dream_a2d",
+  "dry_run": false,
+  "note": "Le CONTENU des .json / .jsonl n'est pas modifie : les chemins absolus qu'ils contiennent sont la provenance du run. Seuls les NOMS de dossiers sont rendu portables.",
+  "mappings": [
+    {
+      "source_run_dir": "eval/dream_a2d/dream_7b_base_gsm8k_cot_a2d",
+      "source_encoded_dir": "eval/dream_a2d/dream_7b_base_gsm8k_cot_a2d/__mnt__d__Intelligence_Artificielle__Projects__Academiia__checkpoints__dream_7b_base",
+      "target_dir": "eval/dream_a2d/dream_7b_base/gsm8k_cot_a2d",
+      "model": "dream_7b_base",
+      "task": "gsm8k_cot_a2d",
+      "files": [
+        {
+          "name": "results_2026-10-20T00-53-03.608851.json",
+          "size": 9380,
+          "sha256": "179ff95c4fe4d415b0d04f585474afa3e91dc161776c23ec3a7600d6189f3cbb"
+        },
+        {
+          "name": "samples_gsm8k_cot_a2d_2026-10-20T00-53-03.608851.jsonl",
+          "size": 1324012,
+          "sha256": "48068aa0894ffcc57e35fd931734ea10576488229d4570a765486193a30f337f"
+        }
+      ]
+    },
+    {
+      "source_run_dir": "eval/dream_a2d/dream_7b_base_ifeval_a2d",
+      "source_encoded_dir": "eval/dream_a2d/dream_7b_base_ifeval_a2d/__mnt__d__Intelligence_Artificielle__Projects__Academiia__checkpoints__dream_7b_base",
+      "target_dir": "eval/dream_a2d/dream_7b_base/ifeval_a2d",
+      "model": "dream_7b_base",
+      "task": "ifeval_a2d",
+      "files": [
+        {
+          "name": "results_2026-10-20T06-26-54.453067.json",
+          "size": 9925,
+          "sha256": "1b7102eb5418be513de60d57bb52b1e932518d02c8415cf06e1bb448d187a5a8"
+        },
+        {
+          "name": "samples_ifeval_a2d_2026-10-20T06-26-54.453067.jsonl",
+          "size": 62190,
+          "sha256": "a6f6c44a15605163c442b3b0d4fdeebe8b22ac92e3ac7143434a3ce09e6cb8c3"
+        }
+      ]
+    },
+    {
+      "source_run_dir": "eval/dream_a2d/dream_7b_base_minerva_math_algebra",
+      "source_encoded_dir": "eval/dream_a2d/dream_7b_base_minerva_math_algebra/__mnt__d__Intelligence_Artificielle__Projects__Academiia__checkpoints__dream_7b_base",
+      "target_dir": "eval/dream_a2d/dream_7b_base/minerva_math_algebra",
+      "model": "dream_7b_base",
+      "task": "minerva_math_algebra",
+      "files": [
+        {
+          "name": "results_2026-10-20T03-25-11.907605.json",
+          "size": 30825,
+          "sha256": "1b1b41a5e912683d989d98c0bb6897e11f8cd4b14bdff18348b699f2ca05ab7d"
+        },
+        {
+          "name": "samples_minerva_math_algebra_2026-10-20T03-25-11.907605.jsonl",
+          "size": 70051,
+          "sha256": "b261082b48a53766f4e11a0b7c8a21f12324e6e7152b4e35b6ac1fa5c41bd2bd"
+        },
+        {
+          "name": "samples_minerva_math_counting_and_prob_2026-10-20T03-25-11.907605.jsonl",
+          "size": 97286,
+          "sha256": "6264abdcd4c94cff0ccb5542f785a569281dbbe96effa7d109763f130b64d776"
+        },
+        {
+          "name": "samples_minerva_math_geometry_2026-10-20T03-25-11.907605.jsonl",
+          "size": 118801,
+          "sha256": "99d966c20b8f75739c54279322ef27361505f223d88962a46ef35341e368576e"
+        },
+        {
+          "name": "samples_minerva_math_intermediate_algebra_2026-10-20T03-25-11.907605.jsonl",
+          "size": 103473,
+          "sha256": "307d1bb57909cf6c223c3233fa97a03e5f302509e6e5828fe56a7054808eb7b5"
+        },
+        {
+          "name": "samples_minerva_math_num_theory_2026-10-20T03-25-11.907605.jsonl",
+          "size": 93291,
+          "sha256": "306d1dc0df76ef6b873a131f921e72250348b5cf6020ce3ca0fcd48a4d4a9b75"
+        },
+        {
+          "name": "samples_minerva_math_prealgebra_2026-10-20T03-25-11.907605.jsonl",
+          "size": 80299,
+          "sha256": "7f485bcbc93b65dc4a1845364ef33df470da9c84b64efd9e0dd1c10f0ca113d0"
+        },
+        {
+          "name": "samples_minerva_math_precalc_2026-10-20T03-25-11.907605.jsonl",
+          "size": 121619,
+          "sha256": "746c492d8cb6b59ba071f17adca5d960ff210c659789f5afe4ace1bcdd82aaab"
+        }
+      ]
+    },
+    {
+      "source_run_dir": "eval/dream_a2d/dream_7b_instruct_gsm8k_cot_a2d",
+      "source_encoded_dir": "eval/dream_a2d/dream_7b_instruct_gsm8k_cot_a2d/__mnt__d__Intelligence_Artificielle__Projects__Academiia__checkpoints__dream_7b_instruct",
+      "target_dir": "eval/dream_a2d/dream_7b_instruct/gsm8k_cot_a2d",
+      "model": "dream_7b_instruct",
+      "task": "gsm8k_cot_a2d",
+      "files": [
+        {
+          "name": "results_2026-10-20T01-44-38.332314.json",
+          "size": 9367,
+          "sha256": "3b86cb88ab946967b5e780f96989e97379b4c1f365e9f9c0462e70df2a8ba918"
+        },
+        {
+          "name": "samples_gsm8k_cot_a2d_2026-10-20T01-44-38.332314.jsonl",
+          "size": 1196853,
+          "sha256": "20e322688d65cd31c57522e47c613d73033d1d250c525e8e5c698ddbda520c3f"
+        }
+      ]
+    },
+    {
+      "source_run_dir": "eval/dream_a2d/dream_7b_instruct_ifeval_a2d",
+      "source_encoded_dir": "eval/dream_a2d/dream_7b_instruct_ifeval_a2d/__mnt__d__Intelligence_Artificielle__Projects__Academiia__checkpoints__dream_7b_instruct",
+      "target_dir": "eval/dream_a2d/dream_7b_instruct/ifeval_a2d",
+      "model": "dream_7b_instruct",
+      "task": "ifeval_a2d",
+      "files": [
+        {
+          "name": "results_2026-10-20T07-10-39.426121.json",
+          "size": 9942,
+          "sha256": "f105153c71908efe7e70325d1cddc5152d60b324a20134c1bb88deb200555db3"
+        },
+        {
+          "name": "samples_ifeval_a2d_2026-10-20T07-10-39.426121.jsonl",
+          "size": 51956,
+          "sha256": "357b902e7dd9f2c6fa97ff5272b3ec3c4591204b32e00a97cc1bdeeca223cde8"
+        }
+      ]
+    },
+    {
+      "source_run_dir": "eval/dream_a2d/dream_7b_instruct_minerva_math_algebra",
+      "source_encoded_dir": "eval/dream_a2d/dream_7b_instruct_minerva_math_algebra/__mnt__d__Intelligence_Artificielle__Projects__Academiia__checkpoints__dream_7b_instruct",
+      "target_dir": "eval/dream_a2d/dream_7b_instruct/minerva_math_algebra",
+      "model": "dream_7b_instruct",
+      "task": "minerva_math_algebra",
+      "files": [
+        {
+          "name": "results_2026-10-20T05-05-04.209520.json",
+          "size": 30876,
+          "sha256": "20f823a9b6723264db36a1b506d9792af4ed02ef5bc78485033671252cc3b2d0"
+        },
+        {
+          "name": "samples_minerva_math_algebra_2026-10-20T05-05-04.209520.jsonl",
+          "size": 68699,
+          "sha256": "9b06fd9fd7c8127ce415a07e213e049d407519ead2c67508f8e75eccc62a48bb"
+        },
+        {
+          "name": "samples_minerva_math_counting_and_prob_2026-10-20T05-05-04.209520.jsonl",
+          "size": 86832,
+          "sha256": "a9e6ab2ff8463af74f915719b3b4648584c5de75d0a4cbe4e0d25dbb8b13553d"
+        },
+        {
+          "name": "samples_minerva_math_geometry_2026-10-20T05-05-04.209520.jsonl",
+          "size": 117961,
+          "sha256": "f8e200bde8f5dd13e91386066b6eab6ccfef6bde28c0054a1e93cb03fd4ede98"
+        },
+        {
+          "name": "samples_minerva_math_intermediate_algebra_2026-10-20T05-05-04.209520.jsonl",
+          "size": 88855,
+          "sha256": "83ae7185f1562cbdf5238e458911e170aabb1c071f291deb96bc73c89c2252c3"
+        },
+        {
+          "name": "samples_minerva_math_num_theory_2026-10-20T05-05-04.209520.jsonl",
+          "size": 85559,
+          "sha256": "37b3cb11db42805ffbec97a2a7033cce851fa796f4d5038fc3902b27b18f1fac"
+        },
+        {
+          "name": "samples_minerva_math_prealgebra_2026-10-20T05-05-04.209520.jsonl",
+          "size": 83855,
+          "sha256": "ecbedcaf2e8ac0c98382082efe24579f1095047250ae48466524985fa230ff32"
+        },
+        {
+          "name": "samples_minerva_math_precalc_2026-10-20T05-05-04.209520.jsonl",
+          "size": 115231,
+          "sha256": "6af5ead949482f3a04ae84479c3d149acf6429300070c720192d556d77e2db57"
+        }
+      ]
+    }
+  ]
+}
