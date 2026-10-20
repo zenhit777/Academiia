@@ -29,4 +29,4 @@ est un controle de fonctionnement, pas une mesure.
 | dream_7b_base | IFEval | moyenne des 4 metriques | 57.1 % | 8 | [30.6, 86.3] | 49.7 | +7.4 |
 | dream_7b_instruct | IFEval | moyenne des 4 metriques | 60.7 % | 8 | [30.6, 86.3] | 63.0 | -2.3 |
 
-Effectifs reduits : le budget GPU local ne permet pas les jeux complets (mesure : 162 s/prompt pour IFEval a 1280 pas de debruitage). L'intervalle de Wilson est donne pour chaque score. MATH-175 != MATH-500 : la cible Table 16 porte sur 500 problemes, la mesure porte sur 175 — comparaison a PERIMETRE DIFFERENT, ce n'est pas une reproduction. IFEval (n=8) est un controle de fonctionnement, pas une mesure.
+Effectifs reduits : le budget GPU local ne permet pas les jeux complets (mesure : ~326 s/prompt pour IFEval a 1280 pas de debruitage, batch 4). L'intervalle de Wilson est donne pour chaque score. MATH-175 != MATH-500 : la cible Table 16 porte sur 500 problemes, la mesure porte sur 175 — comparaison a PERIMETRE DIFFERENT, ce n'est pas une reproduction. IFEval (n=8) est un controle de fonctionnement, pas une mesure.

@@ -33,10 +33,13 @@ graines `0,1234,1234,1234` (valeurs par défaut du fork).
 | Dream-7B-**Base** | IFEval | 1280 | 8 | 2 607,8 | **325,97** | 0,18 prompt/min |
 | Dream-7B-**Instruct** | IFEval | 1280 | 8 | 2 620,9 | **327,61** | 0,18 prompt/min |
 
-**Lecture** : le coût est **quasi linéaire en le budget de tokens** (256 → 512
-multiplie le coût par 3,4 ; 256 → 1280 par 32). C'est attendu : un pas de
-débruitage par token, donc le nombre d'étapes de décodage est linéaire en
-`max_new_tokens`.
+**Lecture** : les facteurs ×3,4 (256 → 512 tokens) et ×32 (256 → 1 280 tokens)
+**comparent des tâches différentes** (GSM8K à 256 tokens, MATH-175 à 512,
+IFEval à 1 280 : prompts, longueurs et contenus différents) ; ils ne mesurent
+donc **pas** l'extensibilité en tokens. La règle « un pas de débruitage par
+token » ne prédit que le **nombre d'étapes** (×2 pour 256 → 512 tokens), pas le
+**temps mural** : celui-ci dépend en plus de la charge par prompt propre à
+chaque tâche.
 
 ### 2.1 Surcoûts fixes (à ajouter à toute évaluation)
 
@@ -61,7 +64,7 @@ est ajouté une fois).
 | Modèle | Tâche | n complet | **Coût projeté par modèle** | Coût pour 2 modèles | Commentaire |
 |---|---|---:|---:|---:|---|
 | Base | GSM8K | 1 319 | 13 350 s = **3 h 42** | **7 h 25** | |
-| Base | MATH | 5 000 | 172 250 s = **47 h 51** | **95 h 42** | hors budget (le jeu du papier est MATH-500 : ×10,3 ⇒ **4 h 39** par modèle, **9 h 19** pour les deux) |
+| Base | MATH | 5 000 | 172 250 s = **47 h 51** | **95 h 42** | hors budget (le jeu du papier est MATH-500 : 500 sur 5 000, soit **×10** en moins ⇒ **4 h 47** par modèle (17 225 s), **9 h 34** pour les deux (34 450 s)) |
 | Base | IFEval | 541 | 176 350 s = **48 h 59** | **97 h 59** | **hors budget** : le papier lui-même a abaissé le budget de 8 192 à 1 280 tokens pour IFEval (« *too expensive* », App. A.1) |
 
 **Conclusion budget (inchangée par rapport à J6)** : à 256/512/1 280 tokens et

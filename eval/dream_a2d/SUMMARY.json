@@ -1456,7 +1456,7 @@
   "metric_names": {
     "MATH-175": "sous-ensemble minerva_math du fork Dream, 175 problemes sur 5000 ; le jeu du papier est MATH-500 (500 problemes, split PRM800K)"
   },
-  "note": "Effectifs reduits : le budget GPU local ne permet pas les jeux complets (mesure : 162 s/prompt pour IFEval a 1280 pas de debruitage). L'intervalle de Wilson est donne pour chaque score. MATH-175 != MATH-500 : la cible Table 16 porte sur 500 problemes, la mesure porte sur 175 — comparaison a PERIMETRE DIFFERENT, ce n'est pas une reproduction. IFEval (n=8) est un controle de fonctionnement, pas une mesure.",
+  "note": "Effectifs reduits : le budget GPU local ne permet pas les jeux complets (mesure : ~326 s/prompt pour IFEval a 1280 pas de debruitage, batch 4). L'intervalle de Wilson est donne pour chaque score. MATH-175 != MATH-500 : la cible Table 16 porte sur 500 problemes, la mesure porte sur 175 — comparaison a PERIMETRE DIFFERENT, ce n'est pas une reproduction. IFEval (n=8) est un controle de fonctionnement, pas une mesure.",
   "aggregated": [
     {
       "model": "dream_7b_base",
