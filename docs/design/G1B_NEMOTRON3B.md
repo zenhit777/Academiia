@@ -416,7 +416,7 @@ transforme 6 « non vérifiable » en 6 mesures, pour ~23 Go et ~10 min.
 | **Pile d'évaluation** |bloquant | le `ns eval` stock **ne supporte pas la diffusion** : il faut le client patché de NVlabs (`xp/nemo-skills/eval_dlm.py`) + un serveur DLM à construire et à déboguer (charge de travail non chiffrable ici) |
 | **Dépendance `transformers`** | moyen | le code distant de Nemotron-LD exige `transformers>=5.0.0` et importe `transformers.modeling_layers` / `masking_utils` ⇒ un environnement dédié (le venv du harnais Dream est en `transformers==4.46.2`, incompatible) |
 | **Juge / métriques** | moyen | les 10 benchmarks de la Table 1c exigent le scoring NeMo-Skills complet (math, code, IFEval, GPQA…) ; le chemin B (`evaluate.py`) ne couvre que gsm8k + math-500 |
-| **Faible nombre de paramètres** | faible | 3 B ⇒ un « squelette » de 3,43 Go : l'effet mémoire du transfert est **plus faible** que sur Dream-7B, donc les gains attendus seront **plus petits** que les +19,4 / +15,2 points observés sur Dream |
+| **Faible nombre de paramètres** | faible | 3 B ⇒ un « squelette » de 3,43 Go : l'effet mémoire du transfert est **plus faible** que sur Dream-7B, donc les gains attendus seront **plus petits** que les gains de **transfert** observés sur Dream-7B (MATH-500 **+19,4** points ; GSM8K **+15,2** points) |
 
 **Décision : NO-GO pour l'évaluation complète en l'état.** Condition de
 réouverture :

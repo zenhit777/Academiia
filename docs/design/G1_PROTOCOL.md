@@ -130,10 +130,21 @@ qu'à lot identique. Le harnais le fixe par défaut (`harness/dream/run_evals.sh
 | **C3** | **Merge − Instruct** | **≥ −2 points** (non-régression) | MATH-175 |
 | **C4** | **Merge − Instruct** | **≥ −2 points** (non-régression) | GSM8K |
 
-* Les seuils C1/C2 sont **calés sur l'article** : le papier reports **+19,4**
-  points (Table 8, transfert Nemotron) et **+15,2** points (Table 7/12, merge).
-  Les seuils retenus (10 et 8) sont une **frange basse** de ces gains : ils
-  demandent un effet net sans exiger la reproduction du chiffre exact.
+* Les seuils C1/C2 sont **calés sur l'article** : sur la paire Dream-7B
+  (Qwen2.5-7B → Dream-7B, Figure 2a = transfert, Figure 2b = merge ; le
+  Tableau 16 rapporte les résultats des Figures 2a/2b), l'A2D-Transfer fait
+  passer MATH-500 de **20,8 à 40,2** (**+19,4** points) et GSM8K de **66,5 à
+  81,7** (**+15,2** points). Les seuils retenus (10 et 8) sont une **frange
+  basse** de ces gains de **transfert** : ils demandent un effet net sans
+  exiger la reproduction du chiffre exact. (À titre de repère, les gains de
+  **merge** de la même paire Dream sont bien plus modestes — le plus grand
+  est **+9,8** points sur IFEval, 63,0 → 72,8 ; MATH-500 **+6,6**
+  (38,4 → 45,0) et GSM8K **+0,7** (83,0 → 83,7) ; et les gains de transfert
+  de la **Table 8** sur la famille Nemotron sont **nettement supérieurs**, de
+  l'ordre de **+29 à +37** points : +34,4 (Ministral-3-3B-Instruct →
+  Nemotron-LD-3B, IFEval 25,2 → 59,6), +36,7 (Ministral-3-8B-Instruct →
+  Nemotron-LD-8B, IFEval 28,2 → 64,9) et +29,4 (Ministral-3-8B-Reasoning →
+  Nemotron-LD-8B, IFEval 28,2 → 57,6).)
 * C3/C4 sont des **non-régressions** : le merge ne doit pas dégrader le
   modèle post-entraîné. Le seuil de 2 points correspond à l'ordre de grandeur
   du bruit d'échantillonnage observé (IC 95 % de ±4,3 à ±7,1 points sur les
