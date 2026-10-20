@@ -25,9 +25,15 @@ TARGETS = {
 }
 TASK_TO_BENCH = {
     "gsm8k_cot_a2d": "GSM8K",
-    "minerva_math": "MATH-500",
     "ifeval_a2d": "IFEval",
 }
+
+
+def benchmark_of(task: str) -> str:
+    """Nom de benchmark : les 7 sous-taches minerva_math_* sont MATH-500."""
+    if task.startswith("minerva_math"):
+        return "MATH-500"
+    return TASK_TO_BENCH.get(task, task)
 
 
 def wilson(k: int, n: int, z: float = 1.96):
@@ -46,9 +52,10 @@ def load_results(root):
     for path in sorted(glob.glob(os.path.join(root, "*", "**", "results_*.json"), recursive=True)):
         with open(path) as f:
             data = json.load(f)
-        model_name = os.path.basename(str(data.get("model_name", "")))
-        run_key = f"{model_name}"
-        runs.setdefault(run_key, {"results": data, "path": path})
+        # cle = dossier de sortie (un par couple modele/tache) : plusieurs taches
+        # pour un meme modele ne doivent pas s'ecraser.
+        run_key = os.path.basename(os.path.dirname(os.path.dirname(path)))
+        runs[run_key] = {"results": data, "path": path}
     return runs
 
 
@@ -65,7 +72,8 @@ def main():
         data = info["results"]
         n_samples = data.get("n-samples", {})
         entry = {
-            "model": run_key,
+            "run": run_key,
+            "model": os.path.basename(str(data.get("model_name", ""))),
             "n_prompts": {t: (v.get("effective") if isinstance(v, dict) else v)
                           for t, v in n_samples.items()},
             "n_original": {t: (v.get("original") if isinstance(v, dict) else None)
@@ -97,7 +105,7 @@ def main():
             metric_name = metric.split(",")[0]
             if metric_name.endswith("_stderr"):
                 continue
-            bench = TASK_TO_BENCH.get(task, task)
+            bench = benchmark_of(task)
             rows.append({
                 "run": run_key, "model": model, "task": task, "benchmark": bench,
                 "metric": metric, "value": m["value"], "n": m["n"],
@@ -115,8 +123,10 @@ def main():
     # sont regroupees (moyenne ponderee par l'effectif, IC sur le total)
     agg = {}
     for r in rows:
-        filt = r["metric"].split(",")[-1]
-        key = (r["model"], r["benchmark"], filt)
+        # cle = nom complet de la metrique (inclut le nom du filtre : strict-match,
+        # flexible-extract, none...) : sinon deux metriques de noms differents
+        # (exact_match et math_verify) seraient melangees.
+        key = (r["model"], r["benchmark"], r["metric"])
         a = agg.setdefault(key, {"n": 0, "correct": 0.0, "tasks": []})
         a["n"] += r["n"]
         a["correct"] += r["value"] * r["n"]

@@ -1,6 +1,7 @@
 {
   "runs": {
-    "dream_7b_base": {
+    "dream_7b_base_gsm8k_cot_a2d": {
+      "run": "dream_7b_base_gsm8k_cot_a2d",
       "model": "dream_7b_base",
       "n_prompts": {
         "gsm8k_cot_a2d": 300
@@ -49,11 +50,341 @@
           ]
         }
       }
+    },
+    "dream_7b_base_minerva_math_algebra": {
+      "run": "dream_7b_base_minerva_math_algebra",
+      "model": "dream_7b_base",
+      "n_prompts": {
+        "minerva_math_precalc": 25,
+        "minerva_math_prealgebra": 25,
+        "minerva_math_num_theory": 25,
+        "minerva_math_intermediate_algebra": 25,
+        "minerva_math_geometry": 25,
+        "minerva_math_counting_and_prob": 25,
+        "minerva_math_algebra": 25
+      },
+      "n_original": {
+        "minerva_math_precalc": 546,
+        "minerva_math_prealgebra": 871,
+        "minerva_math_num_theory": 540,
+        "minerva_math_intermediate_algebra": 903,
+        "minerva_math_geometry": 479,
+        "minerva_math_counting_and_prob": 474,
+        "minerva_math_algebra": 1187
+      },
+      "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_7b_base,trust_remote_code=True,max_new_tokens=512,diffusion_steps=512,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+      "system_instruction": null,
+      "duration_s": "6028.613411408001",
+      "metrics": {
+        "minerva_math_algebra/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_algebra/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_algebra/math_verify,none": {
+          "value": 0.48,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.30031003928960015,
+            0.6650178204685269
+          ]
+        },
+        "minerva_math_algebra/math_verify_stderr,none": {
+          "value": 0.10198039027185571,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.04166741357068093,
+            0.2995619218337349
+          ]
+        },
+        "minerva_math_counting_and_prob/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_counting_and_prob/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_counting_and_prob/math_verify,none": {
+          "value": 0.12,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.04166741357068093,
+            0.2995619218337349
+          ]
+        },
+        "minerva_math_counting_and_prob/math_verify_stderr,none": {
+          "value": 0.066332495807108,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.02221993369109193,
+            0.24966512122957818
+          ]
+        },
+        "minerva_math_geometry/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_geometry/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_geometry/math_verify,none": {
+          "value": 0.28,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.1428367383738157,
+            0.47576971896558296
+          ]
+        },
+        "minerva_math_geometry/math_verify_stderr,none": {
+          "value": 0.0916515138991168,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.02221993369109193,
+            0.24966512122957818
+          ]
+        },
+        "minerva_math_intermediate_algebra/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_intermediate_algebra/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_intermediate_algebra/math_verify,none": {
+          "value": 0.04,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.007096050386699165,
+            0.19544472405022525
+          ]
+        },
+        "minerva_math_intermediate_algebra/math_verify_stderr,none": {
+          "value": 0.04,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.007096050386699165,
+            0.19544472405022525
+          ]
+        },
+        "minerva_math_num_theory/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_num_theory/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_num_theory/math_verify,none": {
+          "value": 0.28,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.1428367383738157,
+            0.47576971896558296
+          ]
+        },
+        "minerva_math_num_theory/math_verify_stderr,none": {
+          "value": 0.0916515138991168,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.02221993369109193,
+            0.24966512122957818
+          ]
+        },
+        "minerva_math_prealgebra/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_prealgebra/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_prealgebra/math_verify,none": {
+          "value": 0.48,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.30031003928960015,
+            0.6650178204685269
+          ]
+        },
+        "minerva_math_prealgebra/math_verify_stderr,none": {
+          "value": 0.10198039027185571,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.04166741357068093,
+            0.2995619218337349
+          ]
+        },
+        "minerva_math_precalc/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_precalc/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_precalc/math_verify,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_precalc/math_verify_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        }
+      }
+    },
+    "dream_7b_instruct_gsm8k_cot_a2d": {
+      "run": "dream_7b_instruct_gsm8k_cot_a2d",
+      "model": "dream_7b_instruct",
+      "n_prompts": {
+        "gsm8k_cot_a2d": 300
+      },
+      "n_original": {
+        "gsm8k_cot_a2d": 1319
+      },
+      "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_7b_instruct,trust_remote_code=True,max_new_tokens=256,diffusion_steps=256,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+      "system_instruction": "Solve the math problem with brief, direct reasoning. Do NOT restate the problem, do NOT use bullet points, and use as few steps as possible. On the final line, write the answer as '#### <number>' and nothing else.",
+      "duration_s": "3041.291396184002",
+      "metrics": {
+        "gsm8k_cot_a2d/exact_match,strict-match": {
+          "value": 0.66,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.6046734114246599,
+            0.7112806909760647
+          ]
+        },
+        "gsm8k_cot_a2d/exact_match_stderr,strict-match": {
+          "value": 0.027395285584216934,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.013572906766976815,
+            0.051729540297546284
+          ]
+        },
+        "gsm8k_cot_a2d/exact_match,flexible-extract": {
+          "value": 0.84,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.7942554091313135,
+            0.8771470584702262
+          ]
+        },
+        "gsm8k_cot_a2d/exact_match_stderr,flexible-extract": {
+          "value": 0.021201375610068234,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.009197506067771085,
+            0.042940186730055147
+          ]
+        }
+      }
     }
   },
   "rows": [
     {
-      "run": "dream_7b_base",
+      "run": "dream_7b_base_gsm8k_cot_a2d",
       "model": "dream_7b_base",
       "task": "gsm8k_cot_a2d",
       "benchmark": "GSM8K",
@@ -68,7 +399,7 @@
       "target": 66.5
     },
     {
-      "run": "dream_7b_base",
+      "run": "dream_7b_base_gsm8k_cot_a2d",
       "model": "dream_7b_base",
       "task": "gsm8k_cot_a2d",
       "benchmark": "GSM8K",
@@ -81,6 +412,246 @@
         0.7365164659779293
       ],
       "target": 66.5
+    },
+    {
+      "run": "dream_7b_base_minerva_math_algebra",
+      "model": "dream_7b_base",
+      "task": "minerva_math_algebra",
+      "benchmark": "MATH-500",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": 20.8
+    },
+    {
+      "run": "dream_7b_base_minerva_math_algebra",
+      "model": "dream_7b_base",
+      "task": "minerva_math_algebra",
+      "benchmark": "MATH-500",
+      "metric": "math_verify,none",
+      "value": 0.48,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.30031003928960015,
+        0.6650178204685269
+      ],
+      "target": 20.8
+    },
+    {
+      "run": "dream_7b_base_minerva_math_algebra",
+      "model": "dream_7b_base",
+      "task": "minerva_math_counting_and_prob",
+      "benchmark": "MATH-500",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": 20.8
+    },
+    {
+      "run": "dream_7b_base_minerva_math_algebra",
+      "model": "dream_7b_base",
+      "task": "minerva_math_counting_and_prob",
+      "benchmark": "MATH-500",
+      "metric": "math_verify,none",
+      "value": 0.12,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.04166741357068093,
+        0.2995619218337349
+      ],
+      "target": 20.8
+    },
+    {
+      "run": "dream_7b_base_minerva_math_algebra",
+      "model": "dream_7b_base",
+      "task": "minerva_math_geometry",
+      "benchmark": "MATH-500",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": 20.8
+    },
+    {
+      "run": "dream_7b_base_minerva_math_algebra",
+      "model": "dream_7b_base",
+      "task": "minerva_math_geometry",
+      "benchmark": "MATH-500",
+      "metric": "math_verify,none",
+      "value": 0.28,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.1428367383738157,
+        0.47576971896558296
+      ],
+      "target": 20.8
+    },
+    {
+      "run": "dream_7b_base_minerva_math_algebra",
+      "model": "dream_7b_base",
+      "task": "minerva_math_intermediate_algebra",
+      "benchmark": "MATH-500",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": 20.8
+    },
+    {
+      "run": "dream_7b_base_minerva_math_algebra",
+      "model": "dream_7b_base",
+      "task": "minerva_math_intermediate_algebra",
+      "benchmark": "MATH-500",
+      "metric": "math_verify,none",
+      "value": 0.04,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.007096050386699165,
+        0.19544472405022525
+      ],
+      "target": 20.8
+    },
+    {
+      "run": "dream_7b_base_minerva_math_algebra",
+      "model": "dream_7b_base",
+      "task": "minerva_math_num_theory",
+      "benchmark": "MATH-500",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": 20.8
+    },
+    {
+      "run": "dream_7b_base_minerva_math_algebra",
+      "model": "dream_7b_base",
+      "task": "minerva_math_num_theory",
+      "benchmark": "MATH-500",
+      "metric": "math_verify,none",
+      "value": 0.28,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.1428367383738157,
+        0.47576971896558296
+      ],
+      "target": 20.8
+    },
+    {
+      "run": "dream_7b_base_minerva_math_algebra",
+      "model": "dream_7b_base",
+      "task": "minerva_math_prealgebra",
+      "benchmark": "MATH-500",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": 20.8
+    },
+    {
+      "run": "dream_7b_base_minerva_math_algebra",
+      "model": "dream_7b_base",
+      "task": "minerva_math_prealgebra",
+      "benchmark": "MATH-500",
+      "metric": "math_verify,none",
+      "value": 0.48,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.30031003928960015,
+        0.6650178204685269
+      ],
+      "target": 20.8
+    },
+    {
+      "run": "dream_7b_base_minerva_math_algebra",
+      "model": "dream_7b_base",
+      "task": "minerva_math_precalc",
+      "benchmark": "MATH-500",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": 20.8
+    },
+    {
+      "run": "dream_7b_base_minerva_math_algebra",
+      "model": "dream_7b_base",
+      "task": "minerva_math_precalc",
+      "benchmark": "MATH-500",
+      "metric": "math_verify,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": 20.8
+    },
+    {
+      "run": "dream_7b_instruct_gsm8k_cot_a2d",
+      "model": "dream_7b_instruct",
+      "task": "gsm8k_cot_a2d",
+      "benchmark": "GSM8K",
+      "metric": "exact_match,strict-match",
+      "value": 0.66,
+      "n": 300,
+      "stderr": null,
+      "wilson95": [
+        0.6046734114246599,
+        0.7112806909760647
+      ],
+      "target": 83.0
+    },
+    {
+      "run": "dream_7b_instruct_gsm8k_cot_a2d",
+      "model": "dream_7b_instruct",
+      "task": "gsm8k_cot_a2d",
+      "benchmark": "GSM8K",
+      "metric": "exact_match,flexible-extract",
+      "value": 0.84,
+      "n": 300,
+      "stderr": null,
+      "wilson95": [
+        0.7942554091313135,
+        0.8771470584702262
+      ],
+      "target": 83.0
     }
   ],
   "targets_a2d_table16": {
@@ -100,7 +671,7 @@
     {
       "model": "dream_7b_base",
       "benchmark": "GSM8K",
-      "filter": "flexible-extract",
+      "filter": "exact_match,flexible-extract",
       "value": 0.6866666666666666,
       "n": 300,
       "wilson95": [
@@ -115,7 +686,7 @@
     {
       "model": "dream_7b_base",
       "benchmark": "GSM8K",
-      "filter": "strict-match",
+      "filter": "exact_match,strict-match",
       "value": 0.4266666666666667,
       "n": 300,
       "wilson95": [
@@ -123,6 +694,78 @@
         0.4832151029963794
       ],
       "target": 66.5,
+      "tasks": [
+        "gsm8k_cot_a2d"
+      ]
+    },
+    {
+      "model": "dream_7b_base",
+      "benchmark": "MATH-500",
+      "filter": "exact_match,none",
+      "value": 0.0,
+      "n": 175,
+      "wilson95": [
+        0.0,
+        0.021480460921843688
+      ],
+      "target": 20.8,
+      "tasks": [
+        "minerva_math_algebra",
+        "minerva_math_counting_and_prob",
+        "minerva_math_geometry",
+        "minerva_math_intermediate_algebra",
+        "minerva_math_num_theory",
+        "minerva_math_prealgebra",
+        "minerva_math_precalc"
+      ]
+    },
+    {
+      "model": "dream_7b_base",
+      "benchmark": "MATH-500",
+      "filter": "math_verify,none",
+      "value": 0.24,
+      "n": 175,
+      "wilson95": [
+        0.18274204115195586,
+        0.3084277985274028
+      ],
+      "target": 20.8,
+      "tasks": [
+        "minerva_math_algebra",
+        "minerva_math_counting_and_prob",
+        "minerva_math_geometry",
+        "minerva_math_intermediate_algebra",
+        "minerva_math_num_theory",
+        "minerva_math_prealgebra",
+        "minerva_math_precalc"
+      ]
+    },
+    {
+      "model": "dream_7b_instruct",
+      "benchmark": "GSM8K",
+      "filter": "exact_match,flexible-extract",
+      "value": 0.84,
+      "n": 300,
+      "wilson95": [
+        0.7942554091313135,
+        0.8771470584702262
+      ],
+      "target": 83.0,
+      "tasks": [
+        "gsm8k_cot_a2d"
+      ]
+    },
+    {
+      "model": "dream_7b_instruct",
+      "benchmark": "GSM8K",
+      "filter": "exact_match,strict-match",
+      "value": 0.66,
+      "n": 300,
+      "wilson95": [
+        0.6046734114246599,
+        0.7112806909760647
+      ],
+      "target": 83.0,
       "tasks": [
         "gsm8k_cot_a2d"
       ]
