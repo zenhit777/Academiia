@@ -4,6 +4,10 @@
 (A1–A3, B1–B7, C1–C7, D1–D3, E1–E4) · **J7, G2, G3 : non démarrés**
 (le push est réservé à l'utilisateur : les 5 commits ci-dessous sont **locaux**).
 
+> **Post-audit N1** (2026-10-20) : corrections **F1–F7** (documentation, garde-fous CLI,
+> inventaire) — voir **§7**. Le rapport d'audit est versionné dans
+> `docs/reports/AUDIT_J6BIS.md`.
+
 | Commit | Contenu |
 |---|---|
 | `a1b2b46` | `docs(review)` : verdict N2 reproduit tel quel + ERRATUM N2 en tête de l'audit N1 |
@@ -294,3 +298,42 @@ et `TMPDIR` pointent vers `harness/dream/.cache/` (1 241 003 141 o), le venv
 | **G1b** | **NON DÉMARRÉE** | faisabilité instruite (GO mécanique / NO-GO évaluation) |
 | **G2** | **BLOQUÉE (B7)** | mode « base + adaptateur remis à l'échelle » à implémenter |
 | **G3** | **NON DÉMARRÉE** | — |
+
+---
+
+## 7. Post-audit N1 (2026-10-20) — corrections F1–F7
+
+**Audit** : `docs/reports/AUDIT_J6BIS.md` (N1, agent OpenCode, lecture seule, 2026-10-20).
+Verdict : **aucune déviation silencieuse** des équations, coefficients, mappings ni du schéma
+numérique A2D n'a été trouvée sur le chemin Qwen2.5-7B → Dream-7B. Les constats F1–F9 sont
+des défauts de **documentation**, de **garde-fous CLI** et d'**inventaire** ; **aucun artefact de
+fusion déjà produit n'est affecté** (le run réel de J6 passait `α=0,9` explicite).
+
+| Constat | Gravité | État | Correction |
+|---|---|---|---|
+| **F1** | modérée | **corrigé** | `docs/design/G1_PROTOCOL.md` §4.1 : **+19,4** = Dream-7B MATH-500 **transfert** (20,8 → 40,2 ; Figure 2a, Tableaux 1a/16) ; **+15,2** = Dream-7B GSM8K **transfert** (66,5 → 81,7 ; Figure 2a) ; plus grand gain de **merge** Dream = **+9,8** (IFEval 63,0 → 72,8 ; MATH-500 +6,6 ; GSM8K +0,7) ; gains de transfert Nemotron (Table 8) ≈ **+29 à +37** (IFEval). Seuils **C1/C2 inchangés**. Idem la mention équivalente de `docs/design/G1B_NEMOTRON3B.md`. |
+| **F2** | **élevée** | **corrigé** | `scripts/a2d/merge.py` (`evaluate_coefficient_guard`, `first_nonzero_delta`) : un transfert à `α=0` ou un merge à `λ=0` est **refusé** (sortie 2) tant que le plan contient des vecteurs non nuls — le no-op écrivait une copie de `D_b` / `D_p`, indiscernable d'un modèle non fusionné (la vérification compare les coefficients effectifs aux coefficients **demandés**, 0). `--allow-empty-coefficient` assume le no-op (avertissement au manifeste, état dans `coefficient_guard`). Wrapper legacy `merge_jainius.py` : comportement observable inchangé (opt-in uniquement à `α=0`). |
+| **F3** | modérée | **corrigé** | `--no-verify` (conservé) inscrit `"post_write_verification": {"skipped": true, "reason": "--no-verify"}` au manifeste. |
+| **F4** | faible | **corrigé** | Compteurs de tests : **65** au total (29 A2D + 21 mutation + 9 pipeline + 6 eval-compare) — `KNOWN_ISSUES.md`, `CHECKLIST.md`, `J6bis.md` (ligne A2, B6, §6.4). |
+| **F5** | faible | **corrigé** | Latence IFEval harmonisée sur le taux **batch 4** mesuré (325,97 / 327,61 s/prompt ⇒ ≈ **49 h** pour le jeu complet par modèle) : `J6.md` (§1.1, §3, E1, §5), `harness/dream/summarize.py` (+ `eval/dream_a2d/SUMMARY.{md,json}` régénérés), `eval/dream_a2d/SUMMARY.md`. `docs/design/EVAL_BUDGET.md` : « quasi linéaire » retiré (les facteurs ×3,4 / ×32 comparent des **tâches différentes**) ; MATH-500 : 5 000 → 500 = **×10** ⇒ **4 h 47** par modèle (**9 h 34** pour les deux). |
+| **F6** | faible | **corrigé** | `docs/reports/OUT_OF_WORKSPACE.md` : `/tmp/SUMMARY_test.{json,md}` (48 867 / 2 814 o, 2026-10-20 13:03), `/tmp/a2d_smoke_transfer` (checkpoint de transfert α=0,9 de J6, ≈ 15 Go, **absent du disque**) et la taille à jour de `/tmp/pytest-of-sjteb` (**8 483 981** o). **Aucune suppression.** |
+| **F7** | faible | **corrigé** | Aide CLI de `--lambda` : seuil d'avertissement **1.0** (`LAMBDA_MAX`), conforme à l'eq. (2) bornée dans [0,1]. |
+| **F8** | info | **déclaré** | `eval/dream_a2d/ITEM_FINGERPRINTS.json` : `git_hash` = commit du **fork Dream** (`31f94a6`), pas un commit d'Academiia. Non corrigé (renommage optionnel). |
+| **F9** | info | **déclaré** | `do_sample: false` / `temperature: 0.0` dans les YAML de tâche vs `temperature=0.1` imposé par `--model_args` : déjà signalé (J6bis E14, `docs/reports/AUDIT_J6.md` MIN-04). |
+
+**Suite de tests après corrections** : `python -m pytest scripts/tests -q` → **65 passed**
+(29 `test_a2d_library.py` + 21 `test_a2d_mutation.py` + 9 `test_pipeline.py` + 6
+`test_eval_compare.py`).
+
+**Commits** (locaux ; le push est réservé à l'utilisateur) :
+
+| Commit | Contenu |
+|---|---|
+| `c80670f` | `docs(audit)` : versionner `AUDIT_J6BIS` (N1 OpenCode, 2026-10-20) |
+| `42124bc` | `fix(cli)` : seuil d'avertissement `--lambda` = 1.0 (F7) |
+| `ca3deef` | `fix(a2d)` : refuser transfert/merge à coefficient nul par défaut (F2) |
+| `a61d298` | `fix(a2d)` : tracer `--no-verify` dans le manifeste (F3) |
+| `88faf77` | `docs(design)` : corriger les ancrages +19,4 / +15,2 (F1) |
+| `9f342ab` | `docs` : corriger les compteurs de tests (65 / 21 mutations) (F4) |
+| `dc64315` | `docs` : harmoniser latences IFEval et projections (F5) |
+| `619a6c6` | `docs` : compléter l'inventaire C5 (F6) |
