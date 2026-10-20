@@ -104,11 +104,14 @@ python scripts/measure_geometry.py \
     --output _artefact/geometry_dream.json
 ```
 
-Garances de la bibliothèque : τ **jamais** persisté (recalculé à la volée en FP32 depuis les
+Garanties de la bibliothèque : τ **jamais** persisté (recalculé à la volée en FP32 depuis les
 sources, 3-4 handles `safe_open`) ; arithmétique FP32 + **un seul** cast BF16 ; écriture
 atomique ; **vérification post-écriture obligatoire** (`α_eff`/`λ_eff`, échec dur hors
-tolérance) ; manifeste `merge_config.json` (α, λ, hashes d'index des sources, commit git,
-versions, normes par famille de tenseurs).
+tolérance) ; **coefficient nul refusé** (un
+transfert à `α=0` ou un merge à `λ=0` n'écrirait qu'une copie de la référence : refus sortie 2
+— `--allow-empty-coefficient` pour l'assumer explicitement, avec avertissement au manifeste) ;
+manifeste `merge_config.json` (α, λ, hashes d'index des sources, commit git, versions, normes
+par famille de tenseurs).
 
 ### Pipeline LEGACY (Jainius) — déprécié, conservé
 

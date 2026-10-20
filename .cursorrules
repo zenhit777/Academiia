@@ -38,6 +38,7 @@ la lire avant toute modification du pipeline de fusion.
 - **`τ_D` n'est pas « inexistant »** : il vaut `D_p − D_b` (§2.1) et, pour DiffusionGemma, c'est le delta LoRA de post-training de domaine — **publié** (`gevaertlab/diffusiongemma-radiology-vqa`). Ce qui manque est la chaîne complète (adapters + merge + évaluation conforme), pas la définition.
 - **Le routeur est fusionné par défaut** (famille à part, déclarée dans le manifeste) : ne pas écrire qu'il est « inchangé ». Pour DiffusionGemma, embeddings / norms / tête / vision restent inchangés (A.2).
 - Toute fusion doit passer par la **vérification post-écriture** (`α_eff`/`λ_eff`, échec dur hors tolérance) : c'est elle qui aurait détecté le build livré à α=0.8 étiqueté 0.3.
+- **Coefficient nul = refus** : un transfert à `α=0` ou un merge à `λ=0` n'écrirait qu'une copie de la référence (`D_b` / `D_p`), indiscernable d'un modèle non fusionné. Ces fusions sont refusées tant que le plan contient des vecteurs non nuls ; `--allow-empty-coefficient` les assume explicitement (avertissement au manifeste, état dans `coefficient_guard`).
 - Mesurer avant de merger : `scripts/measure_geometry.py` (Table 21) et `scripts/verify_merge.py`.
 - **Trajectoire par portes** : G1 (mécanique, Qwen2.5-7B → Dream-7B) → G2 (DiffusionGemma médical) → G3 (raisonnement, conception d'abord). Ne pas entamer une porte avant d'avoir franchi la précédente.
 

@@ -52,6 +52,13 @@ scripts/verify_merge.py # vérification post hoc (alpha_eff, lambda_eff par fami
   carrés sur [τ_A, τ_D], bornes dérivées du résidu BF16 **mesuré**, tenseurs non fusionnés
   **bit-identiques** à la référence, écart à `round_bf16(expected)` ≤ 1 ULP ; échec dur hors
   tolérance).
+* **Garde-fou « coefficient nul »** : un transfert à `α = 0` (eq. 1) ou un merge à `λ = 0`
+  (eq. 2) n'écrirait qu'une **copie de la référence** (`D_b` / `D_p`) — indiscernable d'un
+  modèle non fusionné, la vérification post-écriture ne pouvant pas le voir (elle compare les
+  coefficients effectifs aux coefficients *demandés*, 0). Ces fusions sont donc **refusées**
+  (sortie 2) tant que le plan contient des vecteurs non nuls ; `--allow-empty-coefficient`
+  assume explicitement le no-op (avertissement inscrit au manifeste, état dans
+  `coefficient_guard`).
 * **Plan de fusion sur l'UNION des modules de τ_A et de τ_D** (classes `both` / `A-only` /
   `D-only`) ; politique `--coverage {strict,zero-fill}` : `strict` (défaut si les deux sources
   sont des paires de checkpoints complets) **refuse** une couverture inégale et liste les

@@ -78,6 +78,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--allow-empty", action="store_true",
                         help="Autorise explicitement un plan de fusion vide (le "
                              "checkpoint sera identique a la reference)")
+    parser.add_argument("--allow-empty-coefficient", action="store_true",
+                        help="Autorise explicitement une fusion a coefficient nul "
+                             "(alpha=0 en transfert, lambda=0 en merge) : le "
+                             "checkpoint sera une copie de la reference. Sans cette "
+                             "option, la fusion est refusee (le no-op serait "
+                             "indiscernable d'un modele non fusionne)")
     parser.add_argument("--tolerance", type=float, default=0.02,
                         help="Tolerance absolue sur alpha_eff / lambda_eff (post-ecriture)")
     parser.add_argument("--no-verify", action="store_true",
@@ -127,6 +133,7 @@ def main() -> int:
                           tau_a=tau_a, tau_d=None,
                           on_shape_mismatch=args.on_shape_mismatch,
                           coverage=args.coverage, allow_empty=args.allow_empty,
+                          allow_empty_coefficient=args.allow_empty_coefficient,
                           overwrite=args.overwrite, tol_abs=args.tolerance,
                           verify=not args.no_verify)
     else:
@@ -136,6 +143,7 @@ def main() -> int:
                           tau_a=tau_a, tau_d=tau_d,
                           on_shape_mismatch=args.on_shape_mismatch,
                           coverage=args.coverage, allow_empty=args.allow_empty,
+                          allow_empty_coefficient=args.allow_empty_coefficient,
                           overwrite=args.overwrite, tol_abs=args.tolerance,
                           verify=not args.no_verify)
 
@@ -169,6 +177,10 @@ def main() -> int:
               f"c_d_eff={verification.get('c_d_eff')} "
               f"max_ulp={verification.get('max_ulp_deviation')} "
               f"-> {'OK' if verification.get('ok') else 'ECHEC'}")
+    guard = result.manifest.get("coefficient_guard") or {}
+    if guard.get("status") == "bypassed":
+        print("  Garde-fou coeff. nul : BYPASSED (--allow-empty-coefficient) "
+              "-> le checkpoint est une copie de la reference")
     print(f"  Manifest        : {os.path.join(str(cfg.output), 'merge_config.json')}")
     return 0
 

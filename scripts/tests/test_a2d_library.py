@@ -6,6 +6,9 @@ Garanties verifiees :
   * transfert   : D_b + alpha*tau_A
   * merge       : D_p + lambda*(tau_A - tau_D) ; lambda=0 => D_p ; lambda=1 => transfert alpha=1
   * tau_D absent => le merge est refuse (degradation en transfert, cf. CLI)
+  * coefficient nul refuse (F2) : transfert a alpha=0 et merge a lambda=0 sont
+    refuses (ils n'ecriraient qu'une copie de la reference) ; l'opt-in
+    --allow-empty-coefficient est trace au manifeste
   * linearite en alpha
   * source LoRA identique a peft.merge_and_unload
   * alpha_eff / lambda_eff : round-trip et detection d'un alpha erroné
@@ -26,8 +29,8 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from a2d import (CheckpointPairSource, LegacyNpySource, LoraAdapterSource,
-                 MergeConfig, MergeError, MissingVectorError, get_mapping,
-                 merge_checkpoint)
+                 MergeConfig, MergeError, MergeRefused, MissingVectorError,
+                 get_mapping, merge_checkpoint)
 
 QWEN = {
     "model.embed_tokens.weight": (8, 4),
@@ -127,7 +130,8 @@ def test_transfer_alpha_zero_is_base(tmp_path):
     base, post = pair(tmp_path)
     tau = CheckpointPairSource(post, base)
     out = tmp_path / "out"
-    merge_checkpoint(config("transfer", base, out, alpha=0.0, tau_a=tau))
+    merge_checkpoint(config("transfer", base, out, alpha=0.0, tau_a=tau,
+                            allow_empty_coefficient=True))
     src, dst = tensors_of(base), tensors_of(out)
     for name in QWEN:
         assert torch.equal(src[name], dst[name]), name
@@ -139,7 +143,8 @@ def test_alpha_linearity(tmp_path):
     outs = {}
     for alpha in (0.0, 0.5, 1.0):
         out = tmp_path / f"out{alpha}"
-        merge_checkpoint(config("transfer", base, out, alpha=alpha, tau_a=tau))
+        merge_checkpoint(config("transfer", base, out, alpha=alpha, tau_a=tau,
+                                allow_empty_coefficient=True))
         outs[alpha] = tensors_of(out)
     for name in QWEN:
         midpoint = 0.5 * (outs[0.0][name] + outs[1.0][name])
@@ -155,7 +160,8 @@ def test_merge_lambda_zero_is_dp(tmp_path):
     tau_a = CheckpointPairSource(ar_post, ar_base)
     tau_d = CheckpointPairSource(diff_post, diff_base)
     out = tmp_path / "out"
-    merge_checkpoint(config("merge", diff_post, out, lam=0.0, tau_a=tau_a, tau_d=tau_d))
+    merge_checkpoint(config("merge", diff_post, out, lam=0.0, tau_a=tau_a, tau_d=tau_d,
+                            allow_empty_coefficient=True))
     src, dst = tensors_of(diff_post), tensors_of(out)
     for name in QWEN:
         assert torch.equal(src[name], dst[name]), name
@@ -195,6 +201,65 @@ def test_merge_formula_matches_manual_computation(tmp_path):
         tau_d_v = src[name] - d_b[name]
         expected = src[name] + 0.6 * (tau_a_v - tau_d_v)
         assert torch.allclose(dst[name], expected, atol=1e-6), name
+
+
+# --------------------------------------------------------------------------- #
+# Garde-fou « coefficient nul » (F2)
+# --------------------------------------------------------------------------- #
+
+def test_transfer_with_zero_coefficient_is_refused(tmp_path):
+    """F2 : un transfert a alpha=0 n'ecrit qu'une copie de D_b : il est refuse."""
+    base, post = pair(tmp_path)
+    tau = CheckpointPairSource(post, base)
+    out = tmp_path / "out"
+    with pytest.raises(MergeRefused) as excinfo:
+        merge_checkpoint(config("transfer", base, out, alpha=0.0, tau_a=tau))
+    message = str(excinfo.value)
+    assert "coefficient nul refuse" in message
+    assert "alpha=0.0" in message
+    # aucun checkpoint n'est ecrit : le no-op ne laisse rien sur le disque
+    assert not list(out.glob("*.safetensors"))
+
+
+def test_merge_with_zero_lambda_is_refused(tmp_path):
+    """F2 : un merge a lambda=0 n'ecrit qu'une copie de D_p : il est refuse."""
+    ar_base, ar_post, diff_base, diff_post = ar_and_diffusion(tmp_path)
+    tau_a = CheckpointPairSource(ar_post, ar_base)
+    tau_d = CheckpointPairSource(diff_post, diff_base)
+    out = tmp_path / "out"
+    with pytest.raises(MergeRefused) as excinfo:
+        merge_checkpoint(config("merge", diff_post, out, lam=0.0, tau_a=tau_a, tau_d=tau_d))
+    assert "coefficient nul refuse" in str(excinfo.value)
+    assert not list(out.glob("*.safetensors"))
+
+
+def test_zero_coefficient_allowed_explicitly_is_declared(tmp_path):
+    """F2 : l'opt-in explicite est trace au manifeste (avertissement + etat)."""
+    base, post = pair(tmp_path)
+    tau = CheckpointPairSource(post, base)
+    out = tmp_path / "out"
+    result = merge_checkpoint(config("transfer", base, out, alpha=0.0, tau_a=tau,
+                                     allow_empty_coefficient=True))
+    guard = result.manifest["coefficient_guard"]
+    assert guard["status"] == "bypassed"
+    assert guard["zero_coefficient"] is True
+    assert guard["allow_empty_coefficient"] is True
+    assert guard["plan_has_nonzero_deltas"] is True
+    assert any("--allow-empty-coefficient" in w for w in result.manifest["warnings"])
+    on_disk = json.loads((out / "merge_config.json").read_text())
+    assert on_disk["coefficient_guard"]["status"] == "bypassed"
+    assert any("--allow-empty-coefficient" in w for w in on_disk["warnings"])
+
+
+def test_nonzero_coefficient_is_not_guarded(tmp_path):
+    """Un coefficient non nul n'est pas touche par le garde-fou."""
+    base, post = pair(tmp_path)
+    tau = CheckpointPairSource(post, base)
+    out = tmp_path / "out"
+    result = merge_checkpoint(config("transfer", base, out, alpha=0.5, tau_a=tau))
+    guard = result.manifest["coefficient_guard"]
+    assert guard["status"] == "not_applicable"
+    assert guard["zero_coefficient"] is False
 
 
 # --------------------------------------------------------------------------- #
@@ -481,6 +546,35 @@ def test_cli_warns_above_coefficient_threshold(tmp_path):
     done = subprocess.run(cmd, capture_output=True, text=True)
     assert done.returncode == 0, done.stdout + done.stderr
     assert "ATTENTION" in done.stdout and "1.5" in done.stdout
+
+
+def test_cli_transfer_without_alpha_is_refused(tmp_path):
+    """F2 (CLI) : un transfert sans coefficient explicite est refuse (exit 2)."""
+    base, post = pair(tmp_path)
+    cmd = [sys.executable, str(SCRIPTS / "merge_a2d.py"), "--mode", "transfer",
+           "--diffusion-base", str(base),
+           "--tau-a-post", str(post), "--tau-a-base", str(base),
+           "--output", str(tmp_path / "out")]
+    done = subprocess.run(cmd, capture_output=True, text=True)
+    assert done.returncode == 2, done.stdout + done.stderr
+    assert "coefficient nul refuse" in done.stdout
+    assert not list((tmp_path / "out").glob("*.safetensors"))
+
+
+def test_cli_allow_empty_coefficient_is_accepted_and_declared(tmp_path):
+    """F2 (CLI) : --allow-empty-coefficient assume le no-op et le declare."""
+    base, post = pair(tmp_path)
+    out = tmp_path / "out"
+    cmd = [sys.executable, str(SCRIPTS / "merge_a2d.py"), "--mode", "transfer",
+           "--diffusion-base", str(base),
+           "--tau-a-post", str(post), "--tau-a-base", str(base),
+           "--allow-empty-coefficient", "--output", str(out)]
+    done = subprocess.run(cmd, capture_output=True, text=True)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "BYPASSED" in done.stdout
+    manifest = json.loads((out / "merge_config.json").read_text())
+    assert manifest["coefficient_guard"]["status"] == "bypassed"
+    assert any("--allow-empty-coefficient" in w for w in manifest["warnings"])
 
 
 def test_legacy_npy_source_still_readable(tmp_path):

@@ -132,6 +132,10 @@ def main():
         dtype=torch.bfloat16,
         on_shape_mismatch="error" if args.on_shape_mismatch == "error" else "skip",
         overwrite=args.overwrite,
+        # Le chemin legacy conserve son comportement observable : alpha=0 y
+        # produit une copie de D_p. Le garde-fou « coefficient nul » de la
+        # bibliotheque est donc explicitement contourne sur ce seul cas.
+        allow_empty_coefficient=(args.alpha == 0.0),
         extra_manifest={
             "method": "Dp + alpha*tau_A (ablation inspiree A2D, pas de tau_D)",
             "deprecated": True,

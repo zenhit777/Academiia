@@ -30,8 +30,8 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from a2d import (CheckpointPairSource, CoverageError, MergeConfig, MergeError,
-                 MissingVectorError, compute_effective_coefficients, get_mapping,
-                 merge_checkpoint)
+                 MergeRefused, MissingVectorError, compute_effective_coefficients,
+                 get_mapping, merge_checkpoint)
 
 from test_a2d_library import (QWEN, ar_and_diffusion, build_checkpoint, config,
                                pair, tensors_of)
@@ -493,3 +493,37 @@ def test_cli_merge_declares_coverage(tmp_path):
     assert manifest["coverage"]["n_D_only"] == 0
     assert manifest["post_write_verification"]["ok"]
     assert manifest["post_write_verification"]["version"] == 2
+
+
+# --------------------------------------------------------------------------- #
+# F2 : garde-fou « coefficient nul »
+# --------------------------------------------------------------------------- #
+
+def test_zero_coefficient_bypass_is_declared_in_the_manifest(tmp_path):
+    """F2 : un merge a lambda=0 est refuse ; son contournement est trace.
+
+    Un merge a lambda=0 n'ecrit qu'une copie de D_p : le resultat est
+    indiscernable d'un modele non fusionne, et la verification post-ecriture
+    ne peut pas le voir (elle compare les coefficients effectifs aux
+    coefficients *demandes*). Le garde-fou refuse donc l'operation, et
+    l'opt-in explicite laisse une trace au manifeste.
+    """
+    ar_base, ar_post, diff_base, diff_post = ar_and_diffusion(tmp_path)
+    tau_a = CheckpointPairSource(ar_post, ar_base)
+    tau_d = CheckpointPairSource(diff_post, diff_base)
+    out = tmp_path / "out"
+    with pytest.raises(MergeRefused) as excinfo:
+        merge_checkpoint(config("merge", diff_post, out, lam=0.0, tau_a=tau_a, tau_d=tau_d))
+    assert "coefficient nul refuse" in str(excinfo.value)
+    assert not list(out.glob("*.safetensors"))
+
+    result = merge_checkpoint(config("merge", diff_post, out, lam=0.0, tau_a=tau_a,
+                                     tau_d=tau_d, allow_empty_coefficient=True))
+    guard = result.manifest["coefficient_guard"]
+    assert guard["status"] == "bypassed"
+    assert guard["plan_has_nonzero_deltas"] is True
+    assert any("--allow-empty-coefficient" in w for w in result.manifest["warnings"])
+    # le contournement produit bien une copie de D_p
+    src, dst = tensors_of(diff_post), tensors_of(out)
+    for name in QWEN:
+        assert torch.equal(src[name], dst[name]), name

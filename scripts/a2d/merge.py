@@ -152,6 +152,7 @@ class MergeConfig:
     on_shape_mismatch: str = "error"
     coverage: Optional[str] = None
     allow_empty: bool = False
+    allow_empty_coefficient: bool = False
     overwrite: bool = False
     tol_abs: float = 0.02
     max_ulp: float = 1.0
@@ -208,6 +209,77 @@ def checked_coefficients(mode: str) -> Tuple[str, ...]:
     if mode == "ablation-dp-minus-tau-d":
         return ("d",)
     return ("a", "d")
+
+
+# --------------------------------------------------------------------------- #
+# Garde-fou « coefficient nul »
+# --------------------------------------------------------------------------- #
+
+def first_nonzero_delta(cfg: MergeConfig, plan: Dict[str, PlanEntry]) -> Optional[str]:
+    """Premier tenseur du plan dont un vecteur source est non nul (None sinon).
+
+    Le parcours s'arrete au premier delta non nul : dans le cas courant (un
+    seul couple de tenseurs lu) le cout est borne ; si tous les deltas sont
+    nuls, le plan entier est parcouru (cas pathologique : A_p == A_b).
+    """
+    for tensor_name, entry in plan.items():
+        for source, module in ((cfg.tau_a, entry.source_a), (cfg.tau_d, entry.source_d)):
+            if source is None or module is None:
+                continue
+            delta = source.delta(module)
+            if delta is None:
+                continue
+            if int(torch.count_nonzero(delta).item()) > 0:
+                return tensor_name
+    return None
+
+
+def evaluate_coefficient_guard(cfg: MergeConfig,
+                               plan: Dict[str, PlanEntry]) -> Dict[str, object]:
+    """Garde-fou : un transfert/merge a coefficient nul est refuse par defaut.
+
+    Un transfert a `alpha=0` (eq. 1) ecrit une simple **copie de D_b** ; un
+    merge a `lambda=0` (eq. 2) ecrit une simple **copie de D_p**. La
+    verification post-ecriture ne peut pas le voir : elle compare les
+    coefficients effectifs aux coefficients **demandes** (0,0). Le resultat
+    est donc indiscernable d'un modele non fusionne.
+
+    Le garde-fou refuse l'operation si le plan contient des deltas non nuls.
+    `allow_empty_coefficient` (CLI : `--allow-empty-coefficient`) l'assume
+    explicitement ; l'avertissement est alors inscrit au manifeste.
+
+    Renvoie l'etat du garde-fou (inscrit au manifeste) ; leve `MergeRefused`
+    (exit 2) si l'operation doit etre refusee.
+    """
+    coeff_name, coeff_value = effective_coefficient(cfg.mode, cfg.alpha, cfg.lam)
+    state: Dict[str, object] = {
+        "coefficient": coeff_name,
+        "value": coeff_value,
+        "zero_coefficient": coeff_value == 0.0,
+        "allow_empty_coefficient": bool(cfg.allow_empty_coefficient),
+        "plan_has_nonzero_deltas": None,
+        "status": "not_applicable",
+    }
+    if coeff_value != 0.0:
+        return state
+    nonzero = first_nonzero_delta(cfg, plan)
+    state["plan_has_nonzero_deltas"] = nonzero is not None
+    if nonzero is None:
+        # Les vecteurs sont eux-memes nuls : le no-op vient des donnees, pas
+        # du coefficient. Aucun refus (l'avertissement reste inscrit).
+        state["status"] = "noop_data"
+        return state
+    if cfg.allow_empty_coefficient:
+        state["status"] = "bypassed"
+        return state
+    state["status"] = "enforced"
+    reference = "D_b" if cfg.mode == "transfer" else "D_p"
+    raise MergeRefused(
+        f"coefficient nul refuse : le mode '{cfg.mode}' avec {coeff_name}=0.0 "
+        f"ecrit une simple COPIE de {reference}, alors que le plan de fusion "
+        f"contient des vecteurs non nuls (ex. {nonzero}). Passer un coefficient "
+        f"explicite (--alpha / --lambda), ou assumer explicitement le no-op "
+        f"avec --allow-empty-coefficient (avertissement inscrit au manifeste).")
 
 
 # --------------------------------------------------------------------------- #
@@ -273,6 +345,16 @@ def validate_config(cfg: MergeConfig) -> List[str]:
         warnings.append(
             f"lambda={cfg.lam} > {LAMBDA_MAX} : l'eq. (2) ne borne lambda que dans "
             f"[0,1] ; hors de cet intervalle le role de D_b et de D_p s'inverse")
+    if cfg.allow_empty_coefficient:
+        coeff_name, coeff_value = effective_coefficient(cfg.mode, cfg.alpha, cfg.lam)
+        if coeff_value == 0.0:
+            warnings.append(
+                f"--allow-empty-coefficient : {coeff_name}=0.0 explicitement autorise ; "
+                f"la fusion n'applique aucun vecteur et ecrit une copie de la reference")
+        else:
+            warnings.append(
+                f"--allow-empty-coefficient : option sans effet ({coeff_name}="
+                f"{coeff_value} != 0)")
     if cfg.mode in ("transfer", "ablation-dp-plus-tau-a", "merge") and cfg.tau_a is None:
         raise MissingVectorError("tau_A absent : ce mode exige un vecteur AR")
     if cfg.mode == "merge" and cfg.tau_d is None:
@@ -890,6 +972,10 @@ def merge_checkpoint(cfg: MergeConfig, log=print) -> MergeResult:
         log("ATTENTION: plan de fusion vide (--allow-empty) : le checkpoint sera "
             "une copie de la reference.")
 
+    # Garde-fou « coefficient nul » : refuse un transfert/merge a coefficient
+    # nul (ecriture d'une simple copie de la reference) sauf opt-in explicite.
+    guard = evaluate_coefficient_guard(cfg, plan)
+
     notes: List[str] = []
     stats: Dict[str, dict] = defaultdict(_new_stats)
     ratios: Dict[str, List[float]] = defaultdict(list)
@@ -962,7 +1048,7 @@ def merge_checkpoint(cfg: MergeConfig, log=print) -> MergeResult:
         _copy_sidecars(recipient, output, log)
 
     manifest = _build_manifest(cfg, plan, counters, stats, ratios, notes, warnings,
-                                weight_map, policy)
+                                weight_map, policy, guard)
 
     verification: Dict[str, object] = {}
     if cfg.verify:
@@ -1076,7 +1162,7 @@ def _coverage_summary(plan: Dict[str, PlanEntry], counters: Dict[str, int],
 
 
 def _build_manifest(cfg, plan, counters, stats, ratios, notes, warnings, weight_map,
-                    policy: MergePolicy) -> dict:
+                    policy: MergePolicy, guard: Optional[dict] = None) -> dict:
     import sys
     scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if scripts_dir not in sys.path:
@@ -1105,6 +1191,7 @@ def _build_manifest(cfg, plan, counters, stats, ratios, notes, warnings, weight_
         "n_unchanged": len(weight_map) - len(plan),
         "n_tensors": len(weight_map),
         "plan_counters": counters,
+        "coefficient_guard": guard,
         "families": _family_summary(stats, ratios),
         "notes": notes,
         "warnings": warnings,
