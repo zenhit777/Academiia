@@ -65,13 +65,25 @@ n'est donc plus une source unique.
 | ↳ `model_language_model_embed_tokens_weight.npy` | 2 952 790 144 | | | |
 | ↳ `model_language_model_layers_15_experts_down_proj.npy` | 1 015 021 696 | | | |
 | ↳ `model_language_model_layers_0_self_attn_q_proj_weight.npy` | 46 137 472 | | | |
-| `/tmp/pytest-of-sjteb/` | 591 207 | `sjteb:sjteb` | 2026-10-20 13:14 | `pytest-*` (J6bis inclus) |
+| `/tmp/pytest-of-sjteb/` | **8 483 981** (8,09 Mo) | `sjteb:sjteb` | 2026-10-20 13:14 | `pytest-*` (J6bis + audit N1) — taille **périmée** dans l'inventaire initial (591 207 o) |
+| `/tmp/SUMMARY_test.json` | **48 867** | `sjteb:sjteb` | 2026-10-20 13:03 | résumé de test écrit **hors dépôt** (jamais inventorié jusqu'ici) |
+| `/tmp/SUMMARY_test.md` | **2 814** | `sjteb:sjteb` | 2026-10-20 13:03 | idem (`SUMMARY_test.json`) |
+| `/tmp/a2d_smoke_transfer/` | **absent du disque** | — | — | checkpoint de **transfert α=0,9** de la mission J6 (poids 7B BF16, ≈ 15 Go), cité dans `docs/reports/J6.md` (lignes ~63 et ~309) : il **n'existe plus** ; conservé ici pour tracer ce qui a disparu (aucune suppression n'est imputable à une mission) |
 | `/tmp/dgsrc/` | 56 479 | `sjteb:sjteb` | 2026-10-19 | copie de `diffusion_gemma.py` |
 | `/tmp/a2d/` | 17 813 | `sjteb:sjteb` | 2026-10-20 13:12 | fixtures de test CI (J6bis) |
 | `/tmp/dummy_dg/`, `/tmp/dummy_tau/`, `/tmp/dummy_out/` | 422 + 534 + 3 306 | `sjteb:sjteb` | 2026-10-20 12:5x | fixtures de test CI (J6bis) |
 | `/tmp/measure.json` | 1 240 | `sjteb:sjteb` | | mesure J6 |
 | `/tmp/torchinductor_sjteb/` | 0 | `sjteb:sjteb` | 2026-10-19 | cache du compilateur torch (vide) |
 | `/tmp/systemd-private-*`, `/tmp/snap-private-tmp` | 0 | — | | sockets systemd : **illisibles** (permission denied) |
+
+**Note d'inventaire (transparence sur l'outillage)** : la croissance de
+`/tmp/pytest-of-sjteb/` (591 207 o → 8 483 981 o) s'explique par les
+**relances de `pytest` de l'audit N1** du 2026-10-20. Ces relances
+redirigent `TMPDIR` vers `_artefact/audit_j6bis/pytest_tmp/` (donc **dans le
+dépôt**, conformément à la règle 9) ; le volume restant sous
+`/tmp/pytest-of-sjteb/` est l'accumulation des runs antérieurs à cette
+redirection. La valeur 591 207 o de l'inventaire initial était **périmée** : la
+mesure à jour est **8 483 981 o** (2026-10-20 16:40).
 
 ### 1.4 Docker
 
@@ -102,6 +114,14 @@ nos commandes (`PIP_CACHE_DIR` est redirigé dans `setup.sh` et `run_evals.sh`).
 ## 2. Ce qui a été fait, et ce qui ne l'a pas été
 
 * **Fait** : inventaire complet, en lecture seule, avec tailles et propriétaires.
+* **Fait (complément, 2026-10-20, après l'audit N1)** : l'inventaire a été
+  **complété** de trois entrées manquantes dans `/tmp` —
+  `/tmp/SUMMARY_test.json` (48 867 o), `/tmp/SUMMARY_test.md` (2 814 o), écrits
+  hors dépôt le 2026-10-20 13:03 et jamais inventoriés jusqu'ici, et
+  `/tmp/a2d_smoke_transfer/` (checkpoint de transfert α=0,9 de la mission J6,
+  ≈ 15 Go), **désormais absent du disque** — ainsi que de la taille à jour de
+  `/tmp/pytest-of-sjteb/` (8 483 981 o au lieu de 591 207 o). **Toujours
+  aucune suppression** : ces ajouts sont documentaires.
 * **Fait** : toute la logique utile du harnais hors dépôt est **récupérée et
   versionnée** dans `harness/dream/` ; le harnais a été **reconstruit de zéro**
   et **rejoué** (smoke GSM8K n=8, mêmes items que la passe J6 à 300).
@@ -114,7 +134,7 @@ nos commandes (`PIP_CACHE_DIR` est redirigé dans `setup.sh` et `run_evals.sh`).
 > spécifier, les relire, puis les exécuter **une par une** après validation de
 > l'utilisateur. Chemin par chemin.
 
-### 3.1 `/tmp` ( Gain ≈ 3,74 Go ) — sans risque pour le projet
+### 3.1 `/tmp` ( Gain ≈ 3,75 Go ) — sans risque pour le projet
 
 ```bash
 # 3,74 Go de .npy de tau extraits manuellement (hors pipeline conforme)
@@ -123,7 +143,16 @@ rm -rf /tmp/tau_ref
 rm -rf /tmp/pytest-of-sjteb /tmp/a2d /tmp/dummy_dg /tmp/dummy_tau /tmp/dummy_out
 rm -f  /tmp/measure.json
 rm -rf /tmp/torchinductor_sjteb /tmp/dgsrc
+# résumés de test écrits hors dépôt (jamais inventoriés jusqu'ici)
+rm -f  /tmp/SUMMARY_test.json /tmp/SUMMARY_test.md
 ```
+
+> **`/tmp/a2d_smoke_transfer/` : aucune commande nécessaire.** Ce checkpoint de
+> transfert α=0,9 de la mission J6 (≈ 15 Go) est **déjà absent du disque** ;
+> son gain est donc de **0 o** et il n'apparaît pas dans les commandes
+> proposées. Le gain réel de `/tmp` n'augmente que d'environ **8,5 Mo** par
+> rapport à l'inventaire initial (croissance de `/tmp/pytest-of-sjteb/` due aux
+> relances de `pytest` de l'audit N1 + 51,7 Ko de `SUMMARY_test.*`).
 
 ### 3.2 Le harnais hors dépôt (Gain ≈ 7,07 Go ) — après accord
 
@@ -183,11 +212,18 @@ docker image prune -f --filter "until=720h"
 
 | Catégorie | Gain |
 |---|---:|
-| `/tmp` | 3,74 Go |
+| `/tmp` | 3,75 Go |
 | harnais hors dépôt | 7,07 Go |
 | caches utilisateur | ~133 Go |
 | Docker (hors volume Qdrant) | ~280 Go |
 | **Total** | **~424 Go** |
+
+> **Note** : `/tmp/a2d_smoke_transfer/` (≈ 15 Go) **n'est plus sur disque** ;
+> le gain potentiel de `/tmp` est donc plus faible que ce qu'indiquait
+> l'inventaire initial (seulement ~8,5 Mo de plus qu'alors, liés à la
+> croissance de `/tmp/pytest-of-sjteb/` et aux `SUMMARY_test.*`). Le total
+> ci-dessus reste ≈ 424 Go : les ~15 Go non récupérables ne sont pas
+> comptabilisés.
 
 Les volumes Docker ne sont pas comptés dans le gain de `/home/sjteb/.cache`
 (puits) : ils sont mesurés séparément par `docker system df`.
