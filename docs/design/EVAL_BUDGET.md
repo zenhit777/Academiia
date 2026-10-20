@@ -1,6 +1,7 @@
 # Budget d'évaluation — coûts mesurés (Dream-7B, RTX 5090 32 Go, WSL2)
 
 **Date** : 2026-10-20 · **Mission** : J6bis D1 · **Statut** : **chiffrage mesuré**
+· **Révision** : 2026-10-21 (J6quater) — conclusion §3 requalifiée (résidu F5)
 (aucune valeur supposée : chaque coût est extrait d'un `results_*.json` ou d'un
 log du harnais).
 
@@ -68,9 +69,12 @@ est ajouté une fois).
 | Base | IFEval | 541 | 176 350 s = **48 h 59** | **97 h 59** | **hors budget** : le papier lui-même a abaissé le budget de 8 192 à 1 280 tokens pour IFEval (« *too expensive* », App. A.1) |
 
 **Conclusion budget (inchangée par rapport à J6)** : à 256/512/1 280 tokens et
-batch 4, **seul GSM8K complet est jouable** sur cette machine. MATH-500 (5 000
-problèmes) ne l'est pas non plus ; MATH-175 (175) est jouable en 1 h 40 par
-modèle.
+batch 4, **seul GSM8K complet est jouable** sur cette machine ; IFEval complet
+(541 prompts, ≈ 48 h 59 par modèle) et **MATH complet (5 000 problèmes,**
+≈ 47 h 51 par modèle) sont hors budget. Le **MATH-500 du papier (500 sur
+5 000)** reste jouable en ≈ 4 h 47 par modèle, mais il est **hors du critère
+G1** : le protocole `docs/design/G1_PROTOCOL.md` compare sur **MATH-175**
+(175), jouable en 1 h 40 par modèle.
 
 ## 4. Balayage des leviers de vitesse (D3) — 16 prompts GSM8K, protocole figé
 
