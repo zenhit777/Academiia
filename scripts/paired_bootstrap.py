@@ -86,6 +86,26 @@ def wilson(k: int, n: int, z: float = 1.96):
     return (max(0.0, centre - half), min(1.0, centre + half))
 
 
+def bootstrap_ci95(diffs, iters: int = 10000, seed: int = 0):
+    """IC bootstrap apparié 95 % de la moyenne de `diffs` (percentiles 2,5 / 97,5).
+
+    Rééchantillonnage **apparié** : les écarts par item sont tirés avec remise
+    (le même item est tiré pour les deux modèles, l'écart est déjà apparié).
+    """
+    n = len(diffs)
+    if n == 0:
+        return (None, None)
+    rng = random.Random(seed)
+    means = []
+    for _ in range(iters):
+        total = 0
+        for _ in range(n):
+            total += diffs[rng.randrange(n)]
+        means.append(total / n)
+    means.sort()
+    return (means[int(0.025 * (iters - 1))], means[int(0.975 * (iters - 1))])
+
+
 def math_sqrt(x: float) -> float:
     import math
     return math.sqrt(x)
@@ -126,16 +146,7 @@ def main() -> int:
     both = sum(1 for k in keys if a[k] == 1 and b[k] == 1)
     neither = sum(1 for k in keys if a[k] == 0 and b[k] == 0)
 
-    rng = random.Random(args.seed)
-    means = []
-    for _ in range(args.iters):
-        total = 0
-        for _ in range(n):
-            total += diffs[rng.randrange(n)]
-        means.append(total / n)
-    means.sort()
-    lo = means[int(0.025 * (args.iters - 1))]
-    hi = means[int(0.975 * (args.iters - 1))]
+    lo, hi = bootstrap_ci95(diffs, iters=args.iters, seed=args.seed)
     diff = (hits_b - hits_a) / n
 
     report = {
