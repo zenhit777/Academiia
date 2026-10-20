@@ -325,7 +325,23 @@ fusion déjà produit n'est affecté** (le run réel de J6 passait `α=0,9` expl
 (29 `test_a2d_library.py` + 21 `test_a2d_mutation.py` + 9 `test_pipeline.py` + 6
 `test_eval_compare.py`).
 
-**Commits** (locaux ; le push est réservé à l'utilisateur) :
+**Suites — J6quater (2026-10-21)** : l'audit N1 de **J6ter** (OpenCode, ciblé sur le commit
+`ad4c888`) est **versionné** (`docs/reports/AUDIT_J6TER.md`) ; le **résidu F5** — contradiction
+interne du §3 de `docs/design/EVAL_BUDGET.md`, qui confondait MATH-500 (500 problèmes) et le jeu
+MATH complet (5 000) — est **clos** (`0dc55f8`). Aucune déviation silencieuse A2D n'a été
+constatée, **F1–F8 sont conformes** (revue architecte N2), **65 tests sont verts**. La
+**bibliothèque est prête pour J7** (fusions M2/M3 + évaluations G1 selon
+`docs/design/G1_PROTOCOL.md`) : **aucune fusion ni évaluation GPU n'a été exécutée** dans
+J6ter/J6quater.
+
+**Commits J6quater** (locaux ; le push est réservé à l'utilisateur) :
+
+| Commit | Contenu |
+|---|---|
+| `0dc55f8` | `docs` : requalifier la conclusion budget MATH (résidu F5) |
+| `d7f45dc` | `docs(audit)` : versionner `AUDIT_J6TER` (N1 OpenCode) |
+
+**Commits J6ter** (locaux ; le push est réservé à l'utilisateur) :
 
 | Commit | Contenu |
 |---|---|
