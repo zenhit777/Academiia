@@ -91,6 +91,21 @@ def index_fingerprint(directory) -> dict:
             "weight_map_sha256": "mono-fichier"}
 
 
+def shard_fingerprints(directory, weight_map, limit_mb: int = 32) -> dict:
+    """SHA256 (prefixe de `limit_mb` Mo) de chaque shard : preuve de contenu.
+
+    L'empreinte d'index ne distingue pas deux checkpoints de meme architecture
+    (Qwen2.5-7B et Qwen2.5-7B-Instruct ont le meme weight_map) : le prefixe de
+    contenu des shards identifie reellement les poids utilises.
+    """
+    from _common import sha256_file
+    out = {}
+    for fname in sorted(set(weight_map.values())):
+        path = os.path.join(str(directory), fname)
+        out[fname] = sha256_file(path, limit_mb=limit_mb)
+    return out
+
+
 class _SafeOpenPool:
     """Handles `safe_open` reutilises (un par fichier, jamais plus de 4)."""
 
@@ -162,6 +177,8 @@ class CheckpointPairSource(VectorSource):
             "n_tensors_common": len(self._common),
             "index_post_trained": index_fingerprint(self.post_trained),
             "index_base": index_fingerprint(self.base),
+            "shards_post_trained": shard_fingerprints(self.post_trained, self.post_map),
+            "shards_base": shard_fingerprints(self.base, self.base_map),
         }
 
     def close(self) -> None:
@@ -243,6 +260,7 @@ class LoraAdapterSource(VectorSource):
             "use_rslora": bool(self.config.get("use_rslora")),
             "target_modules": self.target_modules,
             "n_modules": len(self._modules),
+            "shards_sha256": shard_fingerprints(self.dir, self._files, limit_mb=64),
         }
 
     def close(self) -> None:
