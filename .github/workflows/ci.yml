@@ -95,6 +95,67 @@ jobs:
             exit 1
           fi
       - run: pytest scripts/tests -q
+      - name: Tests adversariaux (mutations) de la bibliotheque A2D
+        run: |
+          # Chaque mutation d'un merge correct doit etre detectee par la
+          # verification (BLK-01, BLK-02, MAJ-01, MAJ-02, MAJ-03).
+          python -m pytest scripts/tests/test_a2d_mutation.py -v
+      - name: Modes A2D non couverts par le test unitaire (CLI)
+        run: |
+          # 1. ablation-dp-minus-tau-d : doit FUSIONNER tau_D (BLK-01)
+          python scripts/merge_a2d.py --mode ablation-dp-minus-tau-d \
+            --diffusion /tmp/a2d/d_post \
+            --tau-d-post /tmp/a2d/d_post --tau-d-base /tmp/a2d/d_base \
+            --lambda 0.5 --mapping identity --output /tmp/a2d/minus
+          python scripts/verify_merge.py --merged /tmp/a2d/minus --reference /tmp/a2d/d_post \
+            --mode ablation-dp-minus-tau-d \
+            --tau-d-post /tmp/a2d/d_post --tau-d-base /tmp/a2d/d_base \
+            --lambda 0.5 --mapping identity
+          # 2. verify_merge --mode merge SANS tau_D doit etre refuse (MAJ-01)
+          if python scripts/verify_merge.py --merged /tmp/a2d/transfer --reference /tmp/a2d/d_base \
+              --mode merge --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
+              --lambda 0.6 --mapping identity; then
+            echo "ERREUR: verify_merge aurait du refuser le mode merge sans tau_D"
+            exit 1
+          fi
+          # 3. un tau_D partiel doit etre refuse en politique 'strict' (BLK-02)
+          python - <<'EOF'
+          import json, os
+          import torch
+          from safetensors.torch import save_file
+          spec = {"model.layers.0.self_attn.q_proj.weight": (4, 4)}
+          for name, seed in (("partial_base", 201), ("partial_post", 202)):
+              d = f"/tmp/a2d/{name}"
+              os.makedirs(d, exist_ok=True)
+              g = torch.Generator().manual_seed(seed)
+              save_file({k: torch.randn(*s, generator=g) for k, s in spec.items()},
+                        f"{d}/model-00001-of-00001.safetensors")
+              json.dump({"metadata": {"total_size": 0},
+                         "weight_map": {k: "model-00001-of-00001.safetensors" for k in spec}},
+                        open(f"{d}/model.safetensors.index.json", "w"))
+          EOF
+          if python scripts/merge_a2d.py --mode merge \
+              --diffusion /tmp/a2d/d_post \
+              --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
+              --tau-d-post /tmp/a2d/partial_post --tau-d-base /tmp/a2d/partial_base \
+              --lambda 0.6 --mapping identity --output /tmp/a2d/partial_merge; then
+            echo "ERREUR: un tau_D partiel aurait du etre refuse en politique 'strict'"
+            exit 1
+          fi
+          # 4. en politique 'zero-fill', le meme cas passe et est declare
+          python scripts/merge_a2d.py --mode merge \
+            --diffusion /tmp/a2d/d_post \
+            --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
+            --tau-d-post /tmp/a2d/partial_post --tau-d-base /tmp/a2d/partial_base \
+            --lambda 0.6 --mapping identity --coverage zero-fill --output /tmp/a2d/partial_zf
+          python - <<'EOF'
+          import json
+          m = json.load(open("/tmp/a2d/partial_zf/merge_config.json"))
+          assert m["coverage"]["policy"] == "zero-fill", m["coverage"]
+          assert m["coverage"]["n_zero_filled"] > 0, m["coverage"]
+          assert m["post_write_verification"]["ok"], m["post_write_verification"]
+          print("zero-fill declare :", m["coverage"]["n_zero_filled"], "modules")
+          EOF
       # Test compose vLLM (docker-compose.yml, sans Docker : YAML + simulation bash)
       - run: pytest vLLM/scripts/tests -q
       - run: bash -n vLLM/diagnose_image.sh vLLM/smoke.sh

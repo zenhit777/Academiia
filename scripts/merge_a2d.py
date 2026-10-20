@@ -67,6 +67,16 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Autorise la reecriture d'un dossier de sortie existant")
     parser.add_argument("--on-shape-mismatch", choices=["error", "skip"], default="error",
                         help="Comportement si tau et receveur ont des formes differentes")
+    parser.add_argument("--coverage", choices=["strict", "zero-fill"], default=None,
+                        help="Politique de couverture des sources sur l'union de leurs "
+                             "modules : 'strict' (defaut quand les deux sources sont des "
+                             "paires de checkpoints complets ; refuse une couverture "
+                             "inegale) ou 'zero-fill' (un vecteur absent est traite "
+                             "comme nul et declare au manifeste). Exige si une source "
+                             "est un adaptateur LoRA.")
+    parser.add_argument("--allow-empty", action="store_true",
+                        help="Autorise explicitement un plan de fusion vide (le "
+                             "checkpoint sera identique a la reference)")
     parser.add_argument("--tolerance", type=float, default=0.02,
                         help="Tolerance absolue sur alpha_eff / lambda_eff (post-ecriture)")
     parser.add_argument("--no-verify", action="store_true",
@@ -115,6 +125,7 @@ def main() -> int:
                           mapping=get_mapping(args.mapping, args.router_policy),
                           tau_a=tau_a, tau_d=None,
                           on_shape_mismatch=args.on_shape_mismatch,
+                          coverage=args.coverage, allow_empty=args.allow_empty,
                           overwrite=args.overwrite, tol_abs=args.tolerance,
                           verify=not args.no_verify)
     else:
@@ -123,6 +134,7 @@ def main() -> int:
                           mapping=get_mapping(args.mapping, args.router_policy),
                           tau_a=tau_a, tau_d=tau_d,
                           on_shape_mismatch=args.on_shape_mismatch,
+                          coverage=args.coverage, allow_empty=args.allow_empty,
                           overwrite=args.overwrite, tol_abs=args.tolerance,
                           verify=not args.no_verify)
 
@@ -138,14 +150,24 @@ def main() -> int:
         print(f"ERREUR: {exc}")
         return 1
 
+    coverage = result.manifest.get("coverage", {})
     print(f"\nCheckpoint fusionne : {cfg.output}")
     print(f"  Mode            : {cfg.mode}")
     print(f"  Tenseurs fusionnes : {result.n_fused} / {result.manifest['n_tensors']}")
     print(f"  Tenseurs inchanges : {result.n_unchanged}")
+    print(f"  Couverture      : {coverage.get('policy')} "
+          f"(both={coverage.get('n_both')}, A-only={coverage.get('n_A_only')}, "
+          f"D-only={coverage.get('n_D_only')}, zero-fill={coverage.get('n_zero_filled')})")
     for family, stats in result.manifest["families"].items():
         print(f"    {family:10s} n={stats['n_tensors']:4d} "
               f"||tau_A||={stats['norm_tau_A']:.4g} ||tau_D||={stats['norm_tau_D']:.4g} "
               f"cos={stats['cos_tau_A_tau_D'] if stats['cos_tau_A_tau_D'] is None else round(stats['cos_tau_A_tau_D'], 4)}")
+    verification = result.verification or {}
+    if verification:
+        print(f"  Verification v2 : c_a_eff={verification.get('c_a_eff')} "
+              f"c_d_eff={verification.get('c_d_eff')} "
+              f"max_ulp={verification.get('max_ulp_deviation')} "
+              f"-> {'OK' if verification.get('ok') else 'ECHEC'}")
     print(f"  Manifest        : {os.path.join(str(cfg.output), 'merge_config.json')}")
     return 0
 

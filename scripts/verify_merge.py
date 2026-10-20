@@ -28,7 +28,8 @@ if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
 from a2d import (MODES, CheckpointPairSource, LegacyNpySource, LoraAdapterSource,
-                 MergeConfig, MergeError, compute_effective_coefficients, get_mapping)
+                 MergeConfig, MergeError, MissingVectorError,
+                 compute_effective_coefficients, get_mapping)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -52,8 +53,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--tau-d-adapter")
     parser.add_argument("--tau-d-dir", help="LEGACY : dossier de .npy tau_D")
     parser.add_argument("--tolerance", type=float, default=0.02)
+    parser.add_argument("--coverage", choices=["strict", "zero-fill"], default=None,
+                        help="Politique de couverture des sources (meme semantique que "
+                             "merge_a2d.py). Exige si une source est un adaptateur LoRA "
+                             "et que le mode combine les deux sources.")
     parser.add_argument("--json", action="store_true", help="Sortie JSON (machine)")
     return parser
+
+
+def _fmt(value) -> str:
+    """Coefficient signe formate (ou 'n/a' si non defini)."""
+    return "n/a" if value is None else f"{value:.4f}"
 
 
 def build_tau_source(post, base, adapter, legacy_dir, label):
@@ -72,17 +82,26 @@ def main() -> int:
                              args.tau_a_dir, "a")
     tau_d = build_tau_source(args.tau_d_post, args.tau_d_base, args.tau_d_adapter,
                              args.tau_d_dir, "d")
-    if tau_a is None:
+    if tau_a is None and args.mode in ("transfer", "ablation-dp-plus-tau-a", "merge"):
         print("ERREUR: aucune source tau_A (--tau-a-post/--tau-a-base, --tau-a-adapter "
               "ou --tau-a-dir).")
+        return 2
+    if tau_d is None and args.mode in ("merge", "ablation-dp-minus-tau-d"):
+        print("ERREUR: aucune source tau_D (--tau-d-post/--tau-d-base, --tau-d-adapter "
+              "ou --tau-d-dir), exigee par le mode "
+              f"'{args.mode}'.")
         return 2
 
     cfg = MergeConfig(mode=args.mode, recipient=args.reference, output=args.merged,
                       alpha=args.alpha, lam=args.lam,
                       mapping=get_mapping(args.mapping, args.router_policy),
-                      tau_a=tau_a, tau_d=tau_d, tol_abs=args.tolerance, verify=False)
+                      tau_a=tau_a, tau_d=tau_d, tol_abs=args.tolerance, verify=False,
+                      coverage=args.coverage)
     try:
         report = compute_effective_coefficients(args.merged, args.reference, cfg)
+    except MissingVectorError as exc:
+        print(f"ERREUR: {exc}")
+        return 2
     except MergeError as exc:
         print(f"ERREUR: {exc}")
         return 1
@@ -97,12 +116,20 @@ def main() -> int:
         print(f"Verification de {args.merged}")
         print(f"  mode={args.mode}  {coeff} demande = {report['requested']}")
         print(f"  tenseurs fusionnes detectes : {report['n_fused']}")
-        print(f"  {'famille':12s} {'n':>5s} {coeff+'_eff':>10s} {'demande':>8s} "
+        print(f"  coefficients signes : c_a_eff={_fmt(report.get('c_a_eff'))} "
+              f"c_d_eff={_fmt(report.get('c_d_eff'))} "
+              f"(demande c_a={report['requested_coefficients']['a']}, "
+              f"c_d={report['requested_coefficients']['d']})")
+        print(f"  ecart maximal a round_bf16(expected) : "
+              f"{report.get('max_ulp_deviation')} ULP")
+        print(f"  {'famille':12s} {'n':>5s} {'c_a_eff':>10s} {'c_d_eff':>10s} "
               f"{'ecart':>8s}  verdict")
         for family, stats in report["families"].items():
+            deviation = stats["deviation"]
             print(f"  {family:12s} {stats['n_tensors']:5d} "
-                  f"{stats['effective_coefficient']:10.4f} {stats['requested']:8.3f} "
-                  f"{stats['deviation']:8.4f}  {'OK' if stats['ok'] else 'ECHEC'}")
+                  f"{_fmt(stats['c_a_eff']):>10s} {_fmt(stats['c_d_eff']):>10s} "
+                  f"{('n/a' if deviation is None else f'{deviation:.4f}'):>8s}  "
+                  f"{'OK' if stats['ok'] else 'ECHEC'}")
         for failure in report["failures"]:
             print(f"  ECHEC: {failure}")
         print(f"  VERDICT: {'OK' if report['ok'] else 'ECHEC'}")

@@ -11,10 +11,12 @@ Principes (A2D, arXiv:2610.08108) :
   - tau calcule a la volee : jamais persiste sur disque.
 """
 
-from .merge import (MODES, MergeConfig, MergeError, MergeRefused,
-                    MergeResult, MissingVectorError, ShapeMismatchError,
-                    compute_effective_coefficients, effective_coefficient,
-                    merge_checkpoint, mode_coefficients, verify_written)
+from .merge import (COVERAGE_POLICIES, MODES, CoverageError, Expected, MergeConfig,
+                    MergeError, MergePolicy, MergeRefused, MergeResult,
+                    MissingVectorError, PlanEntry, ShapeMismatchError,
+                    build_plan, compute_effective_coefficients, effective_coefficient,
+                    expected_tensor, merge_checkpoint, mode_coefficients,
+                    resolve_policy, validate_config, verify_checkpoint, verify_written)
 from .naming import (ALL_FAMILIES, FAMILY_ATTN, FAMILY_EMBED, FAMILY_EXPERTS,
                      FAMILY_HEAD, FAMILY_MLP, FAMILY_NORMS, FAMILY_OTHER,
                      FAMILY_ROUTER, GEMMA4_TO_DIFFUSIONGEMMA, IDENTITY, MAPPINGS,
@@ -23,9 +25,12 @@ from .sources import (CheckpointPairSource, LegacyNpySource, LoraAdapterSource,
                       VectorSource, index_fingerprint, load_weight_map)
 
 __all__ = [
-    "MODES", "MergeConfig", "MergeError", "MergeRefused", "MergeResult",
-    "MissingVectorError", "ShapeMismatchError", "compute_effective_coefficients",
-    "effective_coefficient", "merge_checkpoint", "mode_coefficients", "verify_written",
+    "COVERAGE_POLICIES", "MODES", "CoverageError", "Expected", "MergeConfig",
+    "MergeError", "MergePolicy", "MergeRefused", "MergeResult",
+    "MissingVectorError", "PlanEntry", "ShapeMismatchError", "build_plan",
+    "compute_effective_coefficients", "effective_coefficient", "expected_tensor",
+    "merge_checkpoint", "mode_coefficients", "resolve_policy", "validate_config",
+    "verify_checkpoint", "verify_written",
     "ALL_FAMILIES", "GEMMA4_TO_DIFFUSIONGEMMA", "IDENTITY", "MAPPINGS", "NameMapping",
     "family_of", "get_mapping", "module_of",
     "FAMILY_ATTN", "FAMILY_EMBED", "FAMILY_EXPERTS", "FAMILY_HEAD", "FAMILY_MLP",

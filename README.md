@@ -48,7 +48,16 @@ scripts/verify_merge.py # vérification post hoc (alpha_eff, lambda_eff par fami
   **λ** borné par l'eq. (2) à [0,1] (avertissement au-delà de 1) ; τ_D absent ⇒ le merge
   dégénère en transfert (et le signale).
 * Arithmétique FP32, **un seul** cast BF16, écriture atomique, **vérification post-écriture
-  obligatoire** (`α_eff` / `λ_eff`, échec dur hors tolérance).
+  obligatoire** (v2 : coefficients **signés** `c_a_eff` / `c_d_eff` par régression des moindres
+  carrés sur [τ_A, τ_D], bornes dérivées du résidu BF16 **mesuré**, tenseurs non fusionnés
+  **bit-identiques** à la référence, écart à `round_bf16(expected)` ≤ 1 ULP ; échec dur hors
+  tolérance).
+* **Plan de fusion sur l'UNION des modules de τ_A et de τ_D** (classes `both` / `A-only` /
+  `D-only`) ; politique `--coverage {strict,zero-fill}` : `strict` (défaut si les deux sources
+  sont des paires de checkpoints complets) **refuse** une couverture inégale et liste les
+  modules fautifs ; `zero-fill` traite un vecteur absent comme nul et le **déclare** au
+  manifeste. Choix explicite obligatoire dès qu'une source est un adaptateur LoRA. Un plan
+  vide ⇒ refus (`--allow-empty` pour l'assumer).
 
 ```bash
 # Transfert A2D (eq. 1) : D_b + alpha*tau_A

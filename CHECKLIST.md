@@ -26,18 +26,26 @@
 ### 2. Cohérence des scripts
 - [ ] `python -c "import ast,glob; [ast.parse(open(f,encoding='utf-8').read()) for f in sorted(glob.glob('scripts/**/*.py', recursive=True))]"` → OK
 - [ ] Les chemins par défaut pointent vers `checkpoints/` et `_artefact/tau_a` (pas `/tmp/`)
-- [ ] `scripts/merge_a2d.py --help` : modes `transfer|merge|ablation-dp-plus-tau-a|ablation-dp-minus-tau-d`, α/λ sans plafond, avertissement > 1.5
+- [ ] `scripts/merge_a2d.py --help` : modes `transfer|merge|ablation-dp-plus-tau-a|ablation-dp-minus-tau-d`,
+      `--coverage {strict,zero-fill}`, `--allow-empty`, α sans plafond (avertissement > 1.5), λ borné à [0,1] (avertissement > 1)
 - [ ] `scripts/merge_jainius.py --help` : défaut `--alpha 0.3`, `--on-shape-mismatch error`, manifeste `merge_config.json` écrit
 - [ ] `pytest scripts/tests -q` → tout vert (dont `test_a2d_library.py` : λ=0 ⇒ D_p, λ=1 ⇒ transfert α=1,
       τ_D absent refusé, linéarité en α, LoRA ≡ `peft.merge_and_unload`, `α_eff` round-trip, refus d'écraser,
-      embeddings de formes différentes, nom cible fantôme ⇒ erreur, `verify_merge` détecte un α erroné)
+      embeddings de formes différentes, nom cible fantôme ⇒ erreur, `verify_merge` détecte un α erroné ;
+      et `test_a2d_mutation.py` : **19 tests de mutation** — inversion de signe, permutation α↔λ,
+      permutation τ_A↔τ_D, τ_D partiel en `strict`, τ_A absent, plan vide, tenseur non fusionné altéré,
+      mode erroné, lignes d'embedding intersectées, seuils ULP BF16)
 
 ### 3. Vérification d'une fusion (nouveau, obligatoire)
-- [ ] La fusion passes par `scripts/merge_a2d.py` (jamais une copie de la logique dans un script)
-- [ ] `merge_config.json` contient : α, λ, hashes d'index de **toutes** les sources, commit git, versions,
-      et par famille de tenseurs `‖τ_A‖`, `‖τ_D‖`, `cos(τ_A,τ_D)`, `‖τ‖/‖W‖` (global **et** médiane par tenseur)
-- [ ] `post_write_verification.ok == true` (`α_eff` / `λ_eff` dans la tolérance)
+- [ ] La fusion passe par `scripts/merge_a2d.py` (jamais une copie de la logique dans un script)
+- [ ] `merge_config.json` contient : α, λ, hashes d'index **et** empreintes de contenu des shards de **toutes** les
+      sources, commit git, versions, la politique de couverture et les effectifs `both` / `A-only` / `D-only`
+      par famille, et par famille `‖τ_A‖`, `‖τ_D‖`, `cos(τ_A,τ_D)`, `‖τ‖/‖W‖` (global **et** médiane par tenseur)
+- [ ] `post_write_verification.ok == true` **et** `post_write_verification.version == 2` :
+      coefficients **signés** (`c_a_eff`, `c_d_eff`) comparés à ceux attendus du mode, tenseurs non fusionnés
+      **bit-identiques** à la référence, écart maximal à `round_bf16(expected)` ≤ 1 ULP
 - [ ] `python scripts/verify_merge.py --merged <out> --reference <ref> ...` → VERDICT OK
+      (et `verify_merge --mode merge` **sans τ_D** → sortie 2)
 - [ ] Aucun `.npy` de vecteur de tâche n'a été écrit par la bibliothèque (τ n'est jamais persisté)
 
 ### 4. État du repo git
