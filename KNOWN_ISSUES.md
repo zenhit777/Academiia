@@ -6,8 +6,10 @@
   transfert (eq. 1), merge (eq. 2), ablations `D_p + ατ_A` (Table 9) et `D_p − λτ_D` (Table 10) ;
   τ **calculé à la volée** (paire de checkpoints ou adaptateur LoRA), **jamais persisté** ;
   FP32 + un seul cast BF16 ; écriture atomique ; **vérification post-écriture obligatoire**
-  (`α_eff`/`λ_eff`, échec dur hors tolérance). 22 tests ajoutés (`scripts/tests/test_a2d_library.py`) ;
-  37 tests au total dans `scripts/tests` (rectifié J6bis : MIN-05 — la valeur « 19 » était fausse).
+  (`α_eff`/`λ_eff`, échec dur hors tolérance). 22 tests ajoutés (`scripts/tests/test_a2d_library.py` —
+  29 aujourd'hui) ; 65 tests au total dans `scripts/tests` (rectifié J6bis : MIN-05 — la valeur « 19 »
+  était fausse ; rectifié J6ter : la valeur « 37 » était également fausse — 29 A2D + 21 mutation
+  + 9 pipeline + 6 eval-compare).
 - **Corrections documentaires (A2)** :
   - « τ_D inexistant publiquement » est **faux** : `τ_D = D_p − D_b` est défini (§2.1) et, pour
     DiffusionGemma, c'est le delta LoRA de post-training **publié**

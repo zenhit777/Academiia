@@ -29,10 +29,12 @@
 - [ ] `scripts/merge_a2d.py --help` : modes `transfer|merge|ablation-dp-plus-tau-a|ablation-dp-minus-tau-d`,
       `--coverage {strict,zero-fill}`, `--allow-empty`, α sans plafond (avertissement > 1.5), λ borné à [0,1] (avertissement > 1)
 - [ ] `scripts/merge_jainius.py --help` : défaut `--alpha 0.3`, `--on-shape-mismatch error`, manifeste `merge_config.json` écrit
-- [ ] `pytest scripts/tests -q` → tout vert (dont `test_a2d_library.py` : λ=0 ⇒ D_p, λ=1 ⇒ transfert α=1,
+- [ ] `pytest scripts/tests -q` → tout vert, **65 tests** au total : 29 (`test_a2d_library.py`)
+      + 21 (`test_a2d_mutation.py`) + 9 (`test_pipeline.py`) + 6 (`test_eval_compare.py`)
+- [ ] `test_a2d_library.py` : λ=0 ⇒ D_p, λ=1 ⇒ transfert α=1,
       τ_D absent refusé, linéarité en α, LoRA ≡ `peft.merge_and_unload`, `α_eff` round-trip, refus d'écraser,
       embeddings de formes différentes, nom cible fantôme ⇒ erreur, `verify_merge` détecte un α erroné ;
-      et `test_a2d_mutation.py` : **19 tests de mutation** — inversion de signe, permutation α↔λ,
+      et `test_a2d_mutation.py` : **21 tests de mutation** — inversion de signe, permutation α↔λ,
       permutation τ_A↔τ_D, τ_D partiel en `strict`, τ_A absent, plan vide, tenseur non fusionné altéré,
       mode erroné, lignes d'embedding intersectées, seuils ULP BF16)
 
