@@ -51,6 +51,75 @@
         }
       }
     },
+    "dream_7b_base_ifeval_a2d": {
+      "run": "dream_7b_base_ifeval_a2d",
+      "model": "dream_7b_base",
+      "n_prompts": {
+        "ifeval_a2d": 8
+      },
+      "n_original": {
+        "ifeval_a2d": 541
+      },
+      "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_7b_base,trust_remote_code=True,max_new_tokens=1280,diffusion_steps=1280,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+      "system_instruction": null,
+      "duration_s": "2607.761827465998",
+      "metrics": {
+        "ifeval_a2d/prompt_level_strict_acc,none": {
+          "value": 0.5,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.21521252682444186,
+            0.7847874731755582
+          ]
+        },
+        "ifeval_a2d/prompt_level_strict_acc_stderr,none": {
+          "value": 0.1889822365046136,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.07147768885802763,
+            0.5907301208974108
+          ]
+        },
+        "ifeval_a2d/inst_level_strict_acc,none": {
+          "value": 0.6428571428571429,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.30573785458380187,
+            0.863158240538479
+          ]
+        },
+        "ifeval_a2d/prompt_level_loose_acc,none": {
+          "value": 0.5,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.21521252682444186,
+            0.7847874731755582
+          ]
+        },
+        "ifeval_a2d/prompt_level_loose_acc_stderr,none": {
+          "value": 0.1889822365046136,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.07147768885802763,
+            0.5907301208974108
+          ]
+        },
+        "ifeval_a2d/inst_level_loose_acc,none": {
+          "value": 0.6428571428571429,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.30573785458380187,
+            0.863158240538479
+          ]
+        }
+      }
+    },
     "dream_7b_base_minerva_math_algebra": {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
@@ -381,6 +450,75 @@
         }
       }
     },
+    "dream_7b_instruct_ifeval_a2d": {
+      "run": "dream_7b_instruct_ifeval_a2d",
+      "model": "dream_7b_instruct",
+      "n_prompts": {
+        "ifeval_a2d": 8
+      },
+      "n_original": {
+        "ifeval_a2d": 541
+      },
+      "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_7b_instruct,trust_remote_code=True,max_new_tokens=1280,diffusion_steps=1280,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+      "system_instruction": null,
+      "duration_s": "2620.8658829279957",
+      "metrics": {
+        "ifeval_a2d/prompt_level_strict_acc,none": {
+          "value": 0.5,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.21521252682444186,
+            0.7847874731755582
+          ]
+        },
+        "ifeval_a2d/prompt_level_strict_acc_stderr,none": {
+          "value": 0.1889822365046136,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.07147768885802763,
+            0.5907301208974108
+          ]
+        },
+        "ifeval_a2d/inst_level_strict_acc,none": {
+          "value": 0.7142857142857143,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.40926987910258916,
+            0.9285223111419724
+          ]
+        },
+        "ifeval_a2d/prompt_level_loose_acc,none": {
+          "value": 0.5,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.21521252682444186,
+            0.7847874731755582
+          ]
+        },
+        "ifeval_a2d/prompt_level_loose_acc_stderr,none": {
+          "value": 0.1889822365046136,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.07147768885802763,
+            0.5907301208974108
+          ]
+        },
+        "ifeval_a2d/inst_level_loose_acc,none": {
+          "value": 0.7142857142857143,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.40926987910258916,
+            0.9285223111419724
+          ]
+        }
+      }
+    },
     "dream_7b_instruct_minerva_math_algebra": {
       "run": "dream_7b_instruct_minerva_math_algebra",
       "model": "dream_7b_instruct",
@@ -693,6 +831,66 @@
       "target": 66.5
     },
     {
+      "run": "dream_7b_base_ifeval_a2d",
+      "model": "dream_7b_base",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "prompt_level_strict_acc,none",
+      "value": 0.5,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.21521252682444186,
+        0.7847874731755582
+      ],
+      "target": 49.7
+    },
+    {
+      "run": "dream_7b_base_ifeval_a2d",
+      "model": "dream_7b_base",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "inst_level_strict_acc,none",
+      "value": 0.6428571428571429,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.30573785458380187,
+        0.863158240538479
+      ],
+      "target": 49.7
+    },
+    {
+      "run": "dream_7b_base_ifeval_a2d",
+      "model": "dream_7b_base",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "prompt_level_loose_acc,none",
+      "value": 0.5,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.21521252682444186,
+        0.7847874731755582
+      ],
+      "target": 49.7
+    },
+    {
+      "run": "dream_7b_base_ifeval_a2d",
+      "model": "dream_7b_base",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "inst_level_loose_acc,none",
+      "value": 0.6428571428571429,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.30573785458380187,
+        0.863158240538479
+      ],
+      "target": 49.7
+    },
+    {
       "run": "dream_7b_base_minerva_math_algebra",
       "model": "dream_7b_base",
       "task": "minerva_math_algebra",
@@ -931,6 +1129,66 @@
         0.8771470584702262
       ],
       "target": 83.0
+    },
+    {
+      "run": "dream_7b_instruct_ifeval_a2d",
+      "model": "dream_7b_instruct",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "prompt_level_strict_acc,none",
+      "value": 0.5,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.21521252682444186,
+        0.7847874731755582
+      ],
+      "target": 63.0
+    },
+    {
+      "run": "dream_7b_instruct_ifeval_a2d",
+      "model": "dream_7b_instruct",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "inst_level_strict_acc,none",
+      "value": 0.7142857142857143,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.40926987910258916,
+        0.9285223111419724
+      ],
+      "target": 63.0
+    },
+    {
+      "run": "dream_7b_instruct_ifeval_a2d",
+      "model": "dream_7b_instruct",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "prompt_level_loose_acc,none",
+      "value": 0.5,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.21521252682444186,
+        0.7847874731755582
+      ],
+      "target": 63.0
+    },
+    {
+      "run": "dream_7b_instruct_ifeval_a2d",
+      "model": "dream_7b_instruct",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "inst_level_loose_acc,none",
+      "value": 0.7142857142857143,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.40926987910258916,
+        0.9285223111419724
+      ],
+      "target": 63.0
     },
     {
       "run": "dream_7b_instruct_minerva_math_algebra",
@@ -1189,6 +1447,66 @@
     },
     {
       "model": "dream_7b_base",
+      "benchmark": "IFEval",
+      "filter": "inst_level_loose_acc,none",
+      "value": 0.6428571428571429,
+      "n": 8,
+      "wilson95": [
+        0.30573785458380187,
+        0.863158240538479
+      ],
+      "target": 49.7,
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_7b_base",
+      "benchmark": "IFEval",
+      "filter": "inst_level_strict_acc,none",
+      "value": 0.6428571428571429,
+      "n": 8,
+      "wilson95": [
+        0.30573785458380187,
+        0.863158240538479
+      ],
+      "target": 49.7,
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_7b_base",
+      "benchmark": "IFEval",
+      "filter": "prompt_level_loose_acc,none",
+      "value": 0.5,
+      "n": 8,
+      "wilson95": [
+        0.21521252682444186,
+        0.7847874731755582
+      ],
+      "target": 49.7,
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_7b_base",
+      "benchmark": "IFEval",
+      "filter": "prompt_level_strict_acc,none",
+      "value": 0.5,
+      "n": 8,
+      "wilson95": [
+        0.21521252682444186,
+        0.7847874731755582
+      ],
+      "target": 49.7,
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_7b_base",
       "benchmark": "MATH-500",
       "filter": "exact_match,none",
       "value": 0.0,
@@ -1261,6 +1579,66 @@
     },
     {
       "model": "dream_7b_instruct",
+      "benchmark": "IFEval",
+      "filter": "inst_level_loose_acc,none",
+      "value": 0.7142857142857143,
+      "n": 8,
+      "wilson95": [
+        0.40926987910258916,
+        0.9285223111419724
+      ],
+      "target": 63.0,
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_7b_instruct",
+      "benchmark": "IFEval",
+      "filter": "inst_level_strict_acc,none",
+      "value": 0.7142857142857143,
+      "n": 8,
+      "wilson95": [
+        0.40926987910258916,
+        0.9285223111419724
+      ],
+      "target": 63.0,
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_7b_instruct",
+      "benchmark": "IFEval",
+      "filter": "prompt_level_loose_acc,none",
+      "value": 0.5,
+      "n": 8,
+      "wilson95": [
+        0.21521252682444186,
+        0.7847874731755582
+      ],
+      "target": 63.0,
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_7b_instruct",
+      "benchmark": "IFEval",
+      "filter": "prompt_level_strict_acc,none",
+      "value": 0.5,
+      "n": 8,
+      "wilson95": [
+        0.21521252682444186,
+        0.7847874731755582
+      ],
+      "target": 63.0,
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_7b_instruct",
       "benchmark": "MATH-500",
       "filter": "exact_match,none",
       "value": 0.0,
@@ -1299,6 +1677,36 @@
         "minerva_math_num_theory",
         "minerva_math_prealgebra",
         "minerva_math_precalc"
+      ]
+    },
+    {
+      "model": "dream_7b_base",
+      "benchmark": "IFEval",
+      "filter": "moyenne des 4 metriques",
+      "value": 0.5714285714285714,
+      "n": 8,
+      "wilson95": [
+        0.30573785458380187,
+        0.863158240538479
+      ],
+      "target": 49.7,
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_7b_instruct",
+      "benchmark": "IFEval",
+      "filter": "moyenne des 4 metriques",
+      "value": 0.6071428571428572,
+      "n": 8,
+      "wilson95": [
+        0.30573785458380187,
+        0.863158240538479
+      ],
+      "target": 63.0,
+      "tasks": [
+        "ifeval_a2d"
       ]
     }
   ]

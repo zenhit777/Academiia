@@ -142,6 +142,25 @@ def main():
             "tasks": sorted(set(a["tasks"])),
         })
     out["aggregated"] = aggregated
+
+    # IFEval : le papier rapporte « the mean of the four lm-eval metrics »
+    # (App. A.1) — on ajoute cette ligne.
+    ifeval_rows = [a for a in aggregated if a["benchmark"] == "IFEval"]
+    by_model = {}
+    for a in ifeval_rows:
+        by_model.setdefault(a["model"], []).append(a)
+    for model, group in by_model.items():
+        if len(group) != 4:
+            continue
+        mean_value = sum(a["value"] for a in group) / 4
+        n = min(a["n"] for a in group)
+        lo, hi = wilson(round(mean_value * n), n)
+        aggregated.append({
+            "model": model, "benchmark": "IFEval", "filter": "moyenne des 4 metriques",
+            "value": mean_value, "n": n, "wilson95": [lo, hi],
+            "target": TARGETS.get(model, {}).get("IFEval"),
+            "tasks": sorted(set(t for a in group for t in a["tasks"])),
+        })
     if args.out:
         with open(args.out, "w") as f:
             json.dump(out, f, indent=2, ensure_ascii=False)
