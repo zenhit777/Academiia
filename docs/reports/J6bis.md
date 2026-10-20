@@ -301,7 +301,7 @@ et `TMPDIR` pointent vers `harness/dream/.cache/` (1 241 003 141 o), le venv
 
 ---
 
-## 7. Post-audit N1 (2026-10-20) — corrections F1–F7
+## 7. Post-audit N1 (2026-10-20) — corrections F1–F8 (F9 déclaré)
 
 **Audit** : `docs/reports/AUDIT_J6BIS.md` (N1, agent OpenCode, lecture seule, 2026-10-20).
 Verdict : **aucune déviation silencieuse** des équations, coefficients, mappings ni du schéma
@@ -318,7 +318,7 @@ fusion déjà produit n'est affecté** (le run réel de J6 passait `α=0,9` expl
 | **F5** | faible | **corrigé** | Latence IFEval harmonisée sur le taux **batch 4** mesuré (325,97 / 327,61 s/prompt ⇒ ≈ **49 h** pour le jeu complet par modèle) : `J6.md` (§1.1, §3, E1, §5), `harness/dream/summarize.py` (+ `eval/dream_a2d/SUMMARY.{md,json}` régénérés), `eval/dream_a2d/SUMMARY.md`. `docs/design/EVAL_BUDGET.md` : « quasi linéaire » retiré (les facteurs ×3,4 / ×32 comparent des **tâches différentes**) ; MATH-500 : 5 000 → 500 = **×10** ⇒ **4 h 47** par modèle (**9 h 34** pour les deux). |
 | **F6** | faible | **corrigé** | `docs/reports/OUT_OF_WORKSPACE.md` : `/tmp/SUMMARY_test.{json,md}` (48 867 / 2 814 o, 2026-10-20 13:03), `/tmp/a2d_smoke_transfer` (checkpoint de transfert α=0,9 de J6, ≈ 15 Go, **absent du disque**) et la taille à jour de `/tmp/pytest-of-sjteb` (**8 483 981** o). **Aucune suppression.** |
 | **F7** | faible | **corrigé** | Aide CLI de `--lambda` : seuil d'avertissement **1.0** (`LAMBDA_MAX`), conforme à l'eq. (2) bornée dans [0,1]. |
-| **F8** | info | **déclaré** | `eval/dream_a2d/ITEM_FINGERPRINTS.json` : `git_hash` = commit du **fork Dream** (`31f94a6`), pas un commit d'Academiia. Non corrigé (renommage optionnel). |
+| **F8** | info | **corrigé** | `eval/dream_a2d/ITEM_FINGERPRINTS.json` : `git_hash` (commit du **fork Dream** `31f94a6`) renommé `fork_git_hash` ; ajout de `academiia_head_at_run` (commit d'Academiia qui était HEAD au début du run) et d'une note de provenance. `scripts/eval_item_fingerprint.py` régénéré : **seules les clés de provenance** changent (`items_sha256`, `items_order_sha256`, `prompts_sha256`, `targets_sha256`, `n_items`, `n_samples`, `config` inchangés). Correction au passage : `items_order_sha256` était calculé sur la liste **triée** (donc identique à `items_sha256`, il ne mesurait pas l'ordre) — il l'est désormais sur l'**ordre d'évaluation**, ce qui reproduit les valeurs de référence. `docs/design/G1_PROTOCOL.md` §3.1. |
 | **F9** | info | **déclaré** | `do_sample: false` / `temperature: 0.0` dans les YAML de tâche vs `temperature=0.1` imposé par `--model_args` : déjà signalé (J6bis E14, `docs/reports/AUDIT_J6.md` MIN-04). |
 
 **Suite de tests après corrections** : `python -m pytest scripts/tests -q` → **65 passed**
@@ -337,3 +337,4 @@ fusion déjà produit n'est affecté** (le run réel de J6 passait `α=0,9` expl
 | `9f342ab` | `docs` : corriger les compteurs de tests (65 / 21 mutations) (F4) |
 | `dc64315` | `docs` : harmoniser latences IFEval et projections (F5) |
 | `619a6c6` | `docs` : compléter l'inventaire C5 (F6) |
+| `9574473` | `fix(eval)` : provenance des empreintes — `fork_git_hash` + `academiia_head_at_run` (F8) |
