@@ -76,11 +76,12 @@ modèle `diffllm`) dans un venv **séparé** (`requirements-dream.txt`) ; `tempe
 bfloat16, chat template appliqué, 0-shot pour GSM8K et MATH-500, prompt système GSM8K de
 l'App. A.1 cité mot pour mot.
 
-| Modèle | Tâche | Métrique paper-compatible | Score | n | IC 95 % (Wilson) | Table 16 |
-|---|---|---|---|---|---|---|
-| Dream-7B-Base | GSM8K | flexible-extract | 68,7 % | 300 | [63,2 ; 73,7] | 66,5 |
-| Dream-7B-Base | MATH-500 | math_verify | 24,0 % | 175 | [18,3 ; 30,8] | 20,8 |
-| Dream-7B-Instruct | GSM8K | flexible-extract | 84,0 % | 300 | [79,4 ; 87,7] | 83,0 |
+| Modèle | Tâche | Métrique paper-compatible | Score | n | IC 95 % (Wilson) | Table 16 | Écart |
+|---|---|---|---|---|---|---|---|
+| Dream-7B-Base | GSM8K | flexible-extract | 68,7 % | 300 | [63,2 ; 73,7] | 66,5 | +2,2 |
+| Dream-7B-Base | MATH-500 | math_verify | 24,0 % | 175 | [18,3 ; 30,8] | 20,8 | +3,2 |
+| Dream-7B-Instruct | GSM8K | flexible-extract | 84,0 % | 300 | [79,4 ; 87,7] | 83,0 | +1,0 |
+| Dream-7B-Instruct | MATH-500 | math_verify | 36,6 % | 175 | [29,8 ; 43,9] | 38,4 | −1,8 |
 
 La valeur du papier tombe **dans l'intervalle de confiance** de chaque mesure ⇒ la mécanique
 d'évaluation, les identifiants de checkpoints et la bibliothèque de fusion sont validés.
