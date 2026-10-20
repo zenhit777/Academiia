@@ -68,6 +68,24 @@ python scripts/verify_merge.py --merged checkpoints/dream_transfer_a09 \
     --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b --alpha 0.9
 ```
 
+## Baseline Dream-7B (porte G1) — protocole A2D App. A.1
+
+Harnais : **fork lm-evaluation-harness de Dream** (`DreamLM/Dream`, `eval_instruct/lm_eval`,
+modèle `diffllm`) dans un venv **séparé** (`requirements-dream.txt`) ; `temperature=0.1`,
+`top_p=0.9`, `alg=entropy`, `diffusion_steps = max_new_tokens` (un pas de débruitage par token),
+bfloat16, chat template appliqué, 0-shot pour GSM8K et MATH-500, prompt système GSM8K de
+l'App. A.1 cité mot pour mot.
+
+| Modèle | Tâche | Métrique paper-compatible | Score | n | IC 95 % (Wilson) | Table 16 |
+|---|---|---|---|---|---|---|
+| Dream-7B-Base | GSM8K | flexible-extract | 68,7 % | 300 | [63,2 ; 73,7] | 66,5 |
+| Dream-7B-Base | MATH-500 | math_verify | 24,0 % | 175 | [18,3 ; 30,8] | 20,8 |
+| Dream-7B-Instruct | GSM8K | flexible-extract | 84,0 % | 300 | [79,4 ; 87,7] | 83,0 |
+
+La valeur du papier tombe **dans l'intervalle de confiance** de chaque mesure ⇒ la mécanique
+d'évaluation, les identifiants de checkpoints et la bibliothèque de fusion sont validés.
+Détail, samples et commande de rejeu : `docs/reports/J6.md`, `eval/dream_a2d/SUMMARY.md`.
+
 ## Géométrie des vecteurs (Table 21 du papier) — reproduite
 
 `scripts/measure_geometry.py` recalcule, sur le backbone (attention + MLP + normes ;

@@ -6,7 +6,7 @@
 |---|---|---|---|
 | **J4Bis** | infrastructure GPU/service (compose, service FP8, smoke) | **OK (infra)** — validée le 2026-10-19 | `vLLM/RAPPORT_J4BIS-BIS.md` |
 | **J5** | campagne d'évaluation par génération (103 prompts) | **NON CONFORME** au protocole du papier (FP8, `temperature=0`, 128 tokens, texte libre, sans juge) : contrôle de non-régression, pas une mesure de qualité | `eval/RESULTS.md` |
-| **G1** | mécanique A2D validée sur Qwen2.5-7B → Dream-7B (Tableaux 6, 16, 21) | **ouverte** — géométrie reproduite à ≤ 0,11 % ; baseline d'évaluation en cours (J6) | `docs/reports/J6.md`, `docs/A2D_SPEC.md` |
+| **G1** | mécanique A2D validée sur Qwen2.5-7B → Dream-7B (Tableaux 6, 16, 21) | **ouverte, critères de reproduction atteints** — géométrie (Table 21) reproduite à ≤ 0,11 % ; baseline GSM8K et MATH-500 du Base reproduites (cible du papier dans l'IC 95 %) ; fusion réelle α=0.9 vérifiée (`α_eff` = 0,913, couvert par la borne BF16) | `docs/reports/J6.md`, `docs/A2D_SPEC.md`, `eval/dream_a2d/SUMMARY.md` |
 | **G2** | reproduction du setup médical DiffusionGemma du papier (adapters publiés) | **non entamée** (hors périmètre J6) | `docs/VP_ADAPTERS.md` |
 | **G3** | raisonnement (hors papier) | **non entamée** (conception d'abord) | — |
 
