@@ -1,4 +1,5 @@
 {
+  "note": "Provenance : `fork_git_hash` = commit du fork Dream (DreamLM/Dream) recopie depuis les results_*.json ; ce n'est PAS un commit d'Academiia. `academiia_head_at_run` = commit du depot Academiia qui etait HEAD au debut du run (horodatage du nom de fichier du fork, compare a l'historique git) ; l'arbre de travail pouvait contenir des modifications non commitees (le harnais Dream n'a ete versionne dans le depot qu'apres les runs, cf. 9ae02a1).",
   "runs": [
     {
       "run": "eval/dream_a2d/dream_7b_base/gsm8k_cot_a2d",
@@ -13,7 +14,8 @@
           "effective": 300
         }
       },
-      "git_hash": "31f94a6",
+      "fork_git_hash": "31f94a6",
+      "academiia_head_at_run": "c06ce8bab35c45427a88ed973ff85e36e98c8611",
       "config": {
         "model": "diffllm",
         "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_7b_base,trust_remote_code=True,max_new_tokens=256,diffusion_steps=256,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
@@ -43,7 +45,8 @@
           "effective": 8
         }
       },
-      "git_hash": "31f94a6",
+      "fork_git_hash": "31f94a6",
+      "academiia_head_at_run": "31ea9dfdf94793adad48846e742e5d412bef89ed",
       "config": {
         "model": "diffllm",
         "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_7b_base,trust_remote_code=True,max_new_tokens=1280,diffusion_steps=1280,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
@@ -97,7 +100,8 @@
           "effective": 25
         }
       },
-      "git_hash": "31f94a6",
+      "fork_git_hash": "31f94a6",
+      "academiia_head_at_run": "ca298f9e8e2e00323b6a816a8ae68b4084594648",
       "config": {
         "model": "diffllm",
         "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_7b_base,trust_remote_code=True,max_new_tokens=512,diffusion_steps=512,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
@@ -127,7 +131,8 @@
           "effective": 300
         }
       },
-      "git_hash": "31f94a6",
+      "fork_git_hash": "31f94a6",
+      "academiia_head_at_run": "826724cb941e6b6af752b8b3d282abed35edda3d",
       "config": {
         "model": "diffllm",
         "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_7b_instruct,trust_remote_code=True,max_new_tokens=256,diffusion_steps=256,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
@@ -157,7 +162,8 @@
           "effective": 8
         }
       },
-      "git_hash": "31f94a6",
+      "fork_git_hash": "31f94a6",
+      "academiia_head_at_run": "31ea9dfdf94793adad48846e742e5d412bef89ed",
       "config": {
         "model": "diffllm",
         "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_7b_instruct,trust_remote_code=True,max_new_tokens=1280,diffusion_steps=1280,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
@@ -211,7 +217,8 @@
           "effective": 25
         }
       },
-      "git_hash": "31f94a6",
+      "fork_git_hash": "31f94a6",
+      "academiia_head_at_run": "c8b4e1c40636ddb1df108dd10745198abe756ee3",
       "config": {
         "model": "diffllm",
         "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_7b_instruct,trust_remote_code=True,max_new_tokens=512,diffusion_steps=512,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",

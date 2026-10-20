@@ -77,6 +77,13 @@ empreintes **de référence** sont versionnées dans
 | MATH-175 | 175 | `e8d1dae81491a7c8…` | `a00782289787b2e9…` |
 | IFEval | 8 | `0d66e89ed6abd889…` | `62df58fa1ef767e7…` |
 
+Chaque run porte aussi sa **provenance** : `fork_git_hash` = commit du **fork
+Dream** (`DreamLM/Dream`), recopié depuis les `results_*.json` — ce n'est
+**pas** un commit d'Academiia (audit N1, F8) ; `academiia_head_at_run` = commit
+du dépôt qui était HEAD au **début** du run (l'arbre de travail pouvait
+contenir des modifications non commitées : le harnais Dream n'a été versionné
+dans le dépôt qu'après les runs, `9ae02a1`).
+
 M0 et M1 ont **déjà** les mêmes empreintes par tâche (vérifié le 2026-10-20) :
 les baselines sont donc bien sur le même jeu d'items.
 
