@@ -56,7 +56,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--alpha", type=float, default=0.0,
                         help="Coefficient alpha (>= 0, pas de plafond ; avertissement > 1.5)")
     parser.add_argument("--lambda", dest="lam", type=float, default=0.0,
-                        help="Coefficient lambda (>= 0, pas de plafond ; avertissement > 1.5)")
+                        help="Coefficient lambda (>= 0 ; avertissement au-dela de 1.0 : "
+                             "l'eq. (2) ne borne lambda que dans [0,1])")
     parser.add_argument("--mapping", default="identity",
                         help="Mapping de noms : identity (Qwen->Dream) ou "
                              "gemma4-diffusiongemma")
