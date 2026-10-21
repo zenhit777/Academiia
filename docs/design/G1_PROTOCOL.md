@@ -304,6 +304,10 @@ touche **jamais** `temperature`, `top_p`, `alg`, `diffusion_steps`,
    (M2−M0, M3−M1) × (GSM8K, MATH-175).
 7. **Verdict** : consigner dans `CHECKLIST.md` (table des portes) et dans
    `docs/reports/J7.md` : franchie / non franchie, critère par critère.
+   Chaque critère est rapporté dans la **formulation amendée** de §4.1 (point
+   estimate **et** borne basse de l'IC apparié ; non-régression « non
+   réfutée » / « établie »), et le **plancher de bruit de décodage** (mesuré
+   en Phase 1 de J7) est cité comme référence d'interprétation.
 
 ## 7. Ce que G1 ne démontrera pas
 
