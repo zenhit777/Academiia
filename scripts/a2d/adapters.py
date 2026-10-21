@@ -270,6 +270,10 @@ def verify_scaled_adapter(original_dir, scaled_dir, factor: float,
 
     `relative_tolerance` par defaut depend du dtype ecrit : 1e-2 en BF16
     (arrondi de `lora_B`) et 1e-3 en FP32.
+
+    Cas `factor == 0` (lambda = 1) : le delta attendu est nul pour tous les
+    modules ; la verification exige qu'il soit **exactement** nul et ne reclame
+    pas de delta non nul (la direction n'est pas definie).
     """
     original = LoraAdapterSource(original_dir)
     scaled = LoraAdapterSource(scaled_dir)
@@ -313,8 +317,13 @@ def verify_scaled_adapter(original_dir, scaled_dir, factor: float,
             if expected_norm == 0.0:
                 n_zero_delta += 1
                 if diff_norm != 0.0:
-                    failures.append(f"{module}: delta attendu nul mais ecart "
-                                    f"{diff_norm:.3e}")
+                    if factor == 0:
+                        failures.append(
+                            f"{module}: facteur nul mais delta non nul "
+                            f"(norme {diff_norm:.3e})")
+                    else:
+                        failures.append(f"{module}: delta attendu nul mais ecart "
+                                        f"{diff_norm:.3e}")
                 continue
             rel = diff_norm / expected_norm
             if rel > max_rel:
@@ -333,14 +342,21 @@ def verify_scaled_adapter(original_dir, scaled_dir, factor: float,
             failures.append(
                 f"cosinus minimal {min_cos:.9f} < {1.0 - MAX_COSINE_DISTANCE:.9f} "
                 f"(module {min_cos_module})")
+        # Un facteur nul neutralise l'adaptateur : le delta attendu est nul pour
+        # TOUS les modules et la direction (cosinus) n'est pas definie. C'est un
+        # cas legitime (lambda=1 : transfert complet) ; il exige seulement que
+        # les deltas produits soient EXACTEMENT nuls (verifie ci-dessus).
+        # L'erreur « aucun delta non nul » ne vaut que pour factor > 0 : elle
+        # signale alors qu'aucune echelle n'a pu etre mesuree.
         cosine_skipped = n_compared == n_zero_delta
-        if cosine_skipped:
+        if cosine_skipped and factor > 0:
             failures.append("aucun delta non nul : verification de l'echelle impossible")
 
         branches = _prefix_counts(modules_scaled)
         report = {
             "ok": not failures,
             "factor": factor,
+            "zero_factor_exact": factor == 0 and not failures,
             "n_modules_original": len(modules_original),
             "n_modules_scaled": len(modules_scaled),
             "n_modules_compared": n_compared,

@@ -36,7 +36,8 @@ if str(SCRIPTS) not in sys.path:
 from a2d import (CheckpointPairSource, LegacyNpySource, LoraAdapterSource,
                  MergeConfig, MergeError, MergeRefused, MissingVectorError,
                  compute_effective_coefficients, family_of, get_mapping,
-                 load_weight_map, merge_checkpoint, normalize_mode)
+                 load_weight_map, merge_checkpoint, normalize_mode,
+                 scale_adapter, verify_scaled_adapter)
 
 QWEN = {
     "model.embed_tokens.weight": (8, 4),
@@ -360,6 +361,29 @@ def test_merge_dg_scaled_post_hoc_verification_without_adapter(tmp_path):
 
 def test_adapter_scale_alias():
     assert normalize_mode("adapter-scale") == "merge-dg-scaled"
+
+
+def test_scaled_adapter_factor_zero_is_valid(tmp_path):
+    """factor=0 est legitime : deltas exactement nuls, verification OK.
+
+    C'est le cas lambda=1 de l'eq. (2) cote adaptateur : tau_D est neutralise
+    (B=0) sans etre fusionne. La verification ne doit donc PAS reclamer un
+    delta non nul pour mesurer une echelle qui vaut zero par construction.
+    """
+    modules = {
+        "model.decoder.layers.0.self_attn.q_proj": (4, 4),
+        "model.decoder.layers.0.mlp.gate_proj": (6, 4),
+        "model.encoder.language_model.layers.0.self_attn.q_proj": (4, 4),
+    }
+    adapter = build_adapter(tmp_path, modules, name="adapter", seed=57)
+    scaled = tmp_path / "adapter_scaled"
+    scale_adapter(adapter, scaled, factor=0.0)
+    report = verify_scaled_adapter(adapter, scaled, factor=0.0)
+    assert report["ok"], report["failures"]
+    assert report["zero_factor_exact"] is True
+    assert report["n_zero_delta_modules"] == len(modules)
+    assert report["max_relative_l2_error"] == 0.0
+    assert report["min_cosine"] is None
 
 
 def test_merged_checkpoint_is_loadable_by_from_pretrained(tmp_path):

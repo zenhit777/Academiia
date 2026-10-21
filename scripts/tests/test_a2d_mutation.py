@@ -569,6 +569,31 @@ def test_scaled_adapter_wrong_factor_is_detected(tmp_path):
     assert any("L2 relative" in failure for failure in report["failures"])
 
 
+def test_scaled_adapter_factor_zero_with_unscaled_b_is_detected(tmp_path):
+    """factor=0 avec un lora_B non annule : V5 doit echouer."""
+    modules = {
+        "model.decoder.layers.0.self_attn.q_proj": (4, 4),
+        "model.decoder.layers.0.mlp.gate_proj": (6, 4),
+    }
+    adapter = build_adapter(tmp_path, modules, name="adapter", seed=58)
+    scaled = tmp_path / "adapter_scaled"
+    scale_adapter(adapter, scaled, factor=0.0)
+
+    # Mutation : on restaure les lora_B d'origine (non nuls) dans la copie
+    # censee etre neutralisee.
+    original = load_file(str(adapter / "adapter_model.safetensors"))
+    tensors = load_file(str(scaled / "adapter_model.safetensors"))
+    for name in list(tensors):
+        if name.endswith(".lora_B.weight"):
+            tensors[name] = original[name]
+    save_file(tensors, str(scaled / "adapter_model.safetensors"),
+              metadata={"format": "pt"})
+
+    report = verify_scaled_adapter(adapter, scaled, factor=0.0)
+    assert not report["ok"]
+    assert any("facteur nul" in failure for failure in report["failures"])
+
+
 def test_scaled_adapter_refuses_to_overwrite(tmp_path):
     modules = {"model.decoder.layers.0.self_attn.q_proj": (4, 4)}
     adapter = build_adapter(tmp_path, modules, name="adapter", seed=56)
