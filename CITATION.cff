@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "Academiia — A2D (AR-to-Diffusion Transfer) on DiffusionGemma and Dream-7B"
+type: software
+authors:
+  - name: "zenhit777"
+  - name: "Academiia contributors"
+repository-code: "https://github.com/zenhit777/Academiia"
+url: "https://github.com/zenhit777/Academiia"
+license: Apache-2.0
+abstract: >-
+  Research workspace applying the A2D method (AR-to-Diffusion Transfer,
+  arXiv:2610.08108) to DiffusionGemma and Dream-7B: task-vector computation,
+  A2D-Transfer and A2D-Merge, post-write verification, and evaluation
+  harnesses. The bundled model weights are not part of this repository.
+keywords:
+  - A2D
+  - task arithmetic
+  - diffusion language models
+  - DiffusionGemma
+  - Dream-7B
+  - model merging
+references:
+  - type: article
+    title: "Enhancing Diffusion Language Models with Autoregressive Post-Training Weights"
+    authors:
+      - name: "Qin et al."
+    year: 2026
+    url: "https://arxiv.org/abs/2610.08108"
+  - type: article
+    title: "DiffusionGemma Technical Report"
+    authors:
+      - name: "Google DeepMind"
+    year: 2026
+    url: "https://arxiv.org/abs/2608.00146"
