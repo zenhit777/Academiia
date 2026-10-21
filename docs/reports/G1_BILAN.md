@@ -135,6 +135,16 @@ Comparaisons appariées (bootstrap percentile, 20 000 ré-échantillonnages, gra
   mesure qui vaut pour C1. Mais cela identifie la cause principale de l'échec de 0,29 point :
   **le plafond de génération, pas l'absence d'effet du transfert**.
 
+**Biais de sélection — analyse à qualifier d'EXPLORATOIRE.** La partition 67/108 n'est
+**pas pré-enregistrée** : elle est **définie par le résultat de M2** (les items que M2 ne
+termine pas à 512 tokens). Les items dits « terminés » sont donc, par construction, ceux
+sur lesquels M2 produit une réponse finale : ils sont **mécaniquement plus faciles**, et le
+contraste entre les deux sous-ensembles surestime nécessairement la part attribuable au
+seul plafond de génération. Cette décomposition **décrit** un effet observé ; elle ne
+l'identifie pas causalement et ne peut pas être lue comme une estimation non biaisée de
+l'effet du transfert sur les items non tronqués. Elle ne modifie **aucun chiffre** du
+présent bilan ni le verdict : C1 reste celui de MATH-175 à 512 tokens.
+
 *Repère de résolution* : sur 175 items, **un seul item correct en plus** vaut +0,57 point ;
 le seuil de +10 serait franchi par **60/175 au lieu de 59/175** (34,29 % → +10,29 points).
 Distinguer 9,71 de 10,00 avec un IC de ±7 points est **sous la résolution de la mesure** —
