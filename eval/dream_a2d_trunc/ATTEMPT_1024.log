@@ -1,0 +1,14 @@
+﻿2026-10-21:13:48:59 INFO     [__main__:338] Including path: /mnt/d/Intelligence_Artificielle/Projects/Academiia/harness/dream/tasks
+2026-10-21:13:49:02 WARNING  [__main__:359]  --limit SHOULD ONLY BE USED FOR TESTING.REAL METRICS SHOULD NOT BE COMPUTED USING LIMIT.
+2026-10-21:13:49:02 INFO     [__main__:422] Selected Tasks: ['math_trunc_a2d']
+2026-10-21:13:49:02 INFO     [evaluator:180] Setting random seed to 0 | Setting numpy seed to 1234 | Setting torch manual seed to 1234 | Setting fewshot manual seed to 1234
+2026-10-21:13:49:02 INFO     [evaluator:218] Initializing diffllm model, with arguments: {'pretrained': '/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_7b_base', 'trust_remote_code': True, 'max_new_tokens': 1024, 'diffusion_steps': 1024, 'dtype': 'bfloat16', 'temperature': 0.1, 'top_p': 0.9, 'alg': 'entropy'}
+2026-10-21:13:49:02 INFO     [models.diffllm:93] Using device 'cuda'
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|â–ˆâ–ˆâ–Œ       | 1/4 [00:00<00:00,  6.11it/s]Loading checkpoint shards:  50%|â–ˆâ–ˆâ–ˆâ–ˆâ–ˆ     | 2/4 [00:00<00:00,  6.41it/s]Loading checkpoint shards:  75%|â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–Œ  | 3/4 [00:00<00:00,  6.69it/s]Loading checkpoint shards: 100%|â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ| 4/4 [00:00<00:00,  7.24it/s]
+2026-10-21:13:50:41 INFO     [evaluator:281] math_trunc_a2d: Using gen_kwargs: {'until': ['Problem:'], 'do_sample': False, 'temperature': 0.0}
+2026-10-21:13:50:41 INFO     [evaluator:296] num_fewshot has been set to 0 for math_trunc_a2d in its config. Manual configuration will be ignored.
+2026-10-21:13:50:41 WARNING  [evaluator:446] Chat template formatting change affects loglikelihood and multiple-choice tasks. See docs/chat-template-readme.md for details.
+2026-10-21:13:50:41 INFO     [api.task:426] Building contexts for math_trunc_a2d on rank 0...
+  0%|          | 0/67 [00:00<?, ?it/s]100%|â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ| 67/67 [00:00<00:00, 10389.23it/s]
+2026-10-21:13:50:41 INFO     [evaluator:542] Running generate_until requests
+Running generate_until requests:   0%|          | 0/67 [00:00<?, ?it/s]Running generate_until requests:   6%|â–Œ         | 4/67 [20:55<5:29:37, 313.93s/it]

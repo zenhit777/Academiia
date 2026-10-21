@@ -140,7 +140,7 @@ le seuil de +10 serait franchi par **60/175 au lieu de 59/175** (34,29 % → +10
 Distinguer 9,71 de 10,00 avec un IC de ±7 points est **sous la résolution de la mesure** —
 c'est un problème de dimensionnement de C1, pas une preuve d'absence d'effet (voir §6).
 
-## 5. Sensibilité à 1 024 tokens — protocole du diagnostic
+## 5. Sensibilité à 1 024 tokens — diagnostic annulé sur coût mesuré
 
 Pour tester directement l'hypothèse de troncature, un diagnostic a été lancé le 2026-10-21 à
 13:48 (heure locale) sur **M0 et M2**, sur le **même sous-ensemble de 67 items**, avec
@@ -150,15 +150,26 @@ graines `0,1234,1234,1234`, `math_verify`).
 
 * Commande :
   `TASK=math_trunc MODEL_DIR=checkpoints/dream_7b_base,checkpoints/dream_transfer_a09 OUTDIR=eval/dream_a2d_trunc bash harness/dream/run_evals.sh`
-* Coût mesuré au pilote (2 items, M2) : **108 s/item** ⇒ 67 items × 2 modèles ≈ **4 h**,
-  dans le plafond de 5 h de la mission.
+* **Débit réellement mesuré : 313,93 s/item** (4/67 items en 20 min 55 s ; aucun item
+  supplémentaire dans les 21 min suivantes), soit **5,84 h par modèle** et **11,7 h** pour
+  M0 + M2 — 2,3× le plafond GPU de 5 h de la mission. Le diagnostic a été **arrêté à
+  14:32**, avant toute écriture de résultat (lm-eval n'écrit qu'en fin de tâche).
+* L'estimation de préparation (**108 s/item**, 4 h pour deux modèles) n'a **pas été
+  reproduite** (facteur 2,9) : elle provenait d'un pilote dont le journal n'a pas été conservé,
+  probablement lancé sans `diffusion_steps = 1024`. La mesure à 67 items fait foi.
 * **M1 et M3 ne sont pas rejoués** (budget) : le diagnostic ne peut donc pas recalculer C1
   sur les 175 items, ni comparer M2 à M1 à 1 024 tokens.
+* **Le diagnostic « lot 1 vs lot 4 » n'a pas été lancé** : il aurait doublé le coût GPU pour
+  une question déjà documentée par le balayage D3 (`docs/design/EVAL_BUDGET.md` §4.1 : 0 à 5
+  réponses identiques sur 16 selon la taille de lot, scores 0,4375 → 0,5000). Le lot 4 reste
+  le protocole de tous les runs G1 ; changer de lot aurait rendu les comparaisons invalides.
+  L'arbitrage est donc : **un seul diagnostic, celui qui teste l'hypothèse de troncature**.
 
-Ce diagnostic est une **analyse de sensibilité**, pas un second test de G1 : il ne remplace
-ni la mesure pré-enregistrée, ni le verdict. Ses résultats sont consignés dans
-`docs/reports/G1_BILAN_1024.md` (commit addendum) et ne modifient pas les sections 1 à 4 du
-présent bilan.
+Ce diagnostic était une **analyse de sensibilité**, pas un second test de G1. **Il n'a produit
+aucun résultat** : l'hypothèse de troncature reste l'explication la plus plausible du déficit
+de C1, mais elle n'est **pas démontrée** par une contre-mesure à budget supérieur. Le détail
+des horodatages, de la projection et des conditions d'arrêt est dans
+`docs/reports/G1_BILAN_1024.md` ; rien dans les sections 1 à 4 du présent bilan ne change.
 
 ## 6. Le merge M3 reste indiscernable de D_p
 
@@ -216,7 +227,7 @@ paire et ces effectifs** », pas « merge sans effet » ni « merge dégrade ».
 | `scripts/measure_math_truncation.py` | mesure reproductible de la troncature |
 | `scripts/make_math_trunc_subset.py` | construction reproductible du sous-ensemble |
 | `eval/dream_a2d_trunc/` | résultats du diagnostic 1 024 tokens (M0, M2) |
-| `docs/reports/G1_BILAN_1024.md` | analyse du diagnostic (addendum) |
+| `docs/reports/G1_BILAN_1024.md` | addendum : diagnostic 1 024 tokens annulé sur coût mesuré |
 
 ```bash
 # troncature (CPU, à partir des échantillons versionnés)
