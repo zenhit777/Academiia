@@ -21,7 +21,7 @@ règles de mapping, chaque valeur référencée par son tableau/section.
 
 | Porte | Contenu | Statut |
 |---|---|---|
-| **G1** | mécanique de fusion sur la paire publique Qwen2.5-7B → Dream-7B (Tableaux 6, 16, 21) | **OUVERTE** (revue N2 du 2026-10-20, J6 REFUSÉ). géométrie Table 21 : **écarts mesurés ≤ 0,11 %** ; baseline D_b/D_p **exécutée** sur GSM8K (n=300) et MATH-175 (n=175) ; **critère de reproduction ±3 pts NON atteint** (Base MATH-175 +3,2 ; IFEval n=8 non concluant) ; **aucun modèle fusionné n'a été évalué** — la bibliothèque n'est validée que *mécaniquement*. Protocole de remplacement : [`docs/design/G1_PROTOCOL.md`](docs/design/G1_PROTOCOL.md) |
+| **G1** | mécanique de fusion sur la paire publique Qwen2.5-7B → Dream-7B (Tableaux 6, 16, 21) | **OUVERTE — G1 NON FRANCHIE (J7, 2026-10-21)**. géométrie Table 21 : **écarts mesurés ≤ 0,11 %** ; baseline D_b/D_p **exécutée** sur GSM8K (n=300) et MATH-175 (n=175) ; critère de reproduction ±3 pts **non atteint** (C0.5 : Base MATH-175 +3,2 ; IFEval n=8 non concluant). **J7** : les modèles fusionnés **M2** (transfert α=0,9) et **M3** (merge λ=0,6) ont été **produits, vérifiés** (`post_write_verification` v2, `verify_merge` VERDICT OK, 0 ULP) et **évalués** sur les **mêmes items** (empreintes identiques sur les 4 modèles ; plancher de bruit de décodage **nul** au lot 4). Verdict amendé (M1/M2/M3) : **C2 atteint** (transfert − base, GSM8K : **+14,33** pts, IC [+9,33 ; +19,67] ; papier **+15,2** sur la même paire) ; **C1 non atteint** (MATH-175 : **+9,71** pts, IC [+2,86 ; +16,57] — **0,29 pt sous** le seuil de +10) ; **C3/C4 non établis** ; **un seul point** de la règle de franchissement échoue ⇒ **la porte reste ouverte**. Rapport : [`docs/reports/J7.md`](docs/reports/J7.md) ; protocole : [`docs/design/G1_PROTOCOL.md`](docs/design/G1_PROTOCOL.md) |
 | **G1b** | faisabilité Nemotron-Labs-Diffusion-3B (Ministral-3-3B) | **non démarrée** — étude de faisabilité en lecture seule : [`docs/design/G1B_NEMOTRON3B.md`](docs/design/G1B_NEMOTRON3B.md) |
 | **G2** | reproduction du setup médical DiffusionGemma du papier (adaptateurs publiés, voir [`docs/VP_ADAPTERS.md`](docs/VP_ADAPTERS.md)) | **BLOQUÉE (B7)** — les adaptateurs de diffusion DG doivent rester **non fusionnés** et être mis à l'échelle (App. A.2) ; conception : [`docs/design/G2_adapter_scaling.md`](docs/design/G2_adapter_scaling.md) |
 | **G3** | raisonnement (hors papier : conception d'abord) | **non démarrée** |
@@ -101,6 +101,10 @@ prompt système GSM8K de l'App. A.1 cité mot pour mot.
 | Dream-7B-Base | MATH-175 | math_verify | 24,0 % | 175 | [18,3 ; 30,8] | 20,8 *(MATH-500)* | +3,2 |
 | Dream-7B-Instruct | GSM8K | flexible-extract | 84,0 % | 300 | [79,4 ; 87,7] | 83,0 | +1,0 |
 | Dream-7B-Instruct | MATH-175 | math_verify | 36,6 % | 175 | [29,8 ; 43,9] | 38,4 *(MATH-500)* | −1,8 |
+| **Dream-7B-Transfert α=0,9** (M2) | GSM8K | flexible-extract | **83,0 %** | 300 | [78,3 ; 86,8] | 81,7 *(transfert, Fig. 2a)* | +1,3 |
+| **Dream-7B-Transfert α=0,9** (M2) | MATH-175 | math_verify | **33,7 %** | 175 | [27,1 ; 41,0] | 40,2 *(transfert, MATH-500)* | −6,5 |
+| **Dream-7B-Merge λ=0,6** (M3) | GSM8K | flexible-extract | **85,7 %** | 300 | [81,2 ; 89,2] | 83,7 *(merge, Fig. 2b)* | +2,0 |
+| **Dream-7B-Merge λ=0,6** (M3) | MATH-175 | math_verify | **34,3 %** | 175 | [27,7 ; 41,6] | 45,0 *(merge, MATH-500)* | −10,7 |
 
 > **MATH-175** = sous-ensemble `minerva_math` du fork Dream (25 problèmes × 7 sujets = 175,
 > sur les 5 000 du test MATH). Le jeu du papier est **MATH-500** (500 problèmes, split PRM800K) :
@@ -111,15 +115,25 @@ prompt système GSM8K de l'App. A.1 cité mot pour mot.
 **mécanique d'évaluation** (harnais, tâches, prompts système, extraction, scoring) fonctionne
 de bout en bout et que les **checkpoints de référence** D_b / D_p ont été **exécutés** dans le
 protocole App. A.1. Elle **n'établit pas** la validité scientifique de la **bibliothèque de
-fusion** : au 2026-10-20, **aucun modèle fusionné n'a été évalué** ; la seule vérification sur
-un modèle 7B est **mécanique** (fusion transfert α = 0,9 sur Dream-7B-Base, `α_eff` mesuré,
-sans évaluation). Par ailleurs, « la cible du papier tombe dans l'IC 95 % » est une
-**non-rejection**, pas une preuve d'équivalence à ±3 points : le critère C0.5 est **NON
-atteint** (Base MATH-175 : +3,2, hors ±3 ; IFEval : n = 8, non concluant) et la porte **G1
-reste ouverte** (revue N2 ; protocole de remplacement : `docs/design/G1_PROTOCOL.md`).
+fusion** : au 2026-10-20, **aucun modèle fusionné n'avait été évalué** — la seule vérification
+sur un modèle 7B était **mécanique** (fusion transfert α = 0,9 sur Dream-7B-Base, `α_eff`
+mesuré, sans évaluation).
+
+**Depuis J7 (2026-10-21), les deux modèles fusionnés sont évalués** sur les mêmes items que
+D_b / D_p (empreintes identiques, lot 4) : le **transfert** (M2, α = 0,9) donne un gain **net
+et statistiquement appuyé** sur GSM8K (**+14,33** pts, IC [+9,33 ; +19,67] ; papier : **+15,2**
+sur la même paire) et un gain **réel mais sous le seuil pré-enregistré** sur MATH-175
+(**+9,71** pts, IC [+2,86 ; +16,57]) ; le **merge** (M3, λ = 0,6) est **statistiquement
+indiscernable** de son modèle de référence. Les quatre critères amendés n'étant pas tous
+atteints, **G1 reste ouverte** (règle de franchissement §1). Par ailleurs, « la cible du papier
+tombe dans l'IC 95 % » est une **non-rejection**, pas une preuve d'équivalence à ±3 points : le
+critère C0.5 est **NON atteint** (Base MATH-175 : +3,2, hors ±3 ; IFEval : n = 8, non concluant)
+et la porte **G1 reste ouverte** (revue N2 ; protocole de remplacement :
+`docs/design/G1_PROTOCOL.md`).
 
 Détail, échantillons et commande de rejeu : `docs/reports/J6.md`, `docs/reports/J6bis.md`,
-`eval/dream_a2d/SUMMARY.md`.
+`docs/reports/J7.md` (verdict J7 et preuves), `eval/dream_a2d/SUMMARY.md`,
+`eval/dream_a2d/G1_VERDICT.json`.
 
 ## Géométrie des vecteurs (Table 21 du papier) — écarts mesurés ≤ 0,11 %
 
