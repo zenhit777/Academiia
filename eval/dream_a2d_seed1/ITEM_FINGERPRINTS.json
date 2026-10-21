@@ -1,0 +1,36 @@
+{
+  "note": "Provenance : `fork_git_hash` = commit du fork Dream (DreamLM/Dream) recopie depuis les results_*.json ; ce n'est PAS un commit d'Academiia. `academiia_head_at_run` = commit du depot Academiia qui etait HEAD au debut du run (horodatage du nom de fichier du fork, compare a l'historique git) ; l'arbre de travail pouvait contenir des modifications non commitees (le harnais Dream n'a ete versionne dans le depot qu'apres les runs, cf. 9ae02a1).",
+  "runs": [
+    {
+      "run": "eval/dream_a2d_seed1/dream_7b_instruct/gsm8k_cot_a2d",
+      "n_items": 300,
+      "items_sha256": "2d56d1fdcbd24b575c3eec4c8eb972d46b6f9f86568819e7bae5141c77d4d304",
+      "items_order_sha256": "1ddf927532a3b08a85001793cb70c0a981d0334a2e8e9f370bc087e7e05f7751",
+      "prompts_sha256": "cc3e4a4bfa53ea71342aea40b83c02df16c6d7b7a5c50a9af186c9eaa40f0f90",
+      "targets_sha256": "29ff35f4eabe6b8b2413fd539b8c053571f03c935ea14ca282c7ba5200011269",
+      "n_samples": {
+        "gsm8k_cot_a2d": {
+          "original": 1319,
+          "effective": 300
+        }
+      },
+      "fork_git_hash": "31f94a6",
+      "academiia_head_at_run": "499740a2a63e7679232e5aa3f940dfac6df2aafc",
+      "config": {
+        "model": "diffllm",
+        "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_7b_instruct,trust_remote_code=True,max_new_tokens=256,diffusion_steps=256,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+        "batch_size": "4",
+        "batch_sizes": [],
+        "device": null,
+        "use_cache": null,
+        "limit": 300.0,
+        "bootstrap_iters": 100000,
+        "gen_kwargs": null,
+        "random_seed": 0,
+        "numpy_seed": 1234,
+        "torch_seed": 4321,
+        "fewshot_seed": 1234
+      }
+    }
+  ]
+}
