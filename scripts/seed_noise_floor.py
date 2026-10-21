@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Plancher de bruit de décodage — deux runs du MÊME modèle, graines différentes (J7, M2).
 
-Le décodage de Dream-7B est **stochastique** (`alg=entropy`, `temperature=0,1`) et
-**dépendant du lot** (§3.3 de `docs/design/G1_PROTOCOL.md`) : rejouer le même
-modèle avec une autre graine ne redonne pas les mêmes réponses. Ce script mesure
-le **plancher de bruit** — l'amplitude de variation due au seul décodage — en
-comparant deux runs du même modèle :
+Le décodage de Dream-7B est **stochastique en principe** (`alg=entropy`,
+`temperature=0,1`) et **dépendant du lot** (§3.3 de
+`docs/design/G1_PROTOCOL.md`). Ce script **mesure** si rejouer le même modèle
+avec une autre graine change les réponses — et de combien : c'est le
+**plancher de bruit** dû au seul décodage, comparé sur deux runs du même
+modèle. La mesure J7 (2026-10-21) a trouvé **0,00 pt** à lot 4 : les 300
+réponses brutes étaient byte-identiques (voir `docs/reports/J7.md` §5) ; le
+script reste l'outil de mesure, pas une prévision du résultat.
 
 1. **contrôle bloquant** : les jeux d'items et les prompts doivent être
    **identiques** (`items_sha256`, `prompts_sha256`, calculés comme

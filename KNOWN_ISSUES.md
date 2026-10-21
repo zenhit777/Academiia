@@ -8,7 +8,7 @@
   IC [+9,33 ; +19,67] ; le papier rapporte **+15,2** sur la même paire) ; **C1 non atteint**
   (transfert − base MATH-175 : **+9,71** pts, IC [+2,86 ; +16,57] — **0,29 pt sous le seuil de +10**,
   IC excluant 0) ; **C3/C4 non établis** (merge − instruct : −2,29 [−9,14 ; +4,57] et
-  +1,67 [−2,33 ; +5,67] : la non-régression de −2 pts ne peut pas être exclue).
+  +1,67 [−2,33 ; +5,67] : **la dégradation de 2 points ne peut pas être exclue**).
   Aucun seuil n'a été rejoué après les résultats. Rapport : `docs/reports/J7.md`.
 - **Défaut corrigé — les checkpoints fusionnés n'étaient PAS chargeables** : les shards écrits
   par la bibliothèque n'avaient pas de bloc `__metadata__` (safetensors), alors que
