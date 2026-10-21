@@ -1,7 +1,7 @@
 # Audit — Le pipeline `scripts/` confronté à l'article A2D (arXiv:2610.08108v1)
 
 Date : 2026-10-19. Périmètre : vérifier si le dépôt Academiia met en œuvre la
-méthode décrite dans `docs/2610.08108v1 - A2D (...).pdf`, identifier ce qui a
+méthode décrite dans l'article A2D (arXiv:2610.08108, <https://arxiv.org/abs/2610.08108>), identifier ce qui a
 été manqué/omis, et expliquer l'écart entre nos résultats et la publication.
 
 Sources primaires : PDF extrait (`_artefact/a2d_paper.txt`), scripts relus

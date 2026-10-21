@@ -1,9 +1,10 @@
 # A2D — spécification de la méthode et cibles chiffrées
 
-Référentiel **primaire** : `docs/2610.08108v1 - A2D (Enhancing diffusion language models
-with autoregressive post-training weights).pdf` (Qin et al., EPFL, arXiv:2610.08108v1, 31 p.).
-Second référentiel : `docs/2608.00146v1 - DiffusionGemma (Technical Report).pdf`
-(Google DeepMind, arXiv:2608.00146v1, 55 p.).
+Référentiel **primaire** : Qin et al., EPFL, « Enhancing diffusion language models with
+autoregressive post-training weights », arXiv:2610.08108v1, 31 p.
+(<https://arxiv.org/abs/2610.08108>).
+Second référentiel : Google DeepMind, « DiffusionGemma Technical Report »,
+arXiv:2608.00146v1, 55 p. (<https://arxiv.org/abs/2608.00146>).
 
 Chaque valeur chiffrée porte son numéro de tableau / section. Les valeurs marquées
 **[mesuré J6]** sont celles recalculées localement le 2026-10-19/20

@@ -23,9 +23,8 @@ Academiia/
 │   ├── README.md          # la convention
 │   └── dream/             # harnais Dream-7B (setup.sh, run_evals.sh, tasks/, summarize.py)
 ├── docs/
-│   ├── 2610.08108v1 - A2D.pdf              # papier A2D (source primaire)
-│   ├── 2608.00146v1 - DiffusionGemma.pdf  # rapport technique DG
 │   ├── A2D_SPEC.md        # SPÉCIFICATION (équations, Table 6, cibles chiffrées)
+│   │                      # sources : arXiv:2610.08108, arXiv:2608.00146
 │   ├── VP_ADAPTERS.md     # inspection des adaptateurs médicaux publiés
 │   ├── AUDIT_A2D_vs_PAPIER.md  # audit 19/10 (source secondaire)
 │   ├── design/            # notes de conception (G1_PROTOCOL, G2_adapter_scaling, …)

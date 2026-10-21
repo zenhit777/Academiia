@@ -1,7 +1,7 @@
 # Academiia — A2D (AR-to-Diffusion Transfer) sur DiffusionGemma et Dream-7B
 
 Ce dépôt implémente la méthode **A2D** (Qin et al., EPFL, 2026,
-[arXiv:2610.08108](docs/2610.08108v1%20-%20A2D%20(Enhancing%20diffusion%20language%20models%20with%20autoregressive%20post-training%20weights).pdf)) :
+[arXiv:2610.08108](https://arxiv.org/abs/2610.08108)) :
 transférer un vecteur de tâche autoregressif vers un modèle de diffusion, puis composer
 ce transfert avec le vecteur de post-training du modèle de diffusion.
 
