@@ -23,7 +23,8 @@ Ce script mechanise les points 1, 3 et 4 :
     de l'IC > 0 ;
   - **C3** (Merge − Instruct, MATH-175) et **C4** (Merge − Instruct, GSM8K) :
     « non-régression non réfutée » si borne basse ≥ −2 ; « non-régression
-    établie » seulement si borne basse ≥ 0 ; « régression » en dessous.
+    établie » seulement si borne basse ≥ 0 ; « non-régression **non établie** »
+    en dessous (la dégradation de 2 points ne peut pas être exclue).
 
 Usage (le métrique `math_verify` impose le venv du harnais) :
 
@@ -94,9 +95,14 @@ def compare(run_a: Path, run_b: Path, metric: str, filter_name: str,
 
 
 def verdict_gain(criterion, threshold: float, diff: float, lo: float, hi: float):
-    """C1/C2 : point estimate >= seuil ET borne basse > 0."""
-    ok_point = diff >= threshold
-    ok_ci = lo > 0.0
+    """C1/C2 : point estimate >= seuil ET borne basse > 0.
+
+    `threshold` est exprime en POINTS ; `diff`, `lo` et `hi` sont des
+    proportions (0,1433 = +14,33 points) — la conversion est faite ici.
+    """
+    diff_pt, lo_pt, hi_pt = diff * 100.0, lo * 100.0, hi * 100.0
+    ok_point = diff_pt >= threshold
+    ok_ci = lo_pt > 0.0
     if ok_point and ok_ci:
         state = "ATTEINT"
     elif not ok_point and ok_ci:
@@ -108,10 +114,10 @@ def verdict_gain(criterion, threshold: float, diff: float, lo: float, hi: float)
     return {
         "criterion": criterion,
         "type": "gain",
-        "seuil": threshold,
-        "point_estimate": diff,
-        "borne_basse": lo,
-        "borne_haute": hi,
+        "seuil_points": threshold,
+        "point_estimate": diff_pt,
+        "borne_basse": lo_pt,
+        "borne_haute": hi_pt,
         "condition_point_estimate": ok_point,
         "condition_borne_basse": ok_ci,
         "etat": state,
@@ -120,11 +126,21 @@ def verdict_gain(criterion, threshold: float, diff: float, lo: float, hi: float)
 
 
 def verdict_non_regression(criterion, threshold: float, diff: float, lo: float, hi: float):
-    """C3/C4 : non-regression « non refutee » / « etablie » / « regression »."""
-    if lo < threshold:
-        state = "REGRESSION (borne basse < -2)"
+    """C3/C4 : non-regression « non refutee » / « etablie » / « non etablie ».
+
+    `threshold` est en POINTS (-2) ; `diff`, `lo`, `hi` sont des proportions.
+
+    Le troisieme cas (borne basse < -2) signifie que la degradation de 2
+    points **ne peut pas etre exclue** : le critere n'est pas atteint, mais
+    l'estimation ponctuelle peut rester positive — le libelle le dit sans
+    surinterpreter.
+    """
+    diff_pt, lo_pt, hi_pt = diff * 100.0, lo * 100.0, hi * 100.0
+    if lo_pt < threshold:
+        state = ("non-regression NON ETABLIE (borne basse < -2 : la degradation "
+                 "de 2 points ne peut pas etre exclue)")
         atteint = False
-    elif lo >= 0.0:
+    elif lo_pt >= 0.0:
         state = "non-regression ETABLIE (borne basse >= 0)"
         atteint = True
     else:
@@ -133,10 +149,10 @@ def verdict_non_regression(criterion, threshold: float, diff: float, lo: float, 
     return {
         "criterion": criterion,
         "type": "non-regression",
-        "seuil": threshold,
-        "point_estimate": diff,
-        "borne_basse": lo,
-        "borne_haute": hi,
+        "seuil_points": threshold,
+        "point_estimate": diff_pt,
+        "borne_basse": lo_pt,
+        "borne_haute": hi_pt,
         "etat": state,
         "atteint": atteint,
     }
@@ -229,8 +245,8 @@ def main() -> int:
         print(f"  {v['criterion']} — {v['libelle']}")
         print(f"      {v['modele_a']} {100 * v['precision_a']:.2f} %  ->  "
               f"{v['modele_b']} {100 * v['precision_b']:.2f} %  (n={v['n_items']})")
-        print(f"      ecart = {100 * v['point_estimate']:+.2f} pts   "
-              f"IC 95 % [{100 * v['borne_basse']:+.2f} ; {100 * v['borne_haute']:+.2f}]")
+        print(f"      ecart = {v['point_estimate']:+.2f} pts   "
+              f"IC 95 % [{v['borne_basse']:+.2f} ; {v['borne_haute']:+.2f}]")
         print(f"      -> {v['etat']}")
     print(f"\n=== Conclusion : {report['conclusion']} ===")
     return 0 if all_met else 1
