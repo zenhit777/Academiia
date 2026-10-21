@@ -31,6 +31,11 @@
   proportion contre points classait à tort C2 « non atteint » et C3/C4 « non réfutés ». Verrouillé
   par `scripts/tests/test_g1_verdict.py` (7 tests). Le verdict affiché **avant** ce correctif était
   faux — il n'a jamais été publié (le rapport et le manifeste n'existent qu'après).
+- **Audit J7 (2026-10-21)** : rapport `docs/reports/AUDIT_J7.md` — directives suivies,
+  **aucune déviation silencieuse A2D**, verdict `G1 NON FRANCHIE` reproduit. Cinq écarts de
+  forme/traçabilité : quatre corrigés dans `28e8410` (libellé C3/C4, portée des écritures hors
+  dépôt, docstring du plancher de bruit, renvoi vers la reconstitution N2) ; le cinquième
+  (sortie `verify_merge` M3 non archivée) est documenté sans changement.
 
 ## 🆕 Mission J6 (2026-10-20) — bibliothèque A2D conforme + baseline Dream-7B
 
