@@ -1,0 +1,39 @@
+# Diagnostic J8 — MATH sur les items tronques au budget 512.
+#
+# Sous-ensemble construit par `scripts/make_math_trunc_subset.py` a partir des
+# echantillons de `dream_transfer_a09` (M2) : items dont la generation a
+# epuise les 512 tokens SANS produire de reponse finale. But : verifier si le
+# gain du transfert reapparait quand le raisonnement peut se terminer (budget
+# 1024 tokens).
+#
+# La tache reprend la metrique `math_verify` et le prompt de
+# `lm_eval/tasks/minerva_math` du fork Dream ; seuls le jeu d'items (local) et
+# le budget changent. Le budget est fixe par le lanceur (`run_evals.sh`,
+# branche `math_trunc`) : 1024 tokens.
+task: math_trunc_a2d
+dataset_path: json
+dataset_kwargs:
+  # Chemin relatif au repertoire d'execution de lm_eval :
+  # harness/dream/.fork/eval_instruct -> racine du depot (4 niveaux).
+  data_files: ../../../../harness/dream/tasks/math_trunc_a2d.jsonl
+output_type: generate_until
+test_split: train
+num_fewshot: 0
+doc_to_text: !function utils_math_trunc.doc_to_text
+doc_to_target: "{{answer}}"
+process_results: !function utils_math_trunc.process_results
+generation_kwargs:
+  until:
+    - "Problem:"
+  do_sample: false
+  temperature: 0
+metric_list:
+  - metric: exact_match
+    aggregation: mean
+    higher_is_better: true
+  - metric: math_verify
+    aggregation: mean
+    higher_is_better: true
+metadata:
+  version: 1.0
+  provenance: "scripts/make_math_trunc_subset.py (J8)"

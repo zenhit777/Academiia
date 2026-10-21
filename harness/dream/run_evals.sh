@@ -15,10 +15,10 @@
 #              separes par des virgules. Defaut : checkpoints/dream_7b_base,
 #              checkpoints/dream_7b_instruct. L'alias de sortie est le nom du
 #              dossier (ex. dream_7b_base).
-#   TASK       liste de taches : gsm8k | math | ifeval (ou une tache lm_eval
-#              complete). Defaut : gsm8k,math,ifeval.
+#   TASK       liste de taches : gsm8k | math | math_trunc | ifeval (ou une
+#              tache lm_eval complete). Defaut : gsm8k,math,ifeval.
 #   LIMIT      limite par tache : "gsm8k=300,math=25,ifeval=8" ou un nombre
-#              unique applique a toutes. Defaut : 300 / 25 / 8.
+#              unique applique a toutes. Defaut : 300 / 25 / 67 / 8.
 #   SEED      graines lm_eval "random,numpy,torch,fewshot". Defaut : la
 #              valeur du fork (0,1234,1234,1234) — celle utilisee par J6.
 #   OUTDIR    dossier de resultats (relatif a la racine du depot). Defaut :
@@ -88,6 +88,7 @@ limit_for () {  # limit_for <tache>
   case "$1" in
     gsm8k)  echo 300 ;;
     math)   echo 25 ;;
+    math_trunc) echo 67 ;;
     ifeval) echo 8 ;;
     *)      echo 25 ;;
   esac
@@ -152,6 +153,7 @@ for task in ${TASK//,/ }; do
       gsm8k)  run "${alias}" "${model}" gsm8k_cot_a2d gsm8k_cot_a2d 256 "$(limit_for gsm8k)" \
                 --system_instruction "${GSM8K_SYSTEM}" || status=1 ;;
       math)   run "${alias}" "${model}" minerva_math_algebra "${MATH_TASKS}" 512 "$(limit_for math)" || status=1 ;;
+      math_trunc) run "${alias}" "${model}" math_trunc_a2d math_trunc_a2d 1024 "$(limit_for math_trunc)" || status=1 ;;
       ifeval) run "${alias}" "${model}" ifeval_a2d ifeval_a2d 1280 "$(limit_for ifeval)" || status=1 ;;
       *)      run "${alias}" "${model}" "${task}" "${task}" 512 "$(limit_for "${task}")" || status=1 ;;
     esac

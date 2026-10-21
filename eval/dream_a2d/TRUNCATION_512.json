@@ -1,0 +1,215 @@
+{
+  "criterion": "tokens(response) >= budget AND no final answer marker (\\boxed or 'answer is')",
+  "tokenizer": "checkpoints/dream_7b_instruct",
+  "budget_tokens": 512,
+  "models": [
+    {
+      "model": "dream_7b_base",
+      "n_items": 175,
+      "budget_tokens": 512,
+      "n_exhausted": 50,
+      "n_exhausted_with_final_answer": 0,
+      "n_truncated_without_final_answer": 50,
+      "per_subject": {
+        "algebra": {
+          "n": 25,
+          "exhausted": 3,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 3
+        },
+        "counting_and_prob": {
+          "n": 25,
+          "exhausted": 7,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 7
+        },
+        "geometry": {
+          "n": 25,
+          "exhausted": 5,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 5
+        },
+        "intermediate_algebra": {
+          "n": 25,
+          "exhausted": 11,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 11
+        },
+        "num_theory": {
+          "n": 25,
+          "exhausted": 11,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 11
+        },
+        "prealgebra": {
+          "n": 25,
+          "exhausted": 0,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 0
+        },
+        "precalc": {
+          "n": 25,
+          "exhausted": 13,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 13
+        }
+      }
+    },
+    {
+      "model": "dream_7b_instruct",
+      "n_items": 175,
+      "budget_tokens": 512,
+      "n_exhausted": 4,
+      "n_exhausted_with_final_answer": 1,
+      "n_truncated_without_final_answer": 3,
+      "per_subject": {
+        "algebra": {
+          "n": 25,
+          "exhausted": 1,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 1
+        },
+        "counting_and_prob": {
+          "n": 25,
+          "exhausted": 1,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 1
+        },
+        "geometry": {
+          "n": 25,
+          "exhausted": 0,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 0
+        },
+        "intermediate_algebra": {
+          "n": 25,
+          "exhausted": 0,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 0
+        },
+        "num_theory": {
+          "n": 25,
+          "exhausted": 1,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 1
+        },
+        "prealgebra": {
+          "n": 25,
+          "exhausted": 0,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 0
+        },
+        "precalc": {
+          "n": 25,
+          "exhausted": 1,
+          "exhausted_with_answer": 1,
+          "truncated_without_answer": 0
+        }
+      }
+    },
+    {
+      "model": "dream_transfer_a09",
+      "n_items": 175,
+      "budget_tokens": 512,
+      "n_exhausted": 82,
+      "n_exhausted_with_final_answer": 15,
+      "n_truncated_without_final_answer": 67,
+      "per_subject": {
+        "algebra": {
+          "n": 25,
+          "exhausted": 11,
+          "exhausted_with_answer": 6,
+          "truncated_without_answer": 5
+        },
+        "counting_and_prob": {
+          "n": 25,
+          "exhausted": 9,
+          "exhausted_with_answer": 2,
+          "truncated_without_answer": 7
+        },
+        "geometry": {
+          "n": 25,
+          "exhausted": 10,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 10
+        },
+        "intermediate_algebra": {
+          "n": 25,
+          "exhausted": 17,
+          "exhausted_with_answer": 1,
+          "truncated_without_answer": 16
+        },
+        "num_theory": {
+          "n": 25,
+          "exhausted": 13,
+          "exhausted_with_answer": 4,
+          "truncated_without_answer": 9
+        },
+        "prealgebra": {
+          "n": 25,
+          "exhausted": 7,
+          "exhausted_with_answer": 2,
+          "truncated_without_answer": 5
+        },
+        "precalc": {
+          "n": 25,
+          "exhausted": 15,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 15
+        }
+      }
+    },
+    {
+      "model": "dream_merge_l06",
+      "n_items": 175,
+      "budget_tokens": 512,
+      "n_exhausted": 57,
+      "n_exhausted_with_final_answer": 2,
+      "n_truncated_without_final_answer": 55,
+      "per_subject": {
+        "algebra": {
+          "n": 25,
+          "exhausted": 2,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 2
+        },
+        "counting_and_prob": {
+          "n": 25,
+          "exhausted": 7,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 7
+        },
+        "geometry": {
+          "n": 25,
+          "exhausted": 12,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 12
+        },
+        "intermediate_algebra": {
+          "n": 25,
+          "exhausted": 12,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 12
+        },
+        "num_theory": {
+          "n": 25,
+          "exhausted": 7,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 7
+        },
+        "prealgebra": {
+          "n": 25,
+          "exhausted": 2,
+          "exhausted_with_answer": 0,
+          "truncated_without_answer": 2
+        },
+        "precalc": {
+          "n": 25,
+          "exhausted": 15,
+          "exhausted_with_answer": 2,
+          "truncated_without_answer": 13
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "model": "dream_transfer_a09",
+  "samples_root": "eval\\dream_a2d",
+  "tokenizer": "checkpoints\\dream_7b_instruct",
+  "budget_tokens": 512,
+  "criterion": "tokens(response) >= budget AND no final answer marker (\\boxed or 'answer is')",
+  "n_items_total": 175,
+  "n_exhausted": 82,
+  "n_exhausted_with_final_answer": 15,
+  "n_exhausted_without_final_answer": 67,
+  "n_selected": 67,
+  "per_subject": {
+    "algebra": {
+      "n": 25,
+      "exhausted": 11,
+      "exhausted_with_answer": 6,
+      "selected": 5
+    },
+    "counting_and_prob": {
+      "n": 25,
+      "exhausted": 9,
+      "exhausted_with_answer": 2,
+      "selected": 7
+    },
+    "geometry": {
+      "n": 25,
+      "exhausted": 10,
+      "exhausted_with_answer": 0,
+      "selected": 10
+    },
+    "intermediate_algebra": {
+      "n": 25,
+      "exhausted": 17,
+      "exhausted_with_answer": 1,
+      "selected": 16
+    },
+    "num_theory": {
+      "n": 25,
+      "exhausted": 13,
+      "exhausted_with_answer": 4,
+      "selected": 9
+    },
+    "prealgebra": {
+      "n": 25,
+      "exhausted": 7,
+      "exhausted_with_answer": 2,
+      "selected": 5
+    },
+    "precalc": {
+      "n": 25,
+      "exhausted": 15,
+      "exhausted_with_answer": 0,
+      "selected": 15
+    }
+  },
+  "source_files": {
+    "samples_minerva_math_algebra_2026-10-21T06-08-25.127810.jsonl": "1934f206aa2137a67b9b0b0f96ff7788c88a1f04c42c20f57d6e1e6e5e7cd1ad",
+    "samples_minerva_math_counting_and_prob_2026-10-21T06-08-25.127810.jsonl": "19a87bc7d945ef88119330580ef749c92f2454e83aa5ad21916b5be7374b12b2",
+    "samples_minerva_math_geometry_2026-10-21T06-08-25.127810.jsonl": "c604af9dfd8ac96b70998bdabc88fadb7d1a45b6c824a49164b9783d982a766b",
+    "samples_minerva_math_intermediate_algebra_2026-10-21T06-08-25.127810.jsonl": "c584235c41a51e16197c07bff2741c423164c429a8145307945967fcbed7f6af",
+    "samples_minerva_math_num_theory_2026-10-21T06-08-25.127810.jsonl": "ea7b1ab23e3949a9259c20319d851b20ce51bcbcbe968f6c5061b005e679dc0d",
+    "samples_minerva_math_prealgebra_2026-10-21T06-08-25.127810.jsonl": "2eeadda7df210950bb11db10cc2f4bc89ccf536dedcd164d72fd406f13078a62",
+    "samples_minerva_math_precalc_2026-10-21T06-08-25.127810.jsonl": "4c2f9f8446e575a5aca8a89a87abbc83fad7ee6a29b570be97c2fa6a3f9c2d78"
+  },
+  "output": "harness\\dream\\tasks\\math_trunc_a2d.jsonl",
+  "output_sha256": "55c2b3c844966b0bebd3b0ecad14a356f0c4826a83f2f023893ffe3ab9fc6cb5"
+}
