@@ -654,6 +654,56 @@ def test_lora_source_used_by_merge(tmp_path):
     assert not list(out.glob("*.npy"))
 
 
+@pytest.mark.parametrize("dtype,atol", [("float32", 1e-6), ("bfloat16", 5e-2)])
+def test_scaled_adapter_is_loadable_by_peft_and_scales_the_delta(tmp_path, dtype, atol):
+    """Test d'integration PEFT : l'adaptateur mis a l'echelle se charge et
+    `merge_and_unload` produit exactement `factor * delta_original`.
+
+    On passe par le vrai chargeur PEFT (`PeftModel.from_pretrained`) sur un
+    mini-modele, et non par `LoraAdapterSource` : c'est la garantie que le
+    fichier ecrit (clefs, `adapter_config.json`, dtypes) est un adaptateur
+    valide, pas seulement un dossier lisible par notre propre code.
+    """
+    pytest.importorskip("peft")
+    import copy
+
+    from peft import LoraConfig, PeftModel, get_peft_model
+
+    torch.manual_seed(0)
+    base_model = _toy_lora_model()
+    base_state = copy.deepcopy(base_model.state_dict())
+    peft_model = get_peft_model(
+        base_model, LoraConfig(r=4, lora_alpha=8, target_modules=["q_proj"]))
+    with torch.no_grad():
+        for name, param in peft_model.named_parameters():
+            if "lora_A" in name:
+                param.copy_(torch.arange(param.numel(), dtype=param.dtype)
+                            .reshape(param.shape) * 0.01)
+            elif "lora_B" in name:
+                param.copy_(torch.arange(param.numel(), dtype=param.dtype)
+                            .reshape(param.shape) * 0.02)
+    adapter_dir = tmp_path / "adapter"
+    peft_model.save_pretrained(str(adapter_dir))
+
+    def merged_delta(adapter):
+        model = _toy_lora_model()
+        model.load_state_dict(base_state)
+        merged = PeftModel.from_pretrained(model, str(adapter)).merge_and_unload()
+        weight = merged.model.layers[0].self_attn.q_proj.weight.data
+        return weight - base_state["model.layers.0.self_attn.q_proj.weight"]
+
+    delta_original = merged_delta(adapter_dir)
+    scaled_dir = tmp_path / "adapter_scaled"
+    factor = 0.7
+    scale_adapter(adapter_dir, scaled_dir, factor=factor, dtype=dtype)
+    delta_scaled = merged_delta(scaled_dir)
+
+    assert torch.allclose(delta_scaled, factor * delta_original, atol=atol, rtol=1e-4)
+    report = verify_scaled_adapter(adapter_dir, scaled_dir, factor=factor)
+    assert report["ok"], report["failures"]
+    assert report["factor"] == factor
+
+
 # --------------------------------------------------------------------------- #
 # Verification post-ecriture
 # --------------------------------------------------------------------------- #
