@@ -12,6 +12,8 @@ Modes de la bibliotheque :
 
     transfer                D_b + alpha * tau_A
     merge                   D_p + lambda * (tau_A - tau_D)
+    merge-dg-scaled         D_b + lambda * tau_A, adaptateur tau_D NON fusionne
+                            et remis a l'echelle par (1-lambda) (App. A.2)
     ablation-dp-plus-tau-a  D_p + alpha * tau_A        (Table 9 du papier)
     ablation-dp-minus-tau-d D_p - lambda * tau_D        (Table 10 du papier)
 
@@ -24,7 +26,9 @@ Proprietes garanties :
 * verification POST-ECRITURE obligatoire : relecture des tenseurs ecrits,
   regression des moindres carres SIGNEE sur [tau_A, tau_D], comparaison des
   coefficients signes, identite binaire des tenseurs non fusionnes, ecart
-  maximal <= 1 ULP par rapport a `round_bf16(expected)` recalcule.
+  maximal <= `max_ulp` ULP par rapport a `round_bf16(expected)` recalcule.
+  Le critere par defaut est **0 ULP** (egalite avec l'arrondi BF16 attendu) :
+  un ecart d'un seul pas unitaire signale une corruption, pas un arrondi.
 
 Choix structurants (J6bis, B1-B5) :
 
@@ -55,10 +59,23 @@ import torch
 from safetensors import safe_open
 from safetensors.torch import save_file
 
+from .adapters import AdapterError, scale_adapter, verify_scaled_adapter
 from .naming import (FAMILY_EMBED, IDENTITY, NameMapping, family_of, module_of)
 from .sources import VectorSource, load_weight_map
 
-MODES = ("transfer", "merge", "ablation-dp-plus-tau-a", "ablation-dp-minus-tau-d")
+MODES = ("transfer", "merge", "merge-dg-scaled",
+         "ablation-dp-plus-tau-a", "ablation-dp-minus-tau-d")
+
+#: Alias d'interface : `--mode adapter-scale` est le nom lisible du mode
+#: `merge-dg-scaled` (base + adaptateur de diffusion laisse NON fusionne et
+#: remis a l'echelle par (1-lambda), App. A.2).
+MODE_ALIASES = {"adapter-scale": "merge-dg-scaled"}
+
+
+def normalize_mode(mode: str) -> str:
+    """Nom canonique d'un mode (accepte les alias d'interface)."""
+    return MODE_ALIASES.get(mode, mode)
+
 
 #: Seuil d'avertissement pour ALPHA : CHOIX DE PROJET (seuil d'avertissement
 #: arbitraire ; la Fig. 8 du papier est le diagramme des succes communs, elle
@@ -156,10 +173,14 @@ class MergeConfig:
     allow_empty_coefficient: bool = False
     overwrite: bool = False
     tol_abs: float = 0.02
-    max_ulp: float = 1.0
+    max_ulp: float = 0.0
     verify: bool = True
     verify_skip_reason: str = "verification desactivee"
     copy_sidecars: bool = True
+    #: Mode `merge-dg-scaled` : ecriture de l'adaptateur mis a l'echelle.
+    write_scaled_adapter: bool = True
+    adapter_output_name: str = "adapter_scaled"
+    adapter_dtype: torch.dtype = torch.bfloat16
     extra_manifest: dict = field(default_factory=dict)
 
 
@@ -181,6 +202,9 @@ def mode_coefficients(mode: str, alpha: float, lam: float) -> Tuple[float, float
         return alpha, 0.0
     if mode == "merge":
         return lam, -lam
+    if mode == "merge-dg-scaled":
+        # tau_D reste un adaptateur NON fusionne : il n'entre pas dans les poids.
+        return lam, 0.0
     if mode == "ablation-dp-plus-tau-a":
         return alpha, 0.0
     if mode == "ablation-dp-minus-tau-d":
@@ -197,7 +221,7 @@ def effective_coefficient(mode: str, alpha: float, lam: float) -> Tuple[str, flo
 
 def required_sources(mode: str) -> frozenset:
     """Sources de vecteur utilisees par le mode : {'A'}, {'D'} ou {'A','D'}."""
-    if mode in ("transfer", "ablation-dp-plus-tau-a"):
+    if mode in ("transfer", "ablation-dp-plus-tau-a", "merge-dg-scaled"):
         return frozenset({"A"})
     if mode == "ablation-dp-minus-tau-d":
         return frozenset({"D"})
@@ -206,7 +230,7 @@ def required_sources(mode: str) -> frozenset:
 
 def checked_coefficients(mode: str) -> Tuple[str, ...]:
     """Coefficients dont la projection signee est comparee a la valeur attendue."""
-    if mode in ("transfer", "ablation-dp-plus-tau-a"):
+    if mode in ("transfer", "ablation-dp-plus-tau-a", "merge-dg-scaled"):
         return ("a",)
     if mode == "ablation-dp-minus-tau-d":
         return ("d",)
@@ -275,13 +299,18 @@ def evaluate_coefficient_guard(cfg: MergeConfig,
         state["status"] = "bypassed"
         return state
     state["status"] = "enforced"
-    reference = "D_b" if cfg.mode == "transfer" else "D_p"
+    reference = ("D_b" if cfg.mode in ("transfer", "merge-dg-scaled") else "D_p")
+    if cfg.mode == "merge-dg-scaled":
+        detail = ("le checkpoint de base serait une COPIE de D_b et l'adaptateur "
+                  "resterait a l'echelle 1.0 (aucune modification A2D)")
+    else:
+        detail = f"ecrit une simple COPIE de {reference}"
     raise MergeRefused(
         f"coefficient nul refuse : le mode '{cfg.mode}' avec {coeff_name}=0.0 "
-        f"ecrit une simple COPIE de {reference}, alors que le plan de fusion "
-        f"contient des vecteurs non nuls (ex. {nonzero}). Passer un coefficient "
-        f"explicite (--alpha / --lambda), ou assumer explicitement le no-op "
-        f"avec --allow-empty-coefficient (avertissement inscrit au manifeste).")
+        f"{detail}, alors que le plan de fusion contient des vecteurs non nuls "
+        f"(ex. {nonzero}). Passer un coefficient explicite (--alpha / --lambda), "
+        f"ou assumer explicitement le no-op avec --allow-empty-coefficient "
+        f"(avertissement inscrit au manifeste).")
 
 
 # --------------------------------------------------------------------------- #
@@ -324,8 +353,17 @@ def _requires_explicit_coverage(cfg: MergeConfig) -> bool:
     Oui des que le mode combine deux sources dont l'une n'est pas une paire
     de checkpoints complets (adaptateur LoRA, vecteur legacy) : l'union des
     modules n'est alors plus garantie et la politique doit etre dite.
+
+    Le mode `merge-dg-scaled` ne combine PAS tau_D dans les poids (l'adaptateur
+    reste externe) : seule tau_A est utilisee par le plan, donc la politique
+    par defaut (`strict`) suffit.
     """
-    used = [s for s in (cfg.tau_a, cfg.tau_d) if s is not None]
+    required = required_sources(cfg.mode)
+    used = []
+    if "A" in required and cfg.tau_a is not None:
+        used.append(cfg.tau_a)
+    if "D" in required and cfg.tau_d is not None:
+        used.append(cfg.tau_d)
     if len(used) <= 1:
         return False
     return not all(getattr(s, "kind", "") == "checkpoint-pair" for s in used)
@@ -359,13 +397,35 @@ def validate_config(cfg: MergeConfig) -> List[str]:
             warnings.append(
                 f"--allow-empty-coefficient : option sans effet ({coeff_name}="
                 f"{coeff_value} != 0)")
-    if cfg.mode in ("transfer", "ablation-dp-plus-tau-a", "merge") and cfg.tau_a is None:
+    if cfg.mode in ("transfer", "ablation-dp-plus-tau-a", "merge",
+                    "merge-dg-scaled") and cfg.tau_a is None:
         raise MissingVectorError("tau_A absent : ce mode exige un vecteur AR")
     if cfg.mode == "merge" and cfg.tau_d is None:
         raise MissingVectorError(
             "tau_D absent : l'A2D-Merge (D_p + lambda*(tau_A - tau_D)) est "
             "impossible sans le vecteur de post-training diffusion ; utiliser le "
-            "mode transfer (D_b + alpha*tau_A)")
+            "mode transfer (D_b + alpha*tau_A) ou fournir --tau-d-post/--tau-d-base")
+    if cfg.mode == "merge-dg-scaled":
+        if cfg.write_scaled_adapter and cfg.tau_d is None:
+            raise MissingVectorError(
+                "tau_D absent : le mode merge-dg-scaled exige l'adaptateur de "
+                "diffusion (--tau-d-adapter), qui reste NON fusionne et est remis "
+                "a l'echelle par (1-lambda)")
+        if cfg.tau_d is not None and getattr(cfg.tau_d, "kind", "") != "lora-adapter":
+            raise MergeError(
+                "le mode merge-dg-scaled exige un adaptateur LoRA pour tau_D "
+                f"(recu : {getattr(cfg.tau_d, 'kind', '?')}). Un vecteur de "
+                "post-training diffusion (D_p - D_b) doit etre fusionne avec "
+                "--mode merge ; il ne peut pas rester externe.")
+        if not cfg.write_scaled_adapter:
+            warnings.append(
+                "mode merge-dg-scaled sans ecriture de l'adaptateur mis a "
+                "l'echelle (write_scaled_adapter=False) : verification du "
+                "checkpoint de base uniquement")
+        if not (0.0 <= cfg.lam <= 1.0):
+            raise ValueError(
+                f"lambda={cfg.lam} hors de [0,1] : le facteur de l'adaptateur "
+                f"(1-lambda) doit rester dans [0,1] (App. A.2)")
     if cfg.mode == "ablation-dp-minus-tau-d" and cfg.tau_d is None:
         raise MissingVectorError("tau_D absent : ce mode exige un vecteur diffusion")
     if cfg.coverage is not None and cfg.coverage not in COVERAGE_POLICIES:
@@ -414,6 +474,7 @@ def _module_candidates(cfg: MergeConfig, recipient_modules: Dict[str, str],
     """
     cand_a: Dict[str, str] = {}
     cand_d: Dict[str, str] = {}
+    required = required_sources(cfg.mode)
 
     modules_a = cfg.tau_a.modules() if cfg.tau_a is not None else None
     if modules_a:
@@ -434,7 +495,8 @@ def _module_candidates(cfg: MergeConfig, recipient_modules: Dict[str, str],
                 continue
             cand_a[recipient_modules[target_module]] = source_module
 
-    modules_d = cfg.tau_d.modules() if cfg.tau_d is not None else None
+    modules_d = (cfg.tau_d.modules()
+                 if (cfg.tau_d is not None and "D" in required) else None)
     if modules_d:
         for module in sorted(modules_d):
             if module not in recipient_modules:
@@ -475,7 +537,8 @@ def build_plan(weight_map: Dict[str, str], cfg: MergeConfig) -> Tuple[Dict[str, 
     policy = resolve_policy(cfg)
 
     modules_a = cfg.tau_a.modules() if cfg.tau_a is not None else None
-    modules_d = cfg.tau_d.modules() if cfg.tau_d is not None else None
+    modules_d = (cfg.tau_d.modules()
+                 if (cfg.tau_d is not None and "D" in required) else None)
 
     if modules_a is None and modules_d is None:
         # Source non enumerable (`.npy` legacy) : on part des tenseurs du
@@ -745,7 +808,8 @@ def verify_checkpoint(cfg: MergeConfig, merged_dir, reference_dir,
          obtenus sont compares a ceux attendus du mode ;
       2. les tenseurs NON fusionnes sont bit-identiques a la reference ;
       3. l'ecart maximal a `round_bf16(expected)` recalcule independamment est
-         <= 1 ULP du dtype cible ;
+         <= `cfg.max_ulp` ULP du dtype cible (0 ULP par defaut : egalite avec
+         l'arrondi attendu) ;
       4. tolerance derivee du residu BF16 mesure (et non de l'ecart reel).
 
     Utilisee par le writer (verification post-ecriture) ET par
@@ -860,6 +924,7 @@ def verify_checkpoint(cfg: MergeConfig, merged_dir, reference_dir,
         "n_unchanged": n_unchanged,
         "n_unchanged_bit_identical": n_unchanged_identical,
         "max_ulp_deviation": max_ulp,
+        "max_ulp_limit": cfg.max_ulp,
         "max_ulp_tensor": max_ulp_tensor,
         "plan_counters": counters,
         "failures": failures,
@@ -957,6 +1022,12 @@ def merge_checkpoint(cfg: MergeConfig, log=print) -> MergeResult:
             f"{output} contient deja {len(existing)} shards. Relancer avec "
             f"--overwrite (nettoyage des shards obsoletes) ou vers un dossier "
             f"vide. Pas de merge partiel.")
+    if cfg.mode == "merge-dg-scaled" and cfg.write_scaled_adapter:
+        adapter_out = output / cfg.adapter_output_name
+        if adapter_out.exists() and any(adapter_out.iterdir()) and not cfg.overwrite:
+            raise MergeRefused(
+                f"{adapter_out} existe deja et n'est pas vide. Relancer avec "
+                f"--overwrite pour remplacer l'adaptateur mis a l'echelle.")
     for stale in ("model.safetensors.index.json", "merge_config.json"):
         stale_path = output / stale
         if stale_path.exists():
@@ -1052,12 +1123,47 @@ def merge_checkpoint(cfg: MergeConfig, log=print) -> MergeResult:
     if cfg.copy_sidecars:
         _copy_sidecars(recipient, output, log)
 
+    # Mode DG : l'adaptateur de diffusion reste NON fusionne (App. A.2). On
+    # ecrit une copie autonome avec lora_B * (1-lambda), puis on la verifie
+    # contre l'original (option (c) du design G2).
+    adapter_manifest = None
+    adapter_verification = None
+    if cfg.mode == "merge-dg-scaled" and cfg.write_scaled_adapter:
+        factor = 1.0 - cfg.lam
+        adapter_out = output / cfg.adapter_output_name
+        try:
+            adapter_manifest = scale_adapter(
+                cfg.tau_d.dir, adapter_out, factor=factor,
+                dtype=str(cfg.adapter_dtype).replace("torch.", ""),
+                overwrite=cfg.overwrite, log=log)
+            if cfg.verify:
+                adapter_verification = verify_scaled_adapter(
+                    cfg.tau_d.dir, adapter_out, factor=factor, log=log)
+            else:
+                adapter_verification = {
+                    "skipped": True,
+                    "reason": cfg.verify_skip_reason,
+                }
+        except AdapterError as exc:
+            raise MergeError(f"adaptateur mis a l'echelle : {exc}") from exc
+
     manifest = _build_manifest(cfg, plan, counters, stats, ratios, notes, warnings,
-                                weight_map, policy, guard)
+                                weight_map, policy, guard,
+                                adapter_manifest=adapter_manifest,
+                                adapter_verification=adapter_verification)
 
     verification: Dict[str, object] = {}
     if cfg.verify:
         verification = verify_checkpoint(cfg, output, recipient, plan=plan, log=log)
+        if adapter_verification is not None and adapter_verification.get("skipped"):
+            verification["adapter_verification"] = adapter_verification
+        elif adapter_verification is not None:
+            verification["adapter_verification"] = adapter_verification
+            if not adapter_verification.get("ok", False):
+                verification["ok"] = False
+                verification.setdefault("failures", []).extend(
+                    "adaptateur: " + failure
+                    for failure in adapter_verification.get("failures", []))
         manifest["post_write_verification"] = verification
         if not verification.get("ok", False):
             _atomic_write_json(output / "merge_config.json", manifest)
@@ -1155,8 +1261,13 @@ def _family_summary(stats: Dict[str, dict], ratios: Dict[str, List[float]]) -> D
             "norm_tau_D": n_d,
             "cos_tau_A_tau_D": cos,
             "norm_W": w,
-            "ratio_tau_over_W_global": (math.sqrt(max(st["n_a"], st["n_d"])) / w) if w > 0 else None,
-            "ratio_tau_over_W_median": med,
+            # Norme du plus grand des deux vecteurs (tau_A ou tau_D), rapportee
+            # a ||W|| : indicateur d'ampleur, PAS la norme du delta applique.
+            "ratio_max_norm_tau_over_W_global": (
+                math.sqrt(max(st["n_a"], st["n_d"])) / w) if w > 0 else None,
+            # Norme du delta REELLEMENT applique (c_a*tau_A + c_d*tau_D),
+            # rapportee a ||W|| : mediane par tenseur de la famille.
+            "ratio_applied_delta_norm_over_W_median": med,
         }
     return out
 
@@ -1167,9 +1278,12 @@ def _coverage_summary(plan: Dict[str, PlanEntry], counters: Dict[str, int],
     per_family: Dict[str, Dict[str, int]] = defaultdict(
         lambda: {"both": 0, "A-only": 0, "D-only": 0})
     zero_filled: List[str] = []
+    both_sources = len(required_sources(cfg.mode)) == 2
     for tensor_name, entry in plan.items():
         per_family[entry.family][entry.coverage] += 1
-        if entry.coverage in ("A-only", "D-only"):
+        # « zero-fill » n'a de sens que si le mode combine DEUX sources : en
+        # mode a une source, un tenseur A-only n'est pas un vecteur manquant.
+        if both_sources and entry.coverage in ("A-only", "D-only"):
             zero_filled.append(tensor_name)
     return {
         "policy": policy.coverage,
@@ -1186,7 +1300,9 @@ def _coverage_summary(plan: Dict[str, PlanEntry], counters: Dict[str, int],
 
 
 def _build_manifest(cfg, plan, counters, stats, ratios, notes, warnings, weight_map,
-                    policy: MergePolicy, guard: Optional[dict] = None) -> dict:
+                    policy: MergePolicy, guard: Optional[dict] = None,
+                    adapter_manifest: Optional[dict] = None,
+                    adapter_verification: Optional[dict] = None) -> dict:
     import sys
     scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if scripts_dir not in sys.path:
@@ -1198,6 +1314,10 @@ def _build_manifest(cfg, plan, counters, stats, ratios, notes, warnings, weight_
         "method": "A2D (arXiv:2610.08108) — " + {
             "transfer": "A2D-Transfer : D_b + alpha*tau_A (eq. 1)",
             "merge": "A2D-Merge : D_p + lambda*(tau_A - tau_D) (eq. 2)",
+            "merge-dg-scaled": (
+                "A2D-Merge DiffusionGemma : D_b + lambda*tau_A + "
+                "(1-lambda)*tau_D, tau_D NON fusionne et remis a l'echelle "
+                "(App. A.2)"),
             "ablation-dp-plus-tau-a": "ablation D_p + alpha*tau_A (Table 9)",
             "ablation-dp-minus-tau-d": "ablation D_p - lambda*tau_D (Table 10)",
         }[cfg.mode],
@@ -1211,6 +1331,9 @@ def _build_manifest(cfg, plan, counters, stats, ratios, notes, warnings, weight_
         "coverage": _coverage_summary(plan, counters, policy, cfg),
         "tau_a_source": cfg.tau_a.describe() if cfg.tau_a else None,
         "tau_d_source": cfg.tau_d.describe() if cfg.tau_d else None,
+        "tau_d_merged_into_weights": cfg.mode != "merge-dg-scaled",
+        "diffusion_adapter": adapter_manifest,
+        "diffusion_adapter_verification": adapter_verification,
         "n_mapped": len(plan),
         "n_unchanged": len(weight_map) - len(plan),
         "n_tensors": len(weight_map),

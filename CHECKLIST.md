@@ -8,7 +8,7 @@
 | **J5** | campagne d'évaluation par génération (103 prompts) | **NON CONFORME** au protocole du papier (FP8, `temperature=0`, 128 tokens, texte libre, sans juge) : contrôle de non-régression, pas une mesure de qualité | `eval/RESULTS.md` |
 | **G1** | mécanique A2D sur Qwen2.5-7B → Dream-7B (Tableaux 6, 16, 21) | **OUVERTE** — **G1 NON FRANCHIE** (J7, 2026-10-21). *Fait et mesuré* : géométrie Table 21 (écarts ≤ 0,11 %) ; baseline D_b/D_p **exécutée** sur GSM8K (n=300) et MATH-175 (n=175), IFEval n=8 ; **J7** : fusions **M2** (transfert α=0,9) et **M3** (merge λ=0,6) produites et **vérifiées** (`post_write_verification` v2 ok, `verify_merge` VERDICT OK, 0 ULP) puis **évaluées** (6 runs, 6 h 41 de GPU, protocole figé, lot 4) ; empreintes d'items **identiques sur les 4 modèles** ; **plancher de bruit de décodage mesuré** (0,00 pt à lot 4 : le décodage est déterministe). *Verdict amendé* (M1/M2/M3, revue N2 HEAD `16a0232`) : **C2 ATTEINT** (transfert − base GSM8K : **+14,33** pts, IC [+9,33 ; +19,67] ; le papier rapporte +15,2 sur la même paire) ; **C1 NON ATTEINT** (transfert − base MATH-175 : **+9,71** pts, IC [+2,86 ; +16,57] — 0,29 pt sous le seuil de +10, IC excluant 0) ; **C3/C4 NON ÉTABLIS** (merge − instruct : −2,29 [−9,14 ; +4,57] et +1,67 [−2,33 ; +5,67] : **la dégradation de 2 points ne peut pas être exclue**). Un seul point de la règle de franchissement (§1) échoue ⇒ **G1 reste ouverte** (aucun seuil rejoué après résultats). **J8 phase A** — bilan de clôture et analyse de la troncature MATH (`docs/reports/G1_BILAN.md`) : M2 épuise le budget de 512 tokens sur **82/175** générations, dont **67 sans réponse finale** (M0 : 50 ; M1 : 3 ; M3 : 55) ; sur ces 67 items, **M2 − M0 = −2,99** [−11,94 ; +5,97] alors que sur les 108 autres **M2 − M0 = +17,59** [+9,26 ; +26,85] — l'effet C1 est **dilué par le plafond de génération**, le verdict est **inchangé**. Définition de franchissement : `docs/design/G1_PROTOCOL.md` | `docs/reports/J6.md`, `docs/reports/J6bis.md`, `docs/reports/J7.md`, `docs/reports/AUDIT_J6.md`, `docs/reports/AUDIT_J6BIS.md`, `docs/reports/AUDIT_J6TER.md`, `docs/reports/REVIEW_N2_J6.md`, `docs/reports/REVIEW_N2_J6QUATER.md`, `docs/reports/AUDIT_J7.md`, `docs/reports/G1_BILAN.md`, `docs/A2D_SPEC.md`, `eval/dream_a2d/SUMMARY.md` |
 | **G1b** | faisabilité Nemotron-Labs-Diffusion-3B (Ministral-3-3B) | **NON DÉMARRÉE.** Étude de faisabilité en lecture seule (aucun poids téléchargé) : identifiants/licences/taille, noms de paramètres, brouillon de mapping App. A.2, pile d'évaluation, cibles chiffrées des Tableaux 1c/17/21, conclusion GO/NO-GO | `docs/design/G1B_NEMOTRON3B.md` |
-| **G2** | reproduction du setup médical DiffusionGemma du papier (adapters publiés) | **BLOQUÉE (B7).** Les adaptateurs de diffusion DG doivent rester **non fusionnés** et être **mis à l'échelle** (App. A.2) ; la bibliothèque fusionne aujourd'hui τ_D dans les poids, ce qui ne serait pas conforme. Conception (aucun code) : `docs/design/G2_adapter_scaling.md` | `docs/VP_ADAPTERS.md`, `docs/design/G2_adapter_scaling.md` |
+| **G2** | reproduction du setup médical DiffusionGemma du papier (adapters publiés) | **DÉBLOQUÉE CÔTÉ BIBLIOTHÈQUE (J8, phase B) ; ÉVALUATION NON FAITE.** Le mode `merge-dg-scaled` (alias `adapter-scale`) écrit `base' = D_b + λ·τ_A` et laisse τ_D **non fusionné**, avec `lora_B × (1−λ)` et `lora_alpha` inchangé (App. A.2) ; vérification V5/V6 et manifeste `diffusion_adapter`. La porte elle-même reste non franchie : le décodeur DG 26B + juge 27B ne tiennent pas sur 32 Go sans quantification (protocole à déclarer). | `docs/VP_ADAPTERS.md`, `docs/design/G2_adapter_scaling.md`, `scripts/a2d/adapters.py` |
 | **G3** | raisonnement (hors papier) | **NON DÉMARRÉE** (conception d'abord) | — |
 
 > Rappel : la conclusion « Jainius ne marche pas » (J4Bis) **n'est pas** une conclusion sur la
@@ -26,9 +26,10 @@
 ### 2. Cohérence des scripts
 - [ ] `python -c "import ast,glob; [ast.parse(open(f,encoding='utf-8').read()) for f in sorted(glob.glob('scripts/**/*.py', recursive=True))]"` → OK
 - [ ] Les chemins par défaut pointent vers `checkpoints/` et `_artefact/tau_a` (pas `/tmp/`)
-- [ ] `scripts/merge_a2d.py --help` : modes `transfer|merge|ablation-dp-plus-tau-a|ablation-dp-minus-tau-d`,
-      `--coverage {strict,zero-fill}`, `--allow-empty`, `--allow-empty-coefficient`, α sans plafond
-      (avertissement > 1.5), λ borné à [0,1] (avertissement > 1)
+- [ ] `scripts/merge_a2d.py --help` : modes `transfer|merge|merge-dg-scaled (adapter-scale)|ablation-dp-plus-tau-a|ablation-dp-minus-tau-d`,
+      `--coverage {strict,zero-fill}`, `--allow-empty`, `--allow-empty-coefficient`, `--adapter-dtype`,
+      α sans plafond (avertissement > 1.5), λ borné à [0,1] (avertissement > 1)
+- [ ] Un merge **sans τ_D** est une **erreur dure** (sortie 2, aucune dégradation en transfert)
 - [ ] Un transfert à `α=0` ou un merge à `λ=0` est **refusé** (sortie 2) tant que le plan contient
       des vecteurs non nuls ; `--allow-empty-coefficient` l'assume (avertissement au manifeste)
 - [ ] `scripts/merge_jainius.py --help` : défaut `--alpha 0.3`, `--on-shape-mismatch error`, manifeste `merge_config.json` écrit
@@ -47,10 +48,12 @@
 - [ ] `merge_config.json` contient : α, λ, hashes d'index **et** empreintes de contenu des shards de **toutes** les
       sources, commit git, versions, la politique de couverture et les effectifs `both` / `A-only` / `D-only`
       par famille, l'état du garde-fou « coefficient nul » (`coefficient_guard`), et par famille `‖τ_A‖`, `‖τ_D‖`,
-      `cos(τ_A,τ_D)`, `‖τ‖/‖W‖` (global **et** médiane par tenseur)
+      `cos(τ_A,τ_D)`, `ratio_max_norm_tau_over_W_global` et
+      `ratio_applied_delta_norm_over_W_median` (par famille)
 - [ ] `post_write_verification.ok == true` **et** `post_write_verification.version == 2` :
       coefficients **signés** (`c_a_eff`, `c_d_eff`) comparés à ceux attendus du mode, tenseurs non fusionnés
-      **bit-identiques** à la référence, écart maximal à `round_bf16(expected)` ≤ 1 ULP
+      **bit-identiques** à la référence, écart maximal à `round_bf16(expected)` **= 0 ULP**
+      (`max_ulp_limit = 0` ; un écart d'1 ULP est un échec)
       (ou `post_write_verification.skipped == true` avec `reason`, si `--no-verify` a été utilisé)
 - [ ] `python scripts/verify_merge.py --merged <out> --reference <ref> ...` → VERDICT OK
       (et `verify_merge --mode merge` **sans τ_D** → sortie 2)

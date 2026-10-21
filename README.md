@@ -23,7 +23,7 @@ règles de mapping, chaque valeur référencée par son tableau/section.
 |---|---|---|
 | **G1** | mécanique de fusion sur la paire publique Qwen2.5-7B → Dream-7B (Tableaux 6, 16, 21) | **OUVERTE — G1 NON FRANCHIE (J7, 2026-10-21)**. géométrie Table 21 : **écarts mesurés ≤ 0,11 %** ; baseline D_b/D_p **exécutée** sur GSM8K (n=300) et MATH-175 (n=175) ; critère de reproduction ±3 pts **non atteint** (C0.5 : Base MATH-175 +3,2 ; IFEval n=8 non concluant). **J7** : les modèles fusionnés **M2** (transfert α=0,9) et **M3** (merge λ=0,6) ont été **produits, vérifiés** (`post_write_verification` v2, `verify_merge` VERDICT OK, 0 ULP) et **évalués** sur les **mêmes items** (empreintes identiques sur les 4 modèles ; plancher de bruit de décodage **nul** au lot 4). Verdict amendé (M1/M2/M3) : **C2 atteint** (transfert − base, GSM8K : **+14,33** pts, IC [+9,33 ; +19,67] ; papier **+15,2** sur la même paire) ; **C1 non atteint** (MATH-175 : **+9,71** pts, IC [+2,86 ; +16,57] — **0,29 pt sous** le seuil de +10) ; **C3/C4 non établis** ; **un seul point** de la règle de franchissement échoue ⇒ **la porte reste ouverte**. **J8 phase A** — bilan de clôture (`docs/reports/G1_BILAN.md`) : M2 épuise 512 tokens sur 82/175 générations MATH, dont 67 sans réponse finale ; sur ces 67 items M2 − M0 = −2,99 [−11,94 ; +5,97], contre **+17,59** [+9,26 ; +26,85] sur les 108 autres ⇒ l'effet C1 est **dilué par le plafond**, le verdict est inchangé. Rapport : [`docs/reports/J7.md`](docs/reports/J7.md) ; protocole : [`docs/design/G1_PROTOCOL.md`](docs/design/G1_PROTOCOL.md) |
 | **G1b** | faisabilité Nemotron-Labs-Diffusion-3B (Ministral-3-3B) | **non démarrée** — étude de faisabilité en lecture seule : [`docs/design/G1B_NEMOTRON3B.md`](docs/design/G1B_NEMOTRON3B.md) |
-| **G2** | reproduction du setup médical DiffusionGemma du papier (adaptateurs publiés, voir [`docs/VP_ADAPTERS.md`](docs/VP_ADAPTERS.md)) | **BLOQUÉE (B7)** — les adaptateurs de diffusion DG doivent rester **non fusionnés** et être mis à l'échelle (App. A.2) ; conception : [`docs/design/G2_adapter_scaling.md`](docs/design/G2_adapter_scaling.md) |
+| **G2** | reproduction du setup médical DiffusionGemma du papier (adaptateurs publiés, voir [`docs/VP_ADAPTERS.md`](docs/VP_ADAPTERS.md)) | **DÉBLOQUÉE CÔTÉ BIBLIOTHÈQUE (J8)** — mode `merge-dg-scaled` implémenté et testé (adaptateur τ_D **non fusionné**, `lora_B × (1−λ)`, vérification V5/V6) ; **évaluation non faite** : le décodeur DG 26B + juge 27B ne tiennent pas sur 32 Go sans quantification (changement de protocole à déclarer). Conception/implémentation : [`docs/design/G2_adapter_scaling.md`](docs/design/G2_adapter_scaling.md) |
 | **G3** | raisonnement (hors papier : conception d'abord) | **non démarrée** |
 
 ## Bibliothèque A2D (pipeline conforme)
@@ -35,6 +35,8 @@ scripts/verify_merge.py # vérification post hoc (alpha_eff, lambda_eff par fami
 ```
 
 * **Modes** : `transfer` (`D_b + α·τ_A`, eq. 1), `merge` (`D_p + λ·(τ_A − τ_D)`, eq. 2),
+  `merge-dg-scaled` / `adapter-scale` (DiffusionGemma : `D_b + λ·τ_A`, avec l'adaptateur
+  τ_D **non fusionné** remis à l'échelle par `(1−λ)`, App. A.2),
   `ablation-dp-plus-tau-a` (Table 9), `ablation-dp-minus-tau-d` (Table 10).
 * **Sources de vecteur** : paire de checkpoints complets (τ = post − base) **ou** adaptateur
   LoRA (`ΔW = (α/r)·B·A`, par module ; l'égalité avec `peft.merge_and_unload` est testée).
@@ -45,14 +47,14 @@ scripts/verify_merge.py # vérification post hoc (alpha_eff, lambda_eff par fami
   Gemma4→DiffusionGemma (vision, embeddings, normes, tête inchangés ; routeur = famille à
   part, fusionné par défaut et déclaré).
 * **α** ≥ 0 **sans plafond** (le papier va jusqu'à α = 1.4, Table 6 ; avertissement au-delà de 1.5) ;
-  **λ** borné par l'eq. (2) à [0,1] (avertissement au-delà de 1) ; τ_D absent ⇒ le merge
-  dégénère en transfert (et le signale).
+  **λ** borné par l'eq. (2) à [0,1] (avertissement au-delà de 1). Un merge sans τ_D est une
+  **erreur dure** (sortie 2) : aucune dégradation implicite en transfert.
 * Arithmétique FP32, **un seul** cast BF16, écriture atomique, **vérification post-écriture
   obligatoire** (v2 : coefficients **signés** `c_a_eff` / `c_d_eff` par régression des moindres
   carrés sur [τ_A, τ_D], bornes dérivées du résidu BF16 **mesuré**, tenseurs non fusionnés
-  **bit-identiques** à la référence, écart à `round_bf16(expected)` ≤ 1 ULP ; échec dur hors
-  tolérance). `--no-verify` la désactive mais **laisse une trace** au manifeste
-  (`post_write_verification.skipped`).
+  **bit-identiques** à la référence, écart à `round_bf16(expected)` **= 0 ULP** (`max_ulp=0`,
+  critère par défaut) ; échec dur hors tolérance). `--no-verify` la désactive mais **laisse une
+  trace** au manifeste (`post_write_verification.skipped`).
 * **Garde-fou « coefficient nul »** : un transfert à `α = 0` (eq. 1) ou un merge à `λ = 0`
   (eq. 2) n'écrirait qu'une **copie de la référence** (`D_b` / `D_p`) — indiscernable d'un
   modèle non fusionné, la vérification post-écriture ne pouvant pas le voir (elle compare les
@@ -64,7 +66,8 @@ scripts/verify_merge.py # vérification post hoc (alpha_eff, lambda_eff par fami
   `D-only`) ; politique `--coverage {strict,zero-fill}` : `strict` (défaut si les deux sources
   sont des paires de checkpoints complets) **refuse** une couverture inégale et liste les
   modules fautifs ; `zero-fill` traite un vecteur absent comme nul et le **déclare** au
-  manifeste. Choix explicite obligatoire dès qu'une source est un adaptateur LoRA. Un plan
+  manifeste. Choix explicite obligatoire dès que le mode combine deux sources dont l'une
+  n'est pas une paire de checkpoints (adaptateur LoRA, vecteur legacy). Un plan
   vide ⇒ refus (`--allow-empty` pour l'assumer).
 
 ```bash
@@ -80,6 +83,15 @@ python scripts/merge_a2d.py --mode merge \
     --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b \
     --tau-d-post checkpoints/dream_7b_instruct --tau-d-base checkpoints/dream_7b_base \
     --lambda 0.6 --mapping identity --output checkpoints/dream_merge_l06
+
+# DiffusionGemma (App. A.2) : base' = D_b + lambda*tau_A + adaptateur (1-lambda) NON fusionne
+python scripts/merge_a2d.py --mode merge-dg-scaled \
+    --diffusion checkpoints/diffusiongemma_it \
+    --tau-a-post checkpoints/gemma4_it --tau-a-base checkpoints/gemma4_base \
+    --tau-d-adapter checkpoints/dg_adapters/diffusion-vqarad \
+    --lambda 0.3 --mapping gemma4-diffusiongemma \
+    --output checkpoints/diffusiongemma_merge_l03
+# -> checkpoints/diffusiongemma_merge_l03/adapter_scaled/ (lora_B x 0.7, lora_alpha inchange)
 
 # Verification post hoc (detecte un coefficient errone)
 python scripts/verify_merge.py --merged checkpoints/dream_transfer_a09 \

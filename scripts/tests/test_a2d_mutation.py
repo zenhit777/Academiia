@@ -29,12 +29,13 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from a2d import (CheckpointPairSource, CoverageError, MergeConfig, MergeError,
-                 MergeRefused, MissingVectorError, compute_effective_coefficients,
-                 get_mapping, merge_checkpoint)
+from a2d import (AdapterError, CheckpointPairSource, CoverageError, LoraAdapterSource,
+                 MergeConfig, MergeError, MergeRefused, MissingVectorError,
+                 compute_effective_coefficients, get_mapping, merge_checkpoint,
+                 scale_adapter, verify_scaled_adapter)
 
-from test_a2d_library import (QWEN, ar_and_diffusion, build_checkpoint, config,
-                               pair, tensors_of)
+from test_a2d_library import (QWEN, ar_and_diffusion, build_adapter,
+                               build_checkpoint, config, pair, tensors_of)
 
 SHARD = "model-00001-of-00001.safetensors"
 
@@ -386,8 +387,13 @@ def _bf16_perturb(tensor: torch.Tensor, n_ulp: int) -> torch.Tensor:
     return out.to(torch.int16).view(torch.bfloat16)
 
 
-def test_bf16_one_ulp_is_tolerated_and_two_ulp_is_rejected(tmp_path):
-    """Le seuil d'ULP est discriminant : 1 ULP passe, 2 ULP echoue."""
+def test_bf16_one_ulp_deviation_is_rejected(tmp_path):
+    """Le critere par defaut est 0 ULP : 1 ULP comme 2 ULP sont refuses.
+
+    Un ecart d'un pas unitaire par rapport a `round_bf16(expected)` n'est pas
+    un arrondi legitime (le writer n'effectue qu'un seul cast) : c'est une
+    corruption, signalee comme telle.
+    """
     spec = {"model.layers.0.self_attn.q_proj.weight": (256, 256),
             "model.layers.0.mlp.gate_proj.weight": (256, 256)}
     ar_base = build_checkpoint(tmp_path, spec, seed=101, name="ar_base")
@@ -403,13 +409,15 @@ def test_bf16_one_ulp_is_tolerated_and_two_ulp_is_rejected(tmp_path):
                     dtype=torch.bfloat16)
     assert report["ok"], report["failures"]
     assert report["max_ulp_deviation"] == pytest.approx(0.0, abs=1e-9)
+    assert report["max_ulp_limit"] == 0.0
 
     name = "model.layers.0.self_attn.q_proj.weight"
     mutate(out, name, lambda t: _bf16_perturb(t, 1))
     report = verify(out, diff_post, mode="merge", lam=0.6, tau_a=tau_a, tau_d=tau_d,
                     dtype=torch.bfloat16)
-    assert report["ok"], report["failures"]
+    assert not report["ok"]
     assert report["max_ulp_deviation"] == pytest.approx(1.0, abs=1e-6)
+    assert any("ULP" in f for f in report["failures"]), report["failures"]
 
     merge_checkpoint(config("merge", diff_post, out, lam=0.6, tau_a=tau_a, tau_d=tau_d,
                             dtype=torch.bfloat16, overwrite=True))
@@ -527,3 +535,44 @@ def test_zero_coefficient_bypass_is_declared_in_the_manifest(tmp_path):
     src, dst = tensors_of(diff_post), tensors_of(out)
     for name in QWEN:
         assert torch.equal(src[name], dst[name]), name
+
+
+# --------------------------------------------------------------------------- #
+# G2 : l'adaptateur mis a l'echelle ne doit pas pouvoir deriver
+# --------------------------------------------------------------------------- #
+
+def test_scaled_adapter_wrong_factor_is_detected(tmp_path):
+    """Mutation de lora_B (facteur 1.0 au lieu de 0.7) => V5 doit echouer."""
+    modules = {
+        "model.decoder.layers.0.self_attn.q_proj": (4, 4),
+        "model.decoder.layers.0.mlp.gate_proj": (6, 4),
+        "model.encoder.language_model.layers.0.self_attn.q_proj": (4, 4),
+    }
+    adapter = build_adapter(tmp_path, modules, name="adapter", seed=55)
+    scaled = tmp_path / "adapter_scaled"
+    manifest = scale_adapter(adapter, scaled, factor=0.7)
+    assert manifest["n_lora_B_scaled"] == 3
+    report = verify_scaled_adapter(adapter, scaled, factor=0.7)
+    assert report["ok"], report["failures"]
+
+    # Mutation : on annule le facteur 0.7 dans le fichier produit.
+    path = scaled / "adapter_model.safetensors"
+    tensors = load_file(str(path))
+    for name in list(tensors):
+        if name.endswith(".lora_B.weight"):
+            tensors[name] = tensors[name].to(torch.float32) / 0.7
+    save_file(tensors, str(path), metadata={"format": "pt"})
+
+    report = verify_scaled_adapter(adapter, scaled, factor=0.7)
+    assert not report["ok"]
+    assert report["max_relative_l2_error"] > 1e-2
+    assert any("L2 relative" in failure for failure in report["failures"])
+
+
+def test_scaled_adapter_refuses_to_overwrite(tmp_path):
+    modules = {"model.decoder.layers.0.self_attn.q_proj": (4, 4)}
+    adapter = build_adapter(tmp_path, modules, name="adapter", seed=56)
+    scaled = tmp_path / "adapter_scaled"
+    scale_adapter(adapter, scaled, factor=0.5)
+    with pytest.raises(AdapterError):
+        scale_adapter(adapter, scaled, factor=0.5)

@@ -5,7 +5,9 @@ Lancer : pytest scripts/tests -q
 Garanties verifiees :
   * transfert   : D_b + alpha*tau_A
   * merge       : D_p + lambda*(tau_A - tau_D) ; lambda=0 => D_p ; lambda=1 => transfert alpha=1
-  * tau_D absent => le merge est refuse (degradation en transfert, cf. CLI)
+  * tau_D absent => le merge est refuse (erreur dure, aucune degradation implicite)
+  * mode merge-dg-scaled : base' = D_b + lambda*tau_A, adaptateur tau_D NON fusionne
+    et remis a l'echelle par (1-lambda) ; verification V5/V6 ; recharge from_pretrained
   * coefficient nul refuse (F2) : transfert a alpha=0 et merge a lambda=0 sont
     refuses (ils n'ecriraient qu'une copie de la reference) ; l'opt-in
     --allow-empty-coefficient est trace au manifeste
@@ -13,6 +15,7 @@ Garanties verifiees :
   * linearite en alpha
   * source LoRA identique a peft.merge_and_unload
   * alpha_eff / lambda_eff : round-trip et detection d'un alpha erroné
+  * ecart a round_bf16(expected) : critere par defaut 0 ULP (1 ULP = echec)
   * refus d'ecraser, embeddings de formes differentes, nom cible fantome
 """
 
@@ -32,7 +35,8 @@ if str(SCRIPTS) not in sys.path:
 
 from a2d import (CheckpointPairSource, LegacyNpySource, LoraAdapterSource,
                  MergeConfig, MergeError, MergeRefused, MissingVectorError,
-                 get_mapping, merge_checkpoint)
+                 compute_effective_coefficients, family_of, get_mapping,
+                 load_weight_map, merge_checkpoint, normalize_mode)
 
 QWEN = {
     "model.embed_tokens.weight": (8, 4),
@@ -88,6 +92,31 @@ def build_checkpoint(root: Path, spec: dict, seed: int = 0, name: str = "ckpt",
 
 def tensors_of(path: Path) -> dict:
     return load_file(str(path / "model-00001-of-00001.safetensors"))
+
+
+def build_adapter(root: Path, modules: dict, r: int = 8, alpha: int = 16,
+                  name: str = "adapter", seed: int = 7,
+                  dtype: torch.dtype = torch.float32) -> Path:
+    """Ecrit un adaptateur LoRA-jouet au format PEFT (A/B par module)."""
+    d = root / name
+    d.mkdir(parents=True, exist_ok=True)
+    generator = torch.Generator().manual_seed(seed)
+    tensors = {}
+    for module, (out_features, in_features) in modules.items():
+        prefix = f"base_model.model.{module}"
+        tensors[prefix + ".lora_A.weight"] = torch.randn(
+            r, in_features, generator=generator, dtype=dtype)
+        tensors[prefix + ".lora_B.weight"] = torch.randn(
+            out_features, r, generator=generator, dtype=dtype)
+    save_file(tensors, str(d / "adapter_model.safetensors"),
+              metadata={"format": "pt"})
+    (d / "adapter_config.json").write_text(json.dumps({
+        "r": r,
+        "lora_alpha": alpha,
+        "target_modules": sorted({m.split(".")[-1] for m in modules}),
+        "base_model_name_or_path": "toy-recipient",
+    }))
+    return d
 
 
 def pair(root: Path, spec=QWEN, base_name="base", post_name="post", seed_base=1, seed_post=2):
@@ -209,6 +238,164 @@ def test_merge_formula_matches_manual_computation(tmp_path):
         tau_d_v = src[name] - d_b[name]
         expected = src[name] + 0.6 * (tau_a_v - tau_d_v)
         assert torch.allclose(dst[name], expected, atol=1e-6), name
+
+
+# --------------------------------------------------------------------------- #
+# DiffusionGemma : base' + adaptateur NON fusionne (G2, App. A.2)
+# --------------------------------------------------------------------------- #
+
+DG_ADAPTER_MODULES = {
+    "model.decoder.layers.0.self_attn.q_proj": (4, 4),
+    "model.decoder.layers.0.mlp.gate_proj": (6, 4),
+    # Branche encodeur : absente du receveur, mais doit rester dans l'adaptateur.
+    "model.encoder.language_model.layers.0.self_attn.q_proj": (4, 4),
+    # Pas d'equivalent AR : recoit (1-lambda) et rien d'autre.
+    "model.decoder.self_conditioning.gate_proj": (6, 4),
+}
+
+
+def _dg_setup(tmp_path):
+    ar_base = build_checkpoint(tmp_path, DG_AR, seed=31, name="ar_base")
+    ar_post = build_checkpoint(tmp_path, DG_AR, seed=32, name="ar_post")
+    diff_base = build_checkpoint(tmp_path, DG_DIFF, seed=33, name="diff_base")
+    adapter = build_adapter(tmp_path, DG_ADAPTER_MODULES, name="dg_adapter", seed=34)
+    return ar_base, ar_post, diff_base, adapter
+
+
+def test_merge_dg_scaled_keeps_adapter_unmerged_and_scales_it(tmp_path):
+    """base' = D_b + lambda*tau_A ; l'adaptateur reste externe et vaut (1-lambda)."""
+    ar_base, ar_post, diff_base, adapter = _dg_setup(tmp_path)
+    tau_a = CheckpointPairSource(ar_post, ar_base)
+    tau_d = LoraAdapterSource(adapter)
+    out = tmp_path / "out"
+    result = merge_checkpoint(config(
+        "merge-dg-scaled", diff_base, out, lam=0.3, tau_a=tau_a, tau_d=tau_d,
+        mapping=get_mapping("gemma4-diffusiongemma"), coverage="strict"))
+
+    # 1. Le checkpoint de base ne contient QUE lambda*tau_A (pas l'adaptateur).
+    mapping = get_mapping("gemma4-diffusiongemma")
+    src, dst = tensors_of(diff_base), tensors_of(out)
+    ar_b, ar_p = tensors_of(ar_base), tensors_of(ar_post)
+    fused = 0
+    for source_name in DG_AR:
+        target = mapping.target(source_name[: -len(".weight")])
+        if target is None or not mapping.is_fusable(family_of(target)):
+            continue
+        expected = src[target + ".weight"] + 0.3 * (
+            ar_p[source_name] - ar_b[source_name])
+        assert torch.allclose(dst[target + ".weight"], expected, atol=1e-6), target
+        fused += 1
+    assert fused == result.n_fused == 3
+
+    # 2. Les tenseurs hors plan sont bit-identiques a D_b.
+    for name in ("model.decoder.layers.0.layer_scalar",
+                 "model.encoder.vision_tower.std_bias",
+                 "model.decoder.embed_tokens.weight",
+                 "model.decoder.layers.0.input_layernorm.weight"):
+        assert torch.equal(dst[name], src[name]), name
+
+    # 3. L'adaptateur produit est complet et remis a l'echelle par (1-lambda).
+    original = LoraAdapterSource(adapter)
+    scaled = LoraAdapterSource(out / "adapter_scaled")
+    assert set(scaled.modules()) == set(original.modules())
+    assert scaled.alpha == original.alpha  # lora_alpha inchange
+    for module in original.modules():
+        expected = 0.7 * original.delta(module)
+        relative = float(torch.linalg.vector_norm(
+            scaled.delta(module) - expected, dtype=torch.float64)
+            / torch.linalg.vector_norm(expected, dtype=torch.float64))
+        assert relative <= 1e-2, (module, relative)
+
+    verification = result.manifest["post_write_verification"]
+    assert verification["ok"], verification["failures"]
+    assert verification["max_ulp_deviation"] == 0.0
+    adapter_report = verification["adapter_verification"]
+    assert adapter_report["ok"], adapter_report["failures"]
+    assert adapter_report["branches"] == {
+        "decoder": 2, "encoder": 1, "self_conditioning": 1, "other": 0}
+    manifest_adapter = result.manifest["diffusion_adapter"]
+    assert manifest_adapter["factor"] == pytest.approx(0.7)
+    assert manifest_adapter["lora_alpha_unchanged"] is True
+    assert result.manifest["tau_d_merged_into_weights"] is False
+    assert result.manifest["coverage"]["n_zero_filled"] == 0
+    on_disk = json.loads((out / "merge_config.json").read_text())
+    assert on_disk["diffusion_adapter"]["output"].endswith("adapter_scaled")
+
+
+def test_merge_dg_scaled_requires_a_lora_adapter(tmp_path):
+    ar_base, ar_post, diff_base, _ = _dg_setup(tmp_path)
+    tau_a = CheckpointPairSource(ar_post, ar_base)
+    tau_d = CheckpointPairSource(diff_base, diff_base)  # pas un adaptateur
+    with pytest.raises(MergeError, match="adaptateur LoRA"):
+        merge_checkpoint(config("merge-dg-scaled", diff_base, tmp_path / "out",
+                                lam=0.3, tau_a=tau_a, tau_d=tau_d,
+                                mapping=get_mapping("gemma4-diffusiongemma")))
+
+
+def test_merge_dg_scaled_requires_tau_d(tmp_path):
+    ar_base, ar_post, diff_base, _ = _dg_setup(tmp_path)
+    tau_a = CheckpointPairSource(ar_post, ar_base)
+    with pytest.raises(MissingVectorError):
+        merge_checkpoint(config("merge-dg-scaled", diff_base, tmp_path / "out",
+                                lam=0.3, tau_a=tau_a, tau_d=None,
+                                mapping=get_mapping("gemma4-diffusiongemma")))
+
+
+def test_merge_dg_scaled_post_hoc_verification_without_adapter(tmp_path):
+    ar_base, ar_post, diff_base, adapter = _dg_setup(tmp_path)
+    tau_a = CheckpointPairSource(ar_post, ar_base)
+    out = tmp_path / "out"
+    merge_checkpoint(config("merge-dg-scaled", diff_base, out, lam=0.3,
+                            tau_a=tau_a, tau_d=LoraAdapterSource(adapter),
+                            mapping=get_mapping("gemma4-diffusiongemma")))
+    cfg = config("merge-dg-scaled", diff_base, out, lam=0.3, tau_a=tau_a,
+                 tau_d=None, mapping=get_mapping("gemma4-diffusiongemma"),
+                 write_scaled_adapter=False)
+    report = compute_effective_coefficients(out, diff_base, cfg)
+    assert report["ok"], report["failures"]
+    assert report["n_fused"] == 3
+    assert report["c_a_eff"] == pytest.approx(0.3, abs=0.02)
+    assert report["c_d_eff"] is None
+
+
+def test_adapter_scale_alias():
+    assert normalize_mode("adapter-scale") == "merge-dg-scaled"
+
+
+def test_merged_checkpoint_is_loadable_by_from_pretrained(tmp_path):
+    """Le checkpoint fusionne doit etre chargeable par `from_pretrained`."""
+    from transformers import AutoModelForCausalLM, Qwen2Config, Qwen2ForCausalLM
+
+    qwen_config = Qwen2Config(
+        vocab_size=64, hidden_size=32, intermediate_size=64,
+        num_hidden_layers=2, num_attention_heads=4, num_key_value_heads=2,
+        max_position_embeddings=32, tie_word_embeddings=False)
+
+    def make(name: str, seed: int) -> Path:
+        torch.manual_seed(seed)
+        model = Qwen2ForCausalLM(qwen_config)
+        directory = tmp_path / name
+        model.save_pretrained(directory)
+        return directory
+
+    ar_base = make("ar_base", 1)
+    ar_post = make("ar_post", 2)
+    diff_base = make("diff_base", 3)
+    out = tmp_path / "out"
+    merge_checkpoint(config("transfer", diff_base, out, alpha=0.5,
+                            tau_a=CheckpointPairSource(ar_post, ar_base)))
+    loaded = AutoModelForCausalLM.from_pretrained(out)
+    merged = {}
+    weight_map = load_weight_map(out)
+    for fname in sorted(set(weight_map.values())):
+        merged.update(load_file(str(out / fname)))
+    for name, tensor in loaded.state_dict().items():
+        if name in merged:
+            assert torch.equal(tensor, merged[name]), name
+    with torch.no_grad():
+        logits = loaded(torch.tensor([[1, 2, 3]])).logits
+    assert logits.shape == (1, 3, qwen_config.vocab_size)
+    assert torch.isfinite(logits).all()
 
 
 # --------------------------------------------------------------------------- #
@@ -529,15 +716,16 @@ def test_manifest_records_provenance_and_norms(tmp_path):
     assert manifest["torch_version"]
     families = manifest["families"]
     assert families["attn"]["norm_tau_A"] > 0
-    assert families["attn"]["ratio_tau_over_W_global"] > 0
-    assert families["attn"]["ratio_tau_over_W_median"] > 0
+    assert families["attn"]["ratio_max_norm_tau_over_W_global"] > 0
+    assert families["attn"]["ratio_applied_delta_norm_over_W_median"] > 0
     assert families["embed"]["norm_tau_A"] > 0
     on_disk = json.loads((out / "merge_config.json").read_text())
     assert on_disk["alpha"] == 0.3
     assert on_disk["post_write_verification"]["ok"]
 
 
-def test_cli_merge_without_tau_d_degrades_to_transfer(tmp_path):
+def test_cli_merge_without_tau_d_is_refused(tmp_path):
+    """Un merge sans tau_D est une ERREUR DURE (plus de degradation implicite)."""
     ar_base, ar_post, diff_base, diff_post = ar_and_diffusion(tmp_path)
     out = tmp_path / "out"
     cmd = [sys.executable, str(SCRIPTS / "merge_a2d.py"), "--mode", "merge",
@@ -545,16 +733,9 @@ def test_cli_merge_without_tau_d_degrades_to_transfer(tmp_path):
            "--tau-a-post", str(ar_post), "--tau-a-base", str(ar_base),
            "--alpha", "0.4", "--output", str(out)]
     done = subprocess.run(cmd, capture_output=True, text=True)
-    assert done.returncode == 0, done.stdout + done.stderr
-    assert "degradation en A2D-Transfer" in done.stdout
-    manifest = json.loads((out / "merge_config.json").read_text())
-    assert manifest["mode"] == "transfer"
-    assert manifest["alpha"] == 0.4
-    src, dst = tensors_of(diff_base), tensors_of(out)
-    ar_b, ar_p = tensors_of(ar_base), tensors_of(ar_post)
-    for name in QWEN:
-        expected = src[name] + 0.4 * (ar_p[name] - ar_b[name])
-        assert torch.allclose(dst[name].to(torch.float32), expected, atol=1e-2), name
+    assert done.returncode == 2, done.stdout + done.stderr
+    assert "Aucune degradation implicite" in done.stdout
+    assert not list(out.glob("*.safetensors"))
 
 
 def test_cli_merge_without_tau_d_and_without_alpha_is_refused(tmp_path):
@@ -565,7 +746,7 @@ def test_cli_merge_without_tau_d_and_without_alpha_is_refused(tmp_path):
            "--lambda", "0.6", "--output", str(tmp_path / "out")]
     done = subprocess.run(cmd, capture_output=True, text=True)
     assert done.returncode == 2, done.stdout + done.stderr
-    assert "exige un --alpha explicite" in done.stdout
+    assert "Aucune degradation implicite" in done.stdout
 
 
 def test_cli_warns_above_coefficient_threshold(tmp_path):

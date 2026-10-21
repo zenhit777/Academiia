@@ -1,11 +1,17 @@
-# G2 — Mise à l'échelle des adaptateurs de diffusion (DiffusionGemma) — **CONCEPTION SEULE**
+# G2 — Mise à l'échelle des adaptateurs de diffusion (DiffusionGemma) — **IMPLÉMENTÉ**
 
-**Date** : 2026-10-20 · **Mission** : J6bis B7 · **Statut** : **design, aucun code**
+**Date** : 2026-10-20 (conception) · **Implémentation** : 2026-10-21 (J8, phase B) ·
+**Statut** : mode `merge-dg-scaled` disponible et testé ; l'**évaluation** G2 reste
+conditionnée à une machine capable de charger le décodeur DG 26B (voir §5.3).
 
-> Ce document **ne contient aucun code implémenté**. Il décrit ce qu'il faut
-> faire, pourquoi, et ce qui reste à vérifier. La porte G2 est **BLOQUÉE**
-> tant que ce mode n'existe pas dans la bibliothèque
-> (`CHECKLIST.md`, table des portes).
+> Ce document est le cahier des charges de la porte G2. La **phase B de J8** a
+> implémenté le mode « base + adaptateur remis à l'échelle » dans la
+> bibliothèque : `scripts/a2d/adapters.py`, `MergeConfig(mode="merge-dg-scaled")`
+> et les options CLI `--mode merge-dg-scaled` (alias `--mode adapter-scale`),
+> `--adapter-dtype`, `--adapter-output-name`. Les tests couvrent la formule,
+> l'absence de fusion de τ_D, la mise à l'échelle, la détection de mutation et
+> la rechargeabilité du checkpoint. La porte G2 elle-même (évaluation médicale)
+> n'est **pas** franchie : elle exige le protocole App. A.1 complet.
 
 ## 1. Ce que dit le papier
 
@@ -74,15 +80,14 @@ D_Merge(λ) = [ D_b + λ·τ_A ]  +  (1−λ)·τ_D
 > dont l'échelle est réduite d'un facteur `(1−λ)`. À l'inférence, le modèle
 > est `base' + adaptateur_à_l'échelle`.
 
-C'est exactement ce que l'App. A.2 impose (« stay unmerged and are scaled »),
-et c'est incompatible avec ce que fait **aujourd'hui** la bibliothèque :
-`LoraAdapterSource` calcule `(α/r)·B·A` et `merge_checkpoint()` **l'ajoute aux
-poids** (`scripts/a2d/merge.py`, chemin `delta_d`) — c'est le constat **MAJ-08**
-de `docs/reports/AUDIT_J6.md`, et c'est ce qui bloque G2.
+C'est exactement ce que l'App. A.2 impose (« stay unmerged and are scaled »).
+Les modes `merge` / `ablation-*` continuent de fusionner un `τ_D` dans les
+poids (c'est leur définition) ; le mode **`merge-dg-scaled`** ajouté en J8 est
+le seul qui traite `τ_D` comme une dépendance d'inférence externe.
 
-## 3. Le mode à concevoir : « base + adaptateur remis à l'échelle »
+## 3. Le mode implémenté : « base + adaptateur remis à l'échelle »
 
-### 3.1 Interface visée (design, pas implémentation)
+### 3.1 Interface (implémentée)
 
 ```
 python scripts/merge_a2d.py --mode merge-dg-scaled \
@@ -109,19 +114,22 @@ Sortie attendue (deux artefacts, **un seul modèle** au moment de l'inférence) 
 | **(b)** multiplier les tenseurs `lora_B` par `(1−λ)` (écriture en BF16) | `ΔW = (α/r)·B·A` ⇒ `(α/r)·(s·B)·A = s·ΔW` | **exacte** en arithmétique FP32, mais l'écriture en BF16 du `B` mis à l'échelle ajoute un arrondi sur l'adaptateur lui-même | arrondi BF16 sur `B` (perte sur l'adaptateur, pas sur les poids) | **recommandée**, à condition de conserver `lora_alpha` intact et de vérifier l'écart |
 | **(c)** charger l'adaptateur avec un facteur externe | facteur appliqué à l'inférence | exacte si le facteur est appliqué en FP32 | dépend du code d'inférence (HF / vLLM / transformers) | **recommandée comme moyen de contrôle** (permet de vérifier (b) contre (c)) |
 
-**Décision de conception** : (b) comme mode d'écriture (l'adaptateur produit est
-autonome, donc rejouable avec n'importe quel runtime), **plus** (c) comme
-procédure de vérification (recharger l'adaptateur original avec le facteur
-`1−λ` et comparer les deltas, tenseur par tenseur).
+**Décision de conception (implémentée)** : (b) comme mode d'écriture
+(`scripts/a2d/adapters.py::scale_adapter`), **plus** (c) comme procédure de
+vérification (`verify_scaled_adapter`). `lora_alpha` reste **intact** dans
+`adapter_config.json` ; seul `lora_B` est multiplié. Le dtype d'écriture est
+BF16 par défaut (`--adapter-dtype bfloat16`) ou FP32 (`--adapter-dtype float32`).
 
-### 3.3 Ce que la bibliothèque doit savoir faire (et ne sait pas)
+### 3.3 Ce que la bibliothèque sait faire (implémenté en J8)
 
-| Besoin | État actuel | Action de conception |
-|---|---|---|
-| Produire `base' = D_b + λ·τ_A` **sans** toucher à l'adaptateur | le mode `merge` exige τ_D et l'applique | ajouter un mode où τ_D est **externe** (non fusionné) : le plan ne contient que les modules de τ_A, et τ_D est traité comme une **dépendance d'inférence** |
-| Écrire un adaptateur **mis à l'échelle** | inexistant (`LoraAdapterSource` ne fait que lire) | nouvelle capacité d'écriture d'adaptateur (copie + mise à l'échelle de `lora_B` ou de `lora_alpha`) |
-| Déclarer dans le manifeste l'adaptateur utilisé et son échelle | inexistant | le manifeste doit contenir : chemin de l'adaptateur, `r`, `α`, `α'`, facteur effectif, empreinte SHA-256 de l'adaptateur **avant** et **après** mise à l'échelle |
-| Vérifier que l'adaptateur n'est **pas** dans les poids | non vérifiable aujourd'hui | contrôle explicite (voir §5) |
+| Besoin | État |
+|---|---|
+| Produire `base' = D_b + λ·τ_A` **sans** toucher à l'adaptateur | **fait** : `mode="merge-dg-scaled"`, plan limité aux modules de τ_A ; `required_sources()` = `{A}` |
+| Écrire un adaptateur **mis à l'échelle** | **fait** : `scale_adapter()` copie le dossier, multiplie `lora_B` par `(1−λ)`, conserve `lora_A`, `adapter_config.json` et les métadonnées safetensors |
+| Déclarer dans le manifeste l'adaptateur utilisé et son échelle | **fait** : `merge_config.json["diffusion_adapter"]` (chemins, `r`, `lora_alpha`, `factor`, `scale_before/after`, SHA-256 des shards avant/après, branches encodeur/décodeur/self-conditioning) |
+| Vérifier que l'adaptateur n'est **pas** dans les poids | **fait** : `tau_d_merged_into_weights=false`, plan sans τ_D, tenseurs hors plan bit-identiques, `max_ulp=0` |
+| Vérifier l'échelle de l'adaptateur | **fait** : `verify_scaled_adapter()` (V5/V6), exécuté après écriture et disponible via `verify_merge.py --merged-adapter` |
+| Refuser un τ_D qui n'est pas un adaptateur LoRA | **fait** : `MergeError` explicite (un `D_p − D_b` doit passer par `--mode merge`) |
 
 ## 4. Poids partagés encodeur / décodeur — le point technique central
 
@@ -211,11 +219,11 @@ couverture) pour que la traçabilité soit complète.
 
 | # | Contrôle | Moyen | Critère |
 |---|---|---|---|
-| V1 | **Identité numérique de la formule** | recalcul de `base' + (1−λ)·τ_D_effectif` et comparaison à `D_b + λ·τ_A + (1−λ)·τ_D` | écart max ≤ 1 ULP BF16 par élément |
+| V1 | **Identité numérique de la formule** | recalcul de `base' + (1−λ)·τ_D_effectif` et comparaison à `D_b + λ·τ_A + (1−λ)·τ_D` | écart max **0 ULP** BF16 par élément (`max_ulp=0` : égalité avec `round_bf16(expected)`) |
 | V2 | **Projection signée** (réutiliser la vérification v2) | `scripts/verify_merge.py` sur le couple (base', D_b) avec τ_A | `c_a_eff = λ` dans la tolérance ; `c_d_eff` non applicable (τ_D n'est pas dans les poids) |
-| V3 | **τ_D n'est PAS dans les poids** | sur le `base'` produit : `base' − D_b − λ·τ_A` doit être **exactement nul** sur les modules de τ_A | égalité bit-à-bit (le writer n'ajoute que λ·τ_A) |
+| V3 | **τ_D n'est PAS dans les poids** | sur le `base'` produit : `base' − D_b − λ·τ_A` doit être **exactement nul** sur les modules de τ_A | égalité avec l'arrondi BF16 attendu (`max_ulp=0`) ; `tau_d_merged_into_weights=false` |
 | V4 | **Tenseurs non appariés inchangés** | comparaison binaire `base'` vs `D_b` sur les 842 tenseurs hors plan | **bit-identiques** (contrôle déjà implémenté dans la vérification v2) |
-| V5 | **Échelle effective de l'adaptateur** | recharger l'adaptateur original avec le facteur `(1−λ)` (option (c)) et comparer ΔW | `cos(ΔW_scaled, (1−λ)·ΔW) ≥ 1 − 10⁻⁴` et `‖ΔW_scaled − (1−λ)·ΔW‖ / ‖(1−λ)·ΔW‖ ≤ 10⁻³` |
+| V5 | **Échelle effective de l'adaptateur** | recharger l'adaptateur original avec le facteur `(1−λ)` (option (c)) et comparer ΔW | `cos(ΔW_scaled, (1−λ)·ΔW) ≥ 1 − 10⁻⁴` et `‖ΔW_scaled − (1−λ)·ΔW‖ / ‖(1−λ)·ΔW‖ ≤ 10⁻²` en BF16 (arrondi de `lora_B`, ε=2⁻⁸) ; `≤ 10⁻³` en FP32 |
 | V6 | **Symétrie encodeur/décodeur** | vérifier que les deux jeux de l'adaptateur sont **tous deux** présents et **tous deux** mis à l'échelle | les 413 modules du `diffusion-*` sont présents dans l'adaptateur produit, avec la même facteur |
 | V7 | **Provenance** | manifeste : SHA-256 de l'adaptateur **avant** et **après**, `r`, `α`, `α'`, facteur effectif, commit git | toutes les valeurs présentes et vérifiables |
 | V8 | **Le plan est non vide** | refus si `n_fused == 0` (déjà implémenté : `MergeError` sauf `--allow-empty`) | aucun `--allow-empty` utilisé |
@@ -280,12 +288,15 @@ baselines* » (Table 1b, `_artefact/a2d_paper.txt:765-770`).
 
 ## 7. Décision
 
-**G2 reste BLOQUÉE.** La bibliothèque doit ajouter un mode « base + adaptateur
-remis à l'échelle » (option (b) + vérification V5), avant toute fusion DG.
-Aucun code n'est écrit dans cette mission ; ce document est le cahier des
-charges.
+**Le blocage bibliothèque est levé (J8, phase B).** Le mode
+`merge-dg-scaled` (option (b) + vérification V5, alias `adapter-scale`) est
+implémenté, testé (formule, non-fusion de τ_D, échelle, mutation, recharge
+`from_pretrained`) et documenté. La porte **G2 reste non franchie** pour une
+raison de **moyens de calcul** : le protocole App. A.1 (décodeur DG 26B en
+BF16 ≈ 48 GiB + juge 27B) ne tient pas sur une RTX 5090 32 Go sans
+quantification, qui changerait le protocole et devrait être déclarée.
 
-**Ordre de travail proposé** (J7 + G2) :
+**Ordre de travail** :
 
 1. J7 (Dream) : transfert α=0,9 et merge λ=0,6, évalués selon
    `docs/design/G1_PROTOCOL.md` → **G1** ;
@@ -296,3 +307,19 @@ charges.
 4. G1b (Nemotron-3B) : faisabilité déjà instruite dans
    `docs/design/G1B_NEMOTRON3B.md` ; à placer entre G1 et G2 selon la
    disponibilité des poids.
+
+## 8. Implémentation (J8, phase B)
+
+| Élément | Emplacement |
+|---|---|
+| Mise à l'échelle + vérification | `scripts/a2d/adapters.py` (`scale_adapter`, `verify_scaled_adapter`) |
+| Mode de fusion | `scripts/a2d/merge.py` (`MODES`, `mode_coefficients`, `required_sources`, `validate_config`, `merge_checkpoint`) |
+| CLI | `scripts/merge_a2d.py --mode merge-dg-scaled` (alias `adapter-scale`), `--adapter-dtype`, `--adapter-output-name` |
+| Vérification post hoc | `scripts/verify_merge.py --mode merge-dg-scaled --merged-adapter ...` |
+| Manifeste | `merge_config.json` : `diffusion_adapter`, `diffusion_adapter_verification`, `tau_d_merged_into_weights` |
+| Tests | `scripts/tests/test_a2d_library.py` (formule, non-fusion, échelle, recharge) ; `scripts/tests/test_a2d_mutation.py` (facteur erroné, refus d'écrasement) |
+
+Limites **non vérifiées** contre le PDF (inchangées) : H1–H4 du §6. En
+particulier, le facteur `(1−λ)` appliqué à **toutes** les branches (décodeur,
+encodeur, self-conditioning) reste une **inférence** cohérente avec l'eq. (2),
+mais l'App. A.2 ne détaille pas module par module.
