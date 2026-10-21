@@ -6,8 +6,8 @@ lm-evaluation-harness de l'équipe Dream** (`DreamLM/Dream`, dossier
 `eval_instruct/lm_eval`, modèle `diffllm`).
 
 > Ce harnais a été **reconstruit dans le dépôt** par la mission J6bis (2026-10-20).
-> La version J6 vivait hors du dépôt (`/home/sjteb/dream-harness`) ; elle est
-> décrite plus bas, avec la correspondance exacte des résultats.
+> La version J6 vivait hors du dépôt (répertoire `dream-harness` du compte
+> utilisateur) ; elle est décrite plus bas, avec la correspondance exacte des résultats.
 
 ## Contenu
 
@@ -77,7 +77,7 @@ encodé dans le nom, cf. `scripts/restructure_eval_dirs.py`).
 
 | Jeu de résultats | Commande d'origine | Version | Durée |
 |---|---|---|---|
-| `eval/dream_a2d/dream_7b_base/gsm8k_cot_a2d` (n=300) | `/home/sjteb/dream-harness/run_dream_evals2.sh` (V2, entrelacé) | fork `31f94a6`, graines `0,1234,1234,1234` | 00:02:25 → 00:53:06 |
+| `eval/dream_a2d/dream_7b_base/gsm8k_cot_a2d` (n=300) | `run_dream_evals2.sh` (script hors dépôt de la mission J6, V2 entrelacé) | fork `31f94a6`, graines `0,1234,1234,1234` | 00:02:25 → 00:53:06 |
 | `eval/dream_a2d/dream_7b_instruct/gsm8k_cot_a2d` (n=300) | idem | idem | 00:53:54 → 01:44:41 |
 | `eval/dream_a2d/dream_7b_base/minerva_math_algebra` (n=175) | idem | idem | 01:44:41 → 03:25:13 |
 | `eval/dream_a2d/dream_7b_instruct/minerva_math_algebra` (n=175) | idem | idem | 03:25:13 → 05:05:05 |

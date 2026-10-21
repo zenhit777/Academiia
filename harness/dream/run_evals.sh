@@ -2,9 +2,9 @@
 # run_evals.sh — evaluation Dream-7B, harnais dans le dépôt (mission J6bis C1/C3).
 #
 # Remplace les scripts `run_dream_evals.sh` (V1) et `run_dream_evals2.sh` (V2)
-# qui vivaient HORS du depot (/home/sjteb/dream-harness) : meme commande
-# lm_eval, meme entrelacement, mais tout est parametrable et tous les chemins
-# sont RELATIFS au depot.
+# qui vivaient HORS du depot (repertoire dream-harness du compte utilisateur) :
+# meme commande lm_eval, meme entrelacement, mais tout est parametrable et tous
+# les chemins sont RELATIFS au depot.
 #
 #   bash harness/dream/run_evals.sh                      # base + instruct, 3 taches
 #   MODEL_DIR=checkpoints/dream_7b_base TASK=gsm8k LIMIT=8 \
