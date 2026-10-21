@@ -291,6 +291,19 @@ TMPDIR="$PWD/_artefact/tmp" TEMP="$PWD/_artefact/tmp" TMP="$PWD/_artefact/tmp" \
     python -m pytest scripts/tests -q
 ```
 
+> **Note opérationnelle (2026-10-21, agent J7 — post-audit, sans modification des
+> constats de l'audit)** : la commande « Tests » ci-dessus **échoue sur cette machine**.
+> Le dépôt est sur **DrvFs** (`/mnt/d`), qui ne supporte pas `O_TMPFILE` :
+> `tempfile.TemporaryFile()` retombe sur un fichier nommé et la capture pytest échoue en
+> `FileNotFoundError` (`_pytest/capture.py:594`, au `truncate()` de fin de session) —
+> **après** l'exécution des tests, donc sans ligne « passed », et avec un code de sortie
+> non nul. Recette **vérifiée** qui fonctionne dans le dépôt :
+> `TMPDIR="$PWD/_artefact/tmp" TEMP="$PWD/_artefact/tmp" TMP="$PWD/_artefact/tmp" \
+> python3 -m pytest scripts/tests -q --capture=sys` → **73 passed** (le nombre rapporté
+> par l'audit est donc confirmé) ; `-s` convient aussi. `--capture=fd` échoue comme la
+> capture par défaut sur DrvFs ; le `TMPDIR` par défaut (`/tmp`, ext4) fonctionne mais
+> écrit hors dépôt.
+
 ## Annexe B — Limites de l'audit
 
 - Pas de ré-exécution GPU : l'audit vérifie la **traçabilité** et la **statistique**,

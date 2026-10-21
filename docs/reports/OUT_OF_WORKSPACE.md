@@ -87,13 +87,27 @@ mesure à jour est **8 483 981 o** (2026-10-20 16:40).
 
 **Complément J7 (2026-10-21)** : la même zone est repassée à **13 095 569 o**
 (12,49 Mo), à cause des relances `pytest` de la mission J7, elles lancées avec
-le `TMPDIR` **par défaut** (hors dépôt) — **écart à la règle 9**, déclaré ici
-(correctif : `TMPDIR=$PWD/_artefact/tmp` pour les relances suivantes). Une
-seule écriture hors dépôt a été produite par l'agent lui-même pendant J7 :
+le `TMPDIR` **par défaut** (hors dépôt) — **écart à la règle 9**, déclaré ici.
+Une seule écriture hors dépôt a été produite par l'agent lui-même pendant J7 :
 `/tmp/tmpjyhmcic4/` (176 o, deux fichiers `*.safetensors` d'une démonstration
 de contre-régression du bloc `__metadata__`) — **supprimée** le 2026-10-21
 (échafaudage jetable de l'agent, pas une donnée préexistante). Aucune donnée
 préexistante n'a été supprimée.
+
+> **Correctif de la recette (mesuré le 2026-10-21)** : rediriger `TMPDIR` vers le
+> dépôt **casse pytest** quand le dépôt est sur **DrvFs** (`/mnt/d`), qui ne supporte
+> pas `O_TMPFILE` : `tempfile.TemporaryFile()` retombe sur un fichier nommé et la
+> capture pytest échoue en `FileNotFoundError` (`capture.py:594`, au `truncate()` de
+> fin de session) — **après** l'exécution des tests, donc sans message « passed ».
+>
+> ```bash
+> # conforme à la règle 9 ET fonctionnel sur DrvFs :
+> TMPDIR="$PWD/_artefact/tmp" TEMP="$PWD/_artefact/tmp" TMP="$PWD/_artefact/tmp" \
+>     python3 -m pytest scripts/tests -q --capture=sys     # 73 verts
+> ```
+>
+> `--capture=fd` échoue comme la capture par défaut sur DrvFs ; le `TMPDIR` par défaut
+> (`/tmp`, ext4) fonctionne mais écrit hors dépôt.
 
 ### 1.4 Docker
 
