@@ -111,7 +111,9 @@ tolérance ; `--no-verify` laisse une trace au manifeste) ; **coefficient nul re
 transfert à `α=0` ou un merge à `λ=0` n'écrirait qu'une copie de la référence : refus sortie 2
 — `--allow-empty-coefficient` pour l'assumer explicitement, avec avertissement au manifeste) ;
 manifeste `merge_config.json` (α, λ, hashes d'index des sources, commit git, versions, normes
-par famille de tenseurs).
+par famille de tenseurs) ; shards écrits avec le bloc `__metadata__` (`format: pt`) **repris de
+la source** — sans lui, le checkpoint fusionné n'est **pas chargeable** par `from_pretrained`
+(`transformers.load_state_dict` échoue sur un fichier sans métadonnées).
 
 ### Pipeline LEGACY (Jainius) — déprécié, conservé
 

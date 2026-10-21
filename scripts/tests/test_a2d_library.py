@@ -23,6 +23,7 @@ from pathlib import Path
 
 import pytest
 import torch
+from safetensors import safe_open
 from safetensors.torch import load_file, save_file
 
 SCRIPTS = Path(__file__).resolve().parents[1]
@@ -63,13 +64,19 @@ DG_DIFF = {
 }
 
 
-def build_checkpoint(root: Path, spec: dict, seed: int = 0, name: str = "ckpt") -> Path:
-    """Ecrit un checkpoint-jouet (safetensors + index + sidecars)."""
+def build_checkpoint(root: Path, spec: dict, seed: int = 0, name: str = "ckpt",
+                     metadata=None) -> Path:
+    """Ecrit un checkpoint-jouet (safetensors + index + sidecars).
+
+    Les shards portent le bloc `__metadata__` (`format: pt`) comme les
+    checkpoints Hub : le chargeur `transformers.load_state_dict` l'exige.
+    """
     d = root / name
     d.mkdir(parents=True, exist_ok=True)
     generator = torch.Generator().manual_seed(seed)
     tensors = {k: torch.randn(*shape, generator=generator) for k, shape in spec.items()}
-    save_file(tensors, str(d / "model-00001-of-00001.safetensors"))
+    save_file(tensors, str(d / "model-00001-of-00001.safetensors"),
+              metadata=metadata if metadata is not None else {"format": "pt"})
     (d / "model.safetensors.index.json").write_text(json.dumps(
         {"metadata": {"total_size": 0},
          "weight_map": {k: "model-00001-of-00001.safetensors" for k in spec}}))
@@ -207,6 +214,29 @@ def test_merge_formula_matches_manual_computation(tmp_path):
 # --------------------------------------------------------------------------- #
 # Garde-fou « coefficient nul » (F2)
 # --------------------------------------------------------------------------- #
+
+def test_merged_shards_carry_safetensors_metadata(tmp_path):
+    """Le shard fusionne doit porter le bloc `__metadata__` (`format: pt`).
+
+    Sans lui, `transformers.load_state_dict` echoue
+    (`AttributeError: 'NoneType' object has no attribute 'get'`) et le
+    checkpoint fusionne n'est pas chargeable par `from_pretrained` : c'est
+    bloque par le smoke de chargement de J7.
+    """
+    base = build_checkpoint(tmp_path, QWEN, seed=1, name="base",
+                            metadata={"format": "pt", "origin": "academiia"})
+    post = build_checkpoint(tmp_path, QWEN, seed=2, name="post")
+    tau = CheckpointPairSource(post, base)
+    out = tmp_path / "out"
+    merge_checkpoint(config("transfer", base, out, alpha=0.5, tau_a=tau))
+    shard = out / "model-00001-of-00001.safetensors"
+    with safe_open(str(shard), framework="pt") as handle:
+        meta = handle.metadata()
+    assert meta is not None, "shard fusionne sans __metadata__ : non chargeable"
+    assert meta.get("format") == "pt"
+    # les metadonnees de la source sont reprises, pas perdues
+    assert meta.get("origin") == "academiia"
+
 
 def test_transfer_with_zero_coefficient_is_refused(tmp_path):
     """F2 : un transfert a alpha=0 n'ecrit qu'une copie de D_b : il est refuse."""

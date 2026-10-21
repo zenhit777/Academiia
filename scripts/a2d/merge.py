@@ -992,6 +992,7 @@ def merge_checkpoint(cfg: MergeConfig, log=print) -> MergeResult:
     for fname, tensor_names in sorted(by_file.items()):
         out_tensors = {}
         with safe_open(str(recipient / fname), framework="pt") as handle:
+            source_metadata = handle.metadata()
             for tensor_name in sorted(tensor_names):
                 weight = handle.get_tensor(tensor_name).to(torch.float32)
                 entry = plan.get(tensor_name)
@@ -1034,7 +1035,7 @@ def merge_checkpoint(cfg: MergeConfig, log=print) -> MergeResult:
                 w_norm = math.sqrt(_sq_norm(weight))
                 if w_norm > 0:
                     ratios[entry.family].append(math.sqrt(_sq_norm(applied)) / w_norm)
-        _atomic_save(out_tensors, output / fname)
+        _atomic_save(out_tensors, output / fname, metadata=source_metadata)
         total_written += len(tensor_names)
         log(f"    [{fname}] {len(tensor_names)} tenseurs — total {total_written}/{len(weight_map)}")
 
@@ -1076,11 +1077,23 @@ def merge_checkpoint(cfg: MergeConfig, log=print) -> MergeResult:
                        n_fused=len(plan), n_unchanged=len(weight_map) - len(plan))
 
 
-def _atomic_save(tensors: Dict[str, torch.Tensor], path: Path) -> None:
+def _atomic_save(tensors: Dict[str, torch.Tensor], path: Path,
+                metadata: Optional[Dict[str, str]] = None) -> None:
+    """Ecrit un shard safetensors de facon atomique.
+
+    Le bloc `__metadata__` du header est **repris de la source** : le chargeur
+    `transformers.load_state_dict` exige `format == "pt"` et echoue sur un
+    fichier sans metadonnees (`AttributeError: 'NoneType' object has no
+    attribute 'get'`) — un checkpoint fusionne sans ce bloc n'est donc pas
+    chargeable par `from_pretrained`.
+    """
+    meta = dict(metadata) if metadata else {}
+    if "format" not in meta:
+        meta["format"] = "pt"
     fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".tmp-")
     os.close(fd)
     try:
-        save_file(tensors, tmp_path)
+        save_file(tensors, tmp_path, metadata=meta)
         os.replace(tmp_path, str(path))
     finally:
         if os.path.exists(tmp_path):
