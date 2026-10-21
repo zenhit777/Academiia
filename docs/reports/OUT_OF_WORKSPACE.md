@@ -65,7 +65,7 @@ n'est donc plus une source unique.
 | ↳ `model_language_model_embed_tokens_weight.npy` | 2 952 790 144 | | | |
 | ↳ `model_language_model_layers_15_experts_down_proj.npy` | 1 015 021 696 | | | |
 | ↳ `model_language_model_layers_0_self_attn_q_proj_weight.npy` | 46 137 472 | | | |
-| `/tmp/pytest-of-sjteb/` | **8 483 981** (8,09 Mo) | `sjteb:sjteb` | 2026-10-20 13:14 | `pytest-*` (J6bis + audit N1) — taille **périmée** dans l'inventaire initial (591 207 o) |
+| `/tmp/pytest-of-sjteb/` | **13 095 569** (12,49 Mo) | `sjteb:sjteb` | 2026-10-21 10:20 | `pytest-*` (J6bis + audit N1 + **J7**) — taille **périmée** dans l'inventaire initial (591 207 o) ; la croissance 8 483 981 → 13 095 569 o vient des relances `pytest` de **J7** (2026-10-21), lancées avec le `TMPDIR` **par défaut** (donc hors dépôt) : **écart à la règle 9**, déclaré ici |
 | `/tmp/SUMMARY_test.json` | **48 867** | `sjteb:sjteb` | 2026-10-20 13:03 | résumé de test écrit **hors dépôt** (jamais inventorié jusqu'ici) |
 | `/tmp/SUMMARY_test.md` | **2 814** | `sjteb:sjteb` | 2026-10-20 13:03 | idem (`SUMMARY_test.json`) |
 | `/tmp/a2d_smoke_transfer/` | **absent du disque** | — | — | checkpoint de **transfert α=0,9** de la mission J6 (poids 7B BF16, ≈ 15 Go), cité dans `docs/reports/J6.md` (lignes ~63 et ~309) : il **n'existe plus** ; conservé ici pour tracer ce qui a disparu (aucune suppression n'est imputable à une mission) |
@@ -84,6 +84,16 @@ dépôt**, conformément à la règle 9) ; le volume restant sous
 `/tmp/pytest-of-sjteb/` est l'accumulation des runs antérieurs à cette
 redirection. La valeur 591 207 o de l'inventaire initial était **périmée** : la
 mesure à jour est **8 483 981 o** (2026-10-20 16:40).
+
+**Complément J7 (2026-10-21)** : la même zone est repassée à **13 095 569 o**
+(12,49 Mo), à cause des relances `pytest` de la mission J7, elles lancées avec
+le `TMPDIR` **par défaut** (hors dépôt) — **écart à la règle 9**, déclaré ici
+(correctif : `TMPDIR=$PWD/_artefact/tmp` pour les relances suivantes). Une
+seule écriture hors dépôt a été produite par l'agent lui-même pendant J7 :
+`/tmp/tmpjyhmcic4/` (176 o, deux fichiers `*.safetensors` d'une démonstration
+de contre-régression du bloc `__metadata__`) — **supprimée** le 2026-10-21
+(échafaudage jetable de l'agent, pas une donnée préexistante). Aucune donnée
+préexistante n'a été supprimée.
 
 ### 1.4 Docker
 

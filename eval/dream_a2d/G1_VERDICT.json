@@ -1,0 +1,152 @@
+{
+  "root": "eval/dream_a2d",
+  "identite_items": {
+    "gsm8k_cot_a2d": {
+      "items_sha256": "2d56d1fdcbd24b575c3eec4c8eb972d46b6f9f86568819e7bae5141c77d4d304",
+      "prompts_sha256": "cc3e4a4bfa53ea71342aea40b83c02df16c6d7b7a5c50a9af186c9eaa40f0f90",
+      "n_items": 300,
+      "memes_items_4_modeles": true,
+      "memes_prompts_4_modeles": true
+    },
+    "minerva_math_algebra": {
+      "items_sha256": "e8d1dae81491a7c8b7526a1cb71ef521aa2a3b688e618922dd0691106f277445",
+      "prompts_sha256": "a00782289787b2e9224df0efd46769b50f0ea78674c9bf8f4634cd761feb6864",
+      "n_items": 175,
+      "memes_items_4_modeles": true,
+      "memes_prompts_4_modeles": true
+    },
+    "ifeval_a2d": {
+      "items_sha256": "0d66e89ed6abd889241d1437e2037836f41ed17d7176242d8f43d2bd95f1a98f",
+      "prompts_sha256": "62df58fa1ef767e77a510bd5e130440308757f1d870e60100e37e1013446f877",
+      "n_items": 8,
+      "memes_items_4_modeles": true,
+      "memes_prompts_4_modeles": true
+    }
+  },
+  "criteres": [
+    {
+      "criterion": "C1",
+      "type": "gain",
+      "seuil_points": 10.0,
+      "point_estimate": 9.714285714285714,
+      "borne_basse": 2.857142857142857,
+      "borne_haute": 16.57142857142857,
+      "condition_point_estimate": false,
+      "condition_borne_basse": true,
+      "etat": "NON ATTEINT (point estimate sous le seuil, IC exclut 0)",
+      "atteint": false,
+      "modele_a": "M0",
+      "modele_b": "M2",
+      "tache": "minerva_math_algebra",
+      "metrique": "math_verify",
+      "filtre": "none",
+      "libelle": "Transfer - Base, MATH-175",
+      "precision_a": 0.24,
+      "precision_b": 0.33714285714285713,
+      "n_items": 175,
+      "discordant_b_only": 27,
+      "discordant_a_only": 10,
+      "wilson_a": [
+        0.18274204115195586,
+        0.3084277985274028
+      ],
+      "wilson_b": [
+        0.2712679205596076,
+        0.4100142867120786
+      ]
+    },
+    {
+      "criterion": "C2",
+      "type": "gain",
+      "seuil_points": 8.0,
+      "point_estimate": 14.333333333333334,
+      "borne_basse": 9.333333333333334,
+      "borne_haute": 19.666666666666664,
+      "condition_point_estimate": true,
+      "condition_borne_basse": true,
+      "etat": "ATTEINT",
+      "atteint": true,
+      "modele_a": "M0",
+      "modele_b": "M2",
+      "tache": "gsm8k_cot_a2d",
+      "metrique": "exact_match",
+      "filtre": "flexible-extract",
+      "libelle": "Transfer - Base, GSM8K",
+      "precision_a": 0.6866666666666666,
+      "precision_b": 0.83,
+      "n_items": 300,
+      "discordant_b_only": 55,
+      "discordant_a_only": 12,
+      "wilson_a": [
+        0.6320966534895827,
+        0.7365164659779293
+      ],
+      "wilson_b": [
+        0.7833848085580865,
+        0.8682705276434078
+      ]
+    },
+    {
+      "criterion": "C3",
+      "type": "non-regression",
+      "seuil_points": -2.0,
+      "point_estimate": -2.2857142857142856,
+      "borne_basse": -9.142857142857142,
+      "borne_haute": 4.571428571428571,
+      "etat": "non-regression NON ETABLIE (borne basse < -2 : la degradation de 2 points ne peut pas etre exclue)",
+      "atteint": false,
+      "modele_a": "M1",
+      "modele_b": "M3",
+      "tache": "minerva_math_algebra",
+      "metrique": "math_verify",
+      "filtre": "none",
+      "libelle": "Merge - Instruct, MATH-175",
+      "precision_a": 0.3657142857142857,
+      "precision_b": 0.34285714285714286,
+      "n_items": 175,
+      "discordant_b_only": 18,
+      "discordant_a_only": 22,
+      "wilson_a": [
+        0.2979511863838482,
+        0.4392464231208755
+      ],
+      "wilson_b": [
+        0.27658299658271074,
+        0.415882291135583
+      ]
+    },
+    {
+      "criterion": "C4",
+      "type": "non-regression",
+      "seuil_points": -2.0,
+      "point_estimate": 1.6666666666666667,
+      "borne_basse": -2.3333333333333335,
+      "borne_haute": 5.666666666666666,
+      "etat": "non-regression NON ETABLIE (borne basse < -2 : la degradation de 2 points ne peut pas etre exclue)",
+      "atteint": false,
+      "modele_a": "M1",
+      "modele_b": "M3",
+      "tache": "gsm8k_cot_a2d",
+      "metrique": "exact_match",
+      "filtre": "flexible-extract",
+      "libelle": "Merge - Instruct, GSM8K",
+      "precision_a": 0.84,
+      "precision_b": 0.8566666666666667,
+      "n_items": 300,
+      "discordant_b_only": 22,
+      "discordant_a_only": 17,
+      "wilson_a": [
+        0.7942554091313135,
+        0.8771470584702262
+      ],
+      "wilson_b": [
+        0.8124985303950185,
+        0.8918158228732633
+      ]
+    }
+  ],
+  "tous_les_criteres_atteints": false,
+  "conclusion": "G1 NON FRANCHIE (porte ouverte)",
+  "bootstrap_iters": 10000,
+  "bootstrap_seed": 0
+}
