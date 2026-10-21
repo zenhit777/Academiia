@@ -3,7 +3,7 @@
 LEGACY — Compute AR post-training task vector: tau_A = A_p - A_b.
 
 CHAMP LEGACY : ce script persiste tau_A sur disque (`.npy`). Il n'est
-utilise que par le wrapper deprecie `scripts/merge_jainius.py`. Le pipeline
+utilise que par le wrapper deprecie `legacy/scripts/merge_jainius.py`. Le pipeline
 A2D conforme (`scripts/merge_a2d.py` + `scripts/a2d/`) calcule tau_A a la
 volee depuis les checkpoints sources (3-4 handles `safe_open`) et ne persiste
 JAMAIS de vecteur de tache (la provenance est portee par les hashes d'index
@@ -19,13 +19,13 @@ au-dela des 30 Go de RAM de la VM WSL2 (cf. KNOWN_ISSUES.md). L'estimation histo
 materialiser.
 
 Usage:
-    python compute_tau_a.py \
+    python legacy/scripts/compute_tau_a.py \
         --base /path/to/gemma4_base \
         --posttrained /path/to/gemma4_it \
         --output-dir _artefact/tau_a
     # Par defaut --filter decoder : seuls les tenseurs mappables sont ecrits
     # (economise ~35 Go). Ecrire les 1013 tenseurs (vision comprise) :
-    python compute_tau_a.py --filter all ...
+    python legacy/scripts/compute_tau_a.py --filter all ...
 """
 
 import argparse
@@ -38,7 +38,9 @@ import numpy as np
 import torch
 from safetensors import safe_open
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Script deplace dans legacy/ (J8) : les helpers vivent dans <repo>/scripts/.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))), "scripts"))
 from _common import gemma4_to_diffusiongemma, git_commit, tau_filename
 
 

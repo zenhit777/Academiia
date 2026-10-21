@@ -14,8 +14,9 @@ la lire avant toute modification du pipeline de fusion.
 - `scripts/merge_a2d.py` → **CLI conforme** (transfert / merge / ablations)
 - `scripts/verify_merge.py` → vérification post hoc (`α_eff` / `λ_eff` par famille)
 - `scripts/measure_geometry.py` → géométrie des vecteurs (Table 21 du papier)
-- `scripts/merge_jainius.py` → **wrapper DÉPRÉCIÉ** (legacy) ; la logique est dans `scripts/a2d/`
-- `scripts/compute_tau_a.py` → **LEGACY** : persiste τ en `.npy` (ne pas supprimer, ne pas réintroduire)
+- `legacy/scripts/merge_jainius.py` → **wrapper DÉPRÉCIÉ** (legacy) ; la logique est dans `scripts/a2d/`
+- `legacy/scripts/compute_tau_a.py` → **LEGACY** : persiste τ en `.npy` (ne pas supprimer, ne pas réintroduire)
+- `legacy/docs/` → archives Jainius (`AUDIT.md`, `GUIDE_RESTANT.md`), non normatives
 - `./checkpoints/Jainius/` → build legacy (ablation hors papier, plus une référence scientifique)
 
 ## Dossiers temporaires

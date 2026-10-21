@@ -76,7 +76,7 @@ def check_tau_manifest(tau_dir: str, allow_missing: bool = False):
             return None, None
         return None, (
             f"{path} absent : provenance du tau non verifiable. Recalculer tau "
-            f"avec compute_tau_a.py, ou passer --allow-missing-tau-manifest."
+            f"avec legacy/scripts/compute_tau_a.py, ou passer --allow-missing-tau-manifest."
         )
     with open(path) as f:
         manifest = json.load(f)
@@ -134,8 +134,8 @@ def list_source_sidecar_files(src_dir: str) -> list:
     """Fichiers source a recopier : tout sauf poids, index, README et dotfiles.
 
     README.md est EXCLU de la recopie : la model card de la destination (Jainius)
-    ne doit pas etre remplacee par celle de DiffusionGemma. merge_jainius.py ne
-    copie le README source que si la destination n'en a pas (et
+    ne doit pas etre remplacee par celle de DiffusionGemma. merge_jainius.py (legacy/)
+    ne copie le README source que si la destination n'en a pas (et
     verify_checkpoint.py --reference le compare a part).
     """
     out = []

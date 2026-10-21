@@ -15,6 +15,8 @@ from safetensors.torch import load_file, save_file
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 PY = sys.executable
+# Depuis J8, le pipeline legacy (Jainius) vit dans legacy/scripts/.
+LEGACY_SCRIPTS = SCRIPTS.parent / "legacy" / "scripts"
 
 Q_PROJ = "model.decoder.layers.0.self_attn.q_proj.weight"
 LN = "model.decoder.layers.0.input_layernorm.weight"
@@ -26,7 +28,10 @@ SIDECARS = ["tokenizer.json", "tokenizer_config.json", "generation_config.json",
 
 
 def run(script, *args):
-    return subprocess.run([PY, str(SCRIPTS / script), *map(str, args)],
+    path = LEGACY_SCRIPTS / script
+    if not path.exists():
+        path = SCRIPTS / script
+    return subprocess.run([PY, str(path), *map(str, args)],
                           capture_output=True, text=True)
 
 

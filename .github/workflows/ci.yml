@@ -9,11 +9,12 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install safetensors torch numpy pytest pyyaml peft transformers accelerate
-      - name: Syntaxe recursive de scripts/
+      - name: Syntaxe recursive de scripts/ et legacy/scripts/
         run: |
           python - <<'EOF'
           import ast, glob, sys
-          files = sorted(glob.glob('scripts/**/*.py', recursive=True))
+          files = (sorted(glob.glob('scripts/**/*.py', recursive=True))
+                   + sorted(glob.glob('legacy/scripts/**/*.py', recursive=True)))
           assert files, "aucun script trouve"
           for f in files:
               ast.parse(open(f, encoding='utf-8').read(), filename=f)
@@ -42,9 +43,9 @@ jobs:
           np.save("/tmp/dummy_tau/model_language_model_layers_0_self_attn_q_proj_weight.npy",
                   np.full((8, 8), 0.05, dtype=np.float32))
           EOF
-          python scripts/merge_jainius.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --output /tmp/dummy_out --alpha 0.3 --overwrite
+          python legacy/scripts/merge_jainius.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --output /tmp/dummy_out --alpha 0.3 --overwrite
           python scripts/verify_checkpoint.py --checkpoint /tmp/dummy_out
-          python scripts/measure_effect.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --alphas 0.3 --output /tmp/measure.json
+          python legacy/scripts/measure_effect.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --alphas 0.3 --output /tmp/measure.json
       - name: Merge A2D conforme (merge_a2d.py) + verification (verify_merge.py)
         run: |
           python - <<'EOF'

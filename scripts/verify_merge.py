@@ -49,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--tau-a-post")
     parser.add_argument("--tau-a-base")
     parser.add_argument("--tau-a-adapter")
-    parser.add_argument("--tau-a-dir", help="LEGACY : dossier de .npy tau_A (compute_tau_a.py)")
+    parser.add_argument("--tau-a-dir", help="LEGACY : dossier de .npy tau_A (legacy/scripts/compute_tau_a.py)")
     parser.add_argument("--tau-d-post")
     parser.add_argument("--tau-d-base")
     parser.add_argument("--tau-d-adapter")

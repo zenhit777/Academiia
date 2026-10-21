@@ -36,15 +36,15 @@ Academiia/
 │   ├── verify_merge.py    # vérification post hoc (alpha_eff / lambda_eff)
 │   ├── measure_geometry.py# géométrie des vecteurs (Table 21 du papier)
 │   ├── download_models.py # --set gemma|dream|all
-│   ├── compute_tau_a.py   # LEGACY : persiste tau en .npy (ne pas supprimer)
-│   ├── merge_jainius.py   # LEGACY : wrapper deprecie de la bibliotheque
-│   ├── measure_effect.py  # LEGACY : metrologie de l'arrondi BF16
-│   ├── eval_compare.py    # LEGACY : 103 prompts texte, FP8 (non conforme au papier)
+│   ├── eval_compare.py    # 103 prompts texte, FP8 (non conforme au papier)
 │   ├── verify_checkpoint.py # integrite stricte HF
 │   ├── restructure_eval_dirs.py # renommage portable des dossiers de résultats
 │   ├── smoke_int8.py      # test rapide INT8 (iteration, pas preuve)
 │   ├── _common.py         # mapping Gemma4<->DiffusionGemma, helpers
 │   └── tests/             # pytest (test_a2d_library.py, test_a2d_mutation.py)
+├── legacy/                # pipeline Jainius, DÉPRÉCIÉ (hors papier)
+│   ├── scripts/           # compute_tau_a.py, merge_jainius.py, measure_effect.py
+│   └── docs/              # AUDIT.md, GUIDE_RESTANT.md (archives)
 ├── checkpoints/           # Checkpoints binaires (non partages)
 │   ├── gemma4_base/       # A_b — Gemma 4 AR base
 │   ├── gemma4_it/         # A_p — Gemma 4 AR post-trained
@@ -115,17 +115,17 @@ par famille de tenseurs) ; shards écrits avec le bloc `__metadata__` (`format: 
 la source** — sans lui, le checkpoint fusionné n'est **pas chargeable** par `from_pretrained`
 (`transformers.load_state_dict` échoue sur un fichier sans métadonnées).
 
-### Pipeline LEGACY (Jainius) — déprécié, conservé
+### Pipeline LEGACY (Jainius) — déprécié, conservé dans `legacy/`
 
 ```bash
-python scripts/compute_tau_a.py --base checkpoints/gemma4_base --posttrained checkpoints/gemma4_it --output-dir _artefact/tau_a
-python scripts/measure_effect.py --diffusiongemma checkpoints/diffusiongemma_it --tau-dir _artefact/tau_a --alphas 0.05,0.1,0.2,0.3,0.5,0.8
-python scripts/merge_jainius.py --diffusiongemma checkpoints/diffusiongemma_it --tau-dir _artefact/tau_a --output checkpoints/Jainius --alpha 0.3
+python legacy/scripts/compute_tau_a.py --base checkpoints/gemma4_base --posttrained checkpoints/gemma4_it --output-dir _artefact/tau_a
+python legacy/scripts/measure_effect.py --diffusiongemma checkpoints/diffusiongemma_it --tau-dir _artefact/tau_a --alphas 0.05,0.1,0.2,0.3,0.5,0.8
+python legacy/scripts/merge_jainius.py --diffusiongemma checkpoints/diffusiongemma_it --tau-dir _artefact/tau_a --output checkpoints/Jainius --alpha 0.3
 python scripts/verify_checkpoint.py --checkpoint checkpoints/Jainius
 ```
 
-`scripts/merge_jainius.py` est un **wrapper déprécié** de la bibliothèque (comportement
-observable identique, α borné à [0,1] **côté legacy** seulement) ; `scripts/compute_tau_a.py`
+`legacy/scripts/merge_jainius.py` est un **wrapper déprécié** de la bibliothèque (comportement
+observable identique, α borné à [0,1] **côté legacy** seulement) ; `legacy/scripts/compute_tau_a.py`
 est un **chemin legacy** (il persiste τ en `.npy`) : il n'est pas supprimé.
 
 ### Contexte scientifique (à jour au 2026-10-20)
@@ -137,7 +137,7 @@ est un **chemin legacy** (il persiste τ en `.npy`) : il n'est pas supprimé.
 - **Évaluation J5 (2026-10-19) : non conforme** au protocole du papier (FP8, `temperature=0`, 128 tokens, 103 prompts de texte, sans juge). C'est un contrôle de non-régression, pas une mesure de qualité. Voir `eval/RESULTS.md`.
 - **Mesures GPU vLLM (2026-10-19)** : seule config qui produit une génération sur cette machine = image vLLM 0.24.0 épinglée par digest + `--quantization fp8` + `--cpu-offload-gb 0` + `--max-model-len 2048` + `--enforce-eager`. Outils : `vLLM/smoke_chat.py`, `scripts/eval_compare.py`, `eval/prompts.jsonl`.
 - **Aucun gain vs `D_p`** (mesuré) : Jainius α=0.3 → 88,1 % de justesse / 21,1 tok/s ; `D_p` → 100 % / 116,4 tok/s. `D_p` reste le témoin.
-- **Le chemin legacy `compute_tau_a.py` est bloqué en ENOMEM** sur cette VM (30 GiB) : `safetensors.safe_open` pré-fault la projection du shard AR de 46,5 GiB. **La bibliothèque conforme n'est pas concernée** (τ recalculé à la volée, sans matérialisation). Ne pas contourner par un parseur safetensors maison.
+- **Le chemin legacy `compute_tau_a.py`** (déplacé dans `legacy/scripts/`) **est bloqué en ENOMEM** sur cette VM (30 GiB) : `safetensors.safe_open` pré-fault la projection du shard AR de 46,5 GiB. **La bibliothèque conforme n'est pas concernée** (τ recalculé à la volée, sans matérialisation). Ne pas contourner par un parseur safetensors maison.
 
 ### Outils disponibles
 

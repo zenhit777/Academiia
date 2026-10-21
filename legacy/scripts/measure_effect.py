@@ -22,7 +22,7 @@ Methode (CPU seul) :
     modifie = (bits(applied) != 0)
 
 Usage :
-    python scripts/measure_effect.py \
+    python legacy/scripts/measure_effect.py \
         --diffusiongemma checkpoints/diffusiongemma_it \
         --tau-dir _artefact/tau_a \
         --alphas 0.05,0.1,0.2,0.3 \
@@ -31,7 +31,7 @@ Usage :
     # defaut). Pour DiffusionGemma, l'App. A.2 dit que les embeddings, les normes
     # et la tete de sortie restent INCHANGES ; cette variante n'est donc pas la
     # configuration du papier (rectificatif J6bis : MIN-06).
-    python scripts/measure_effect.py --include-norms-embed ...
+    python legacy/scripts/measure_effect.py --include-norms-embed ...
 """
 
 import argparse
@@ -44,7 +44,9 @@ import numpy as np
 import torch
 from safetensors import safe_open
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Script deplace dans legacy/ (J8) : les helpers vivent dans <repo>/scripts/.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))), "scripts"))
 from _common import (diffusiongemma_to_gemma4 as g4_name_for, family_of,
                      is_norm_or_embed, tau_filename)
 

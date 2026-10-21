@@ -8,8 +8,8 @@ Trois sources, toutes en lecture seule :
 * `LoraAdapterSource` : tau = (lora_alpha / r) * B @ A, par module adapte
   (identique a `peft.merge_and_unload` sur le modele de base).
 * `LegacyNpySource` : lecture des `.npy` historiques produits par
-  `scripts/compute_tau_a.py`. Reserve au wrapper deprecie
-  `scripts/merge_jainius.py` ; le pipeline A2D conforme ne persiste JAMAIS
+  `legacy/scripts/compute_tau_a.py`. Reserve au wrapper deprecie
+  `legacy/scripts/merge_jainius.py` ; le pipeline A2D conforme ne persiste JAMAIS
   de tau sur disque.
 
 Lecture des safetensors : EXCLUSIVEMENT via `safetensors.safe_open`
@@ -268,9 +268,9 @@ class LoraAdapterSource(VectorSource):
 
 
 class LegacyNpySource(VectorSource):
-    """Lecture des `.npy` historiques (scripts/compute_tau_a.py).
+    """Lecture des `.npy` historiques (legacy/scripts/compute_tau_a.py).
 
-    LEGACY : n'est utilise que par le wrapper deprecie `merge_jainius.py`.
+    LEGACY : n'est utilise que par le wrapper deprecie `legacy/scripts/merge_jainius.py`.
     Le pipeline A2D conforme calcule tau a la volee et ne persiste rien.
     """
 

@@ -84,7 +84,7 @@ python smoke_chat.py    # autre terminal ; stdlib uniquement
 > **RAM WSL2 : 30 GiB au total, ~29 GiB disponibles** (`free -h`, mesuré le
 > 2026-10-19). Le checkpoint fait 48,14 GiB : en BF16, `--cpu-offload-gb 30`
 > est **impossible** ici (30 GiB de RAM pour les poids seuls, hors tampons).
-> Voir `../GUIDE_RESTANT.md` (les trois chiffres : poids / budget vLLM /
+> Voir `../legacy/docs/GUIDE_RESTANT.md` (les trois chiffres : poids / budget vLLM /
 > VRAM).
 
 ## Règle VRAM (LM Studio) — pour les agents
@@ -167,6 +167,6 @@ tourne dans la CI.
   ~6 min de profilage/autotune ; 1re requête plus lente, JIT Triton).
 - **Débit max** : batch 1, sampler par défaut (adaptive stopping ON),
   mode no-think pour le volume. Mesurer TPF/steps effectifs/TPS
-  (éq. 10/12 du rapport) avant toute allégation — faiblesse n°2 de `AUDIT.md`.
+  (éq. 10/12 du rapport) avant toute allégation - faiblesse n°2 de `legacy/docs/AUDIT.md`.
 - **Dépannage** : `restart: "no"` volontaire (un OOM doit se voir).
   `docker compose logs vllm` pour le détail.

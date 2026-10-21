@@ -1,5 +1,23 @@
  # KNOWN_ISSUES.md — Anomalies du checkpoint Jainius (rebuild v2 en place, 2026-10-17)
 
+## 🆕 Mission J8 (2026-10-21) — clôture scientifique de G1, bibliothèque durcie, legacy déplacé
+
+- **Bilan G1** : `docs/reports/G1_BILAN.md` — verdict **G1 NON FRANCHIE** inchangé (aucun seuil
+  rejoué). Nouvelle mesure : M2 épuise le budget MATH de 512 tokens sur **82/175** générations
+  (67 sans réponse finale) ; sur ces 67 items M2−M0 = **−2,99** [−11,94 ; +5,97], contre
+  **+17,59** [+9,26 ; +26,85] sur les 108 autres ⇒ l'effet C1 est **dilué par le plafond de
+  génération**, pas absent. Diagnostic 1 024 tokens : **annulé sur coût mesuré** (314 s/item,
+  5,8 h/modèle), aucun résultat — `docs/reports/G1_BILAN_1024.md`, `eval/dream_a2d_trunc/`.
+- **Bibliothèque (phase B)** : mode `merge-dg-scaled` (alias `adapter-scale`) pour DiffusionGemma
+  (adaptateur τ_D **non fusionné**, `lora_B × (1−λ)`, vérification V5/V6) ; `max_ulp = 0` par
+  défaut (1 ULP = échec) ; merge sans τ_D = **erreur dure** (sortie 2) ; libellés de manifeste
+  désambiguïsés.
+- **Legacy déplacé (phase C)** : `merge_jainius.py`, `compute_tau_a.py`, `measure_effect.py`
+  sont dans **`legacy/scripts/`** ; `AUDIT.md` et `GUIDE_RESTANT.md` dans **`legacy/docs/`**.
+  Les entrées **historiques** ci-dessous conservent les anciens chemins (`scripts/...`) : ce sont
+  des traces datées, pas des commandes à rejouer. Les commandes actives sont dans `README.md`,
+  `AGENTS.md` et `CHECKLIST.md`.
+
 ## 🆕 Mission J7 (2026-10-21) — porte G1 : **NON FRANCHIE**
 
 - **Verdict G1 : la porte reste OUVERTE** (règle de franchissement §1 de

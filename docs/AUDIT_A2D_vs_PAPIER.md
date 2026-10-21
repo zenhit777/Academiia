@@ -9,6 +9,13 @@ intégralement, index des checkpoints inspectés, mesures internes
 (`_artefact/measure_effect*.json`), release externe Van Puyvelde et al.
 (arXiv:2607.01436, HF `gevaertlab/diffusiongemma-radiology-vqa`).
 
+> **Note de lecture (J8, 2026-10-21)** : cet audit décrit l'état du dépôt **au
+> 2026-10-19**. Depuis, le pipeline legacy a été déplacé dans `legacy/scripts/`
+> (`compute_tau_a.py`, `merge_jainius.py`, `measure_effect.py`) et les archives
+> dans `legacy/docs/`. Les chemins `scripts/...` cités ci-dessous sont ceux de
+> l'époque : ils restent exacts comme provenance historique, pas comme
+> emplacement actuel.
+
 ---
 
 ## 1. Ce que prescrit exactement l'article

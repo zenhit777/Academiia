@@ -6,15 +6,15 @@ et sa docaute ont ete produits par cette interface). Il n'implique plus la
 logique de fusion : tout passe par `scripts/a2d/merge.py`.
 
   * Le calcul de tau se fait TOUJOURS a partir des `.npy` produits par
-    `scripts/compute_tau_a.py` (chemin legacy). Le pipeline A2D conforme
+    `legacy/scripts/compute_tau_a.py` (chemin legacy). Le pipeline A2D conforme
     (`scripts/merge_a2d.py`) calcule tau a la volee et ne persiste rien.
   * Le plafond alpha dans [0,1] est conserve COTE LEGACY (le papier n'en
     impose pas : cf. Table 6, alpha jusqu'a 1.4). La bibliotheque, elle,
     accepte alpha >= 0 sans plafond.
-  * `scripts/compute_tau_a.py` est un chemin legacy : il n'est pas supprime.
+  * `legacy/scripts/compute_tau_a.py` est un chemin legacy : il n'est pas supprime.
 
 Usage (identique a l'historique) :
-    python scripts/merge_jainius.py \
+    python legacy/scripts/merge_jainius.py \
         --diffusiongemma checkpoints/diffusiongemma_it \
         --tau-dir _artefact/tau_a \
         --output checkpoints/Jainius \
@@ -26,7 +26,9 @@ import json
 import os
 import sys
 
-SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+# Script deplace dans legacy/ (J8) : la bibliotheque A2D vit dans <repo>/scripts/.
+SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))), "scripts")
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
@@ -98,7 +100,7 @@ def main():
     if not os.path.exists(manifest_path):
         if not args.allow_missing_tau_manifest:
             print(f"ERREUR: {manifest_path} absent : provenance du tau non verifiable. "
-                  f"Recalculer tau avec compute_tau_a.py, ou passer "
+                  f"Recalculer tau avec legacy/scripts/compute_tau_a.py, ou passer "
                   f"--allow-missing-tau-manifest.")
             raise SystemExit(2)
         print("ATTENTION: tau_manifest.json absent et --allow-missing-tau-manifest "

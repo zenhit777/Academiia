@@ -9,6 +9,10 @@ ce transfert avec le vecteur de post-training du modèle de diffusion.
 tableau des coefficients (Table 6 du papier), cibles chiffrées (Tables 1, 16, 21) et
 règles de mapping, chaque valeur référencée par son tableau/section.
 
+**État consolidé du projet** : [`docs/STATUS.md`](docs/STATUS.md) — état des portes G1/G2/G1b/G3,
+ce qui est démontré mécaniquement, ce qui ne l'est pas, contraintes de la machine et
+recommandation DiffusionGemma.
+
 > **Note de statut (mission J6, 2026-10-20).** Le checkpoint `checkpoints/Jainius` est une
 > **ablation hors papier** : il applique à DiffusionGemma-IT le vecteur *général*
 > `τ_A = Gemma4_IT − Gemma4_Base` avec α = 0.3, alors que le papier (Tableaux 1b, 6, 9, 19)
@@ -161,12 +165,13 @@ embeddings et tête exclus) :
 | cos(Δ_b, Δ_p) | +0.9986 | +0.999 | — |
 | cos(τ_A, τ_D) | +0.0130 | +0.013 | — |
 
-## Workflow legacy (Jainius, déprécié)
+## Workflow legacy (Jainius, déprécié — déplacé dans `legacy/`)
 
-`scripts/merge_jainius.py` est un **wrapper déprécié** de la bibliothèque ; il conserve son
+`legacy/scripts/merge_jainius.py` est un **wrapper déprécié** de la bibliothèque ; il conserve son
 interface historique (τ en `.npy`, α borné à [0,1], manifeste `merge_config.json`).
-`scripts/compute_tau_a.py` est un **chemin legacy** (il persiste τ) : il n'est pas supprimé,
-mais le pipeline conforme ne s'en sert pas.
+`legacy/scripts/compute_tau_a.py` est un **chemin legacy** (il persiste τ) : il n'est pas supprimé,
+mais le pipeline conforme ne s'en sert pas. Les archives de la période Jainius
+(`AUDIT.md`, `GUIDE_RESTANT.md`) sont dans `legacy/docs/`.
 
 ```bash
 # 1. Télécharger les checkpoints (~155 Go au total, mesuré : 3 × ~51.6 Go)
@@ -176,19 +181,19 @@ python scripts/download_models.py --output-dir ./checkpoints
 # 2. Calculer tau_A = A_p - A_b (~10 min, ~3 GB RAM peak)   [LEGACY]
 #    ATTENTION : safetensors pré-fault la projection du shard AR de 46,5 GiB ->
 #    il faut >= 50 Go de RAM disponibles (sur WSL2 : memory= dans .wslconfig)
-python scripts/compute_tau_a.py \
+python legacy/scripts/compute_tau_a.py \
     --base ./checkpoints/gemma4_base \
     --posttrained ./checkpoints/gemma4_it \
     --output-dir _artefact/tau_a
 
 # 3. Mesurer l'effet reel apres arrondi BF16 (CPU seul)   [LEGACY]
-python scripts/measure_effect.py \
+python legacy/scripts/measure_effect.py \
     --diffusiongemma ./checkpoints/diffusiongemma_it \
     --tau-dir _artefact/tau_a \
     --alphas 0.05,0.1,0.2,0.3,0.5,0.8
 
 # 4. Appliquer le merge Dp + alpha*tau_A (~15 min, ~5 GB RAM peak)   [LEGACY]
-python scripts/merge_jainius.py \
+python legacy/scripts/merge_jainius.py \
     --diffusiongemma ./checkpoints/diffusiongemma_it \
     --tau-dir _artefact/tau_a \
     --output ./checkpoints/Jainius \
@@ -282,7 +287,7 @@ Détail des métriques et réponses : `eval/results_Dp.json`,
 `eval/results_jainius_a03.json`, rapport `eval/RESULTS.md`.
  ## Mesure Dp + α·τ_A après arrondi BF16 (v2, 2026-10-17)
 
- Le script `scripts/measure_effect.py` rapporte, en plus du % d'éléments modifiés,
+ Le script `legacy/scripts/measure_effect.py` rapporte, en plus du % d'éléments modifiés,
  l'ampleur relative du delta (`ratio_rel = ||α·τ|| / ||Dp||`) et la fidélité de
  l'arrondi BF16 (`cosinus(applied, α·τ)`). Résultats α=0.3 sur les 656 tenseurs :
 
