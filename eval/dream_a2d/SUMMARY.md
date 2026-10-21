@@ -26,7 +26,25 @@ est un controle de fonctionnement, pas une mesure.
 | dream_7b_instruct | IFEval | prompt_level_strict_acc,none | 50.0 % | 8 | [21.5, 78.5] | 63.0 | -13.0 |
 | dream_7b_instruct | MATH-175 | exact_match,none | 0.0 % | 175 | [0.0, 2.1] | 38.4 | -38.4 |
 | dream_7b_instruct | MATH-175 | math_verify,none | 36.6 % | 175 | [29.8, 43.9] | 38.4 | -1.8 |
+| dream_merge_l06 | GSM8K | exact_match,flexible-extract | 85.7 % | 300 | [81.2, 89.2] | None | — |
+| dream_merge_l06 | GSM8K | exact_match,strict-match | 85.3 % | 300 | [80.9, 88.9] | None | — |
+| dream_merge_l06 | IFEval | inst_level_loose_acc,none | 78.6 % | 8 | [40.9, 92.9] | None | — |
+| dream_merge_l06 | IFEval | inst_level_strict_acc,none | 71.4 % | 8 | [40.9, 92.9] | None | — |
+| dream_merge_l06 | IFEval | prompt_level_loose_acc,none | 75.0 % | 8 | [40.9, 92.9] | None | — |
+| dream_merge_l06 | IFEval | prompt_level_strict_acc,none | 62.5 % | 8 | [30.6, 86.3] | None | — |
+| dream_merge_l06 | MATH-175 | exact_match,none | 0.0 % | 175 | [0.0, 2.1] | None | — |
+| dream_merge_l06 | MATH-175 | math_verify,none | 34.3 % | 175 | [27.7, 41.6] | None | — |
+| dream_transfer_a09 | GSM8K | exact_match,flexible-extract | 83.0 % | 300 | [78.3, 86.8] | None | — |
+| dream_transfer_a09 | GSM8K | exact_match,strict-match | 80.7 % | 300 | [75.8, 84.7] | None | — |
+| dream_transfer_a09 | IFEval | inst_level_loose_acc,none | 64.3 % | 8 | [30.6, 86.3] | None | — |
+| dream_transfer_a09 | IFEval | inst_level_strict_acc,none | 64.3 % | 8 | [30.6, 86.3] | None | — |
+| dream_transfer_a09 | IFEval | prompt_level_loose_acc,none | 50.0 % | 8 | [21.5, 78.5] | None | — |
+| dream_transfer_a09 | IFEval | prompt_level_strict_acc,none | 50.0 % | 8 | [21.5, 78.5] | None | — |
+| dream_transfer_a09 | MATH-175 | exact_match,none | 0.0 % | 175 | [0.0, 2.1] | None | — |
+| dream_transfer_a09 | MATH-175 | math_verify,none | 33.7 % | 175 | [27.1, 41.0] | None | — |
 | dream_7b_base | IFEval | moyenne des 4 metriques | 57.1 % | 8 | [30.6, 86.3] | 49.7 | +7.4 |
 | dream_7b_instruct | IFEval | moyenne des 4 metriques | 60.7 % | 8 | [30.6, 86.3] | 63.0 | -2.3 |
+| dream_merge_l06 | IFEval | moyenne des 4 metriques | 71.9 % | 8 | [40.9, 92.9] | None | — |
+| dream_transfer_a09 | IFEval | moyenne des 4 metriques | 57.1 % | 8 | [30.6, 86.3] | None | — |
 
 Effectifs reduits : le budget GPU local ne permet pas les jeux complets (mesure : ~326 s/prompt pour IFEval a 1280 pas de debruitage, batch 4). L'intervalle de Wilson est donne pour chaque score. MATH-175 != MATH-500 : la cible Table 16 porte sur 500 problemes, la mesure porte sur 175 — comparaison a PERIMETRE DIFFERENT, ce n'est pas une reproduction. IFEval (n=8) est un controle de fonctionnement, pas une mesure.

@@ -1,5 +1,37 @@
  # KNOWN_ISSUES.md — Anomalies du checkpoint Jainius (rebuild v2 en place, 2026-10-17)
 
+## 🆕 Mission J7 (2026-10-21) — porte G1 : **NON FRANCHIE**
+
+- **Verdict G1 : la porte reste OUVERTE** (règle de franchissement §1 de
+  `docs/design/G1_PROTOCOL.md` : un seul point en échec ⇒ G1 non franchie).
+  Sur les quatre critères amendés (M1) : **C2 atteint** (transfert − base GSM8K : **+14,33** pts,
+  IC [+9,33 ; +19,67] ; le papier rapporte **+15,2** sur la même paire) ; **C1 non atteint**
+  (transfert − base MATH-175 : **+9,71** pts, IC [+2,86 ; +16,57] — **0,29 pt sous le seuil de +10**,
+  IC excluant 0) ; **C3/C4 non établis** (merge − instruct : −2,29 [−9,14 ; +4,57] et
+  +1,67 [−2,33 ; +5,67] : la non-régression de −2 pts ne peut pas être exclue).
+  Aucun seuil n'a été rejoué après les résultats. Rapport : `docs/reports/J7.md`.
+- **Défaut corrigé — les checkpoints fusionnés n'étaient PAS chargeables** : les shards écrits
+  par la bibliothèque n'avaient pas de bloc `__metadata__` (safetensors), alors que
+  `transformers.load_state_dict` l'exige (`format == "pt"`) → `AttributeError: 'NoneType' object
+  has no attribute 'get'` au chargement. La **vérification mécanique passait** (`post_write_verification`
+  v2, `verify_merge` VERDICT OK) : le défaut n'a été trouvé que par le **smoke de chargement**
+  (`from_pretrained` + génération). Corrigé le 2026-10-21 (`4f1b7d6`) : le bloc `__metadata__` est
+  **repris du shard source** ; test de non-regression dans `scripts/tests/test_a2d_library.py`.
+  **Leçon** : une fusion doit être validée par un *smoke de chargement*, pas seulement par la
+  vérification mécanique.
+- **Bruit de décodage : nul à lot 4** (mesuré, M2 de la revue N2). M1 rejoué sur GSM8K n=300
+  avec une **graine torch différente** (0,1234,**1234**,1234 → 0,1234,**4321**,1234) : les
+  **300 réponses brutes sont byte-identiques** (SHA-256 global identique), précision 84,00 % dans
+  les deux runs, écart apparié **+0,00 pt**, IC [+0,00 ; +0,00]. À lot 4 et protocole figé, le
+  décodage de Dream-7B est **déterministe** ; la variabilité réelle documentée par le balayage D3
+  (`docs/design/EVAL_BUDGET.md` §4.1) vient de la **composition du lot**, pas du RNG. Les
+  incertitudes des verdicts G1 sont donc **purement d'échantillonnage**.
+- **Outil de verdict : mélange d'unités corrigé** (`484b152`). Les écarts et bornes de l'IC sont
+  des proportions (0,1433 = +14,33 pts) alors que les seuils sont en points : la comparaison
+  proportion contre points classait à tort C2 « non atteint » et C3/C4 « non réfutés ». Verrouillé
+  par `scripts/tests/test_g1_verdict.py` (7 tests). Le verdict affiché **avant** ce correctif était
+  faux — il n'a jamais été publié (le rapport et le manifeste n'existent qu'après).
+
 ## 🆕 Mission J6 (2026-10-20) — bibliothèque A2D conforme + baseline Dream-7B
 
 - **Bibliothèque A2D** (`scripts/a2d/`, `scripts/merge_a2d.py`, `scripts/verify_merge.py`) :

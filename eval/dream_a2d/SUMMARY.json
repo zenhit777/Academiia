@@ -797,6 +797,804 @@
           ]
         }
       }
+    },
+    "dream_merge_l06/gsm8k_cot_a2d": {
+      "run": "dream_merge_l06/gsm8k_cot_a2d",
+      "model": "dream_merge_l06",
+      "n_prompts": {
+        "gsm8k_cot_a2d": 300
+      },
+      "n_original": {
+        "gsm8k_cot_a2d": 1319
+      },
+      "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_merge_l06,trust_remote_code=True,max_new_tokens=256,diffusion_steps=256,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+      "system_instruction": "Solve the math problem with brief, direct reasoning. Do NOT restate the problem, do NOT use bullet points, and use as few steps as possible. On the final line, write the answer as '#### <number>' and nothing else.",
+      "duration_s": "3043.828650853",
+      "metrics": {
+        "gsm8k_cot_a2d/exact_match,strict-match": {
+          "value": 0.8533333333333334,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.8088365903800316,
+            0.888895385754902
+          ]
+        },
+        "gsm8k_cot_a2d/exact_match_stderr,strict-match": {
+          "value": 0.020459238826580534,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.009197506067771085,
+            0.042940186730055147
+          ]
+        },
+        "gsm8k_cot_a2d/exact_match,flexible-extract": {
+          "value": 0.8566666666666667,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.8124985303950185,
+            0.8918158228732633
+          ]
+        },
+        "gsm8k_cot_a2d/exact_match_stderr,flexible-extract": {
+          "value": 0.02026487552960534,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.009197506067771085,
+            0.042940186730055147
+          ]
+        }
+      }
+    },
+    "dream_merge_l06/ifeval_a2d": {
+      "run": "dream_merge_l06/ifeval_a2d",
+      "model": "dream_merge_l06",
+      "n_prompts": {
+        "ifeval_a2d": 8
+      },
+      "n_original": {
+        "ifeval_a2d": 541
+      },
+      "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_merge_l06,trust_remote_code=True,max_new_tokens=1280,diffusion_steps=1280,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+      "system_instruction": null,
+      "duration_s": "2693.3877780539988",
+      "metrics": {
+        "ifeval_a2d/prompt_level_strict_acc,none": {
+          "value": 0.625,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.30573785458380187,
+            0.863158240538479
+          ]
+        },
+        "ifeval_a2d/prompt_level_strict_acc_stderr,none": {
+          "value": 0.18298126367784995,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.02241690886329617,
+            0.4708948057698615
+          ]
+        },
+        "ifeval_a2d/inst_level_strict_acc,none": {
+          "value": 0.7142857142857143,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.40926987910258916,
+            0.9285223111419724
+          ]
+        },
+        "ifeval_a2d/prompt_level_loose_acc,none": {
+          "value": 0.75,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.40926987910258916,
+            0.9285223111419724
+          ]
+        },
+        "ifeval_a2d/prompt_level_loose_acc_stderr,none": {
+          "value": 0.16366341767699427,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.02241690886329617,
+            0.4708948057698615
+          ]
+        },
+        "ifeval_a2d/inst_level_loose_acc,none": {
+          "value": 0.7857142857142857,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.40926987910258916,
+            0.9285223111419724
+          ]
+        }
+      }
+    },
+    "dream_merge_l06/minerva_math_algebra": {
+      "run": "dream_merge_l06/minerva_math_algebra",
+      "model": "dream_merge_l06",
+      "n_prompts": {
+        "minerva_math_precalc": 25,
+        "minerva_math_prealgebra": 25,
+        "minerva_math_num_theory": 25,
+        "minerva_math_intermediate_algebra": 25,
+        "minerva_math_geometry": 25,
+        "minerva_math_counting_and_prob": 25,
+        "minerva_math_algebra": 25
+      },
+      "n_original": {
+        "minerva_math_precalc": 546,
+        "minerva_math_prealgebra": 871,
+        "minerva_math_num_theory": 540,
+        "minerva_math_intermediate_algebra": 903,
+        "minerva_math_geometry": 479,
+        "minerva_math_counting_and_prob": 474,
+        "minerva_math_algebra": 1187
+      },
+      "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_merge_l06,trust_remote_code=True,max_new_tokens=512,diffusion_steps=512,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+      "system_instruction": null,
+      "duration_s": "6013.818566151",
+      "metrics": {
+        "minerva_math_algebra/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_algebra/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_algebra/math_verify,none": {
+          "value": 0.6,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.40739127785127344,
+            0.7659694233580909
+          ]
+        },
+        "minerva_math_algebra/math_verify_stderr,none": {
+          "value": 0.1,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.02221993369109193,
+            0.24966512122957818
+          ]
+        },
+        "minerva_math_counting_and_prob/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_counting_and_prob/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_counting_and_prob/math_verify,none": {
+          "value": 0.4,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.23403057664190918,
+            0.5926087221487266
+          ]
+        },
+        "minerva_math_counting_and_prob/math_verify_stderr,none": {
+          "value": 0.1,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.02221993369109193,
+            0.24966512122957818
+          ]
+        },
+        "minerva_math_geometry/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_geometry/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_geometry/math_verify,none": {
+          "value": 0.24,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.11496157730326725,
+            0.43430059955238565
+          ]
+        },
+        "minerva_math_geometry/math_verify_stderr,none": {
+          "value": 0.08717797887081347,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.02221993369109193,
+            0.24966512122957818
+          ]
+        },
+        "minerva_math_intermediate_algebra/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_intermediate_algebra/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_intermediate_algebra/math_verify,none": {
+          "value": 0.08,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.02221993369109193,
+            0.24966512122957818
+          ]
+        },
+        "minerva_math_intermediate_algebra/math_verify_stderr,none": {
+          "value": 0.05537749241945383,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.007096050386699165,
+            0.19544472405022525
+          ]
+        },
+        "minerva_math_num_theory/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_num_theory/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_num_theory/math_verify,none": {
+          "value": 0.48,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.30031003928960015,
+            0.6650178204685269
+          ]
+        },
+        "minerva_math_num_theory/math_verify_stderr,none": {
+          "value": 0.10198039027185571,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.04166741357068093,
+            0.2995619218337349
+          ]
+        },
+        "minerva_math_prealgebra/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_prealgebra/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_prealgebra/math_verify,none": {
+          "value": 0.52,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.334982179531473,
+            0.6996899607103998
+          ]
+        },
+        "minerva_math_prealgebra/math_verify_stderr,none": {
+          "value": 0.10198039027185571,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.04166741357068093,
+            0.2995619218337349
+          ]
+        },
+        "minerva_math_precalc/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_precalc/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_precalc/math_verify,none": {
+          "value": 0.08,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.02221993369109193,
+            0.24966512122957818
+          ]
+        },
+        "minerva_math_precalc/math_verify_stderr,none": {
+          "value": 0.05537749241945383,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.007096050386699165,
+            0.19544472405022525
+          ]
+        }
+      }
+    },
+    "dream_transfer_a09/gsm8k_cot_a2d": {
+      "run": "dream_transfer_a09/gsm8k_cot_a2d",
+      "model": "dream_transfer_a09",
+      "n_prompts": {
+        "gsm8k_cot_a2d": 300
+      },
+      "n_original": {
+        "gsm8k_cot_a2d": 1319
+      },
+      "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_transfer_a09,trust_remote_code=True,max_new_tokens=256,diffusion_steps=256,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+      "system_instruction": "Solve the math problem with brief, direct reasoning. Do NOT restate the problem, do NOT use bullet points, and use as few steps as possible. On the final line, write the answer as '#### <number>' and nothing else.",
+      "duration_s": "3055.613749586999",
+      "metrics": {
+        "gsm8k_cot_a2d/exact_match,strict-match": {
+          "value": 0.8066666666666666,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.7582152889916499,
+            0.8473634072764055
+          ]
+        },
+        "gsm8k_cot_a2d/exact_match_stderr,strict-match": {
+          "value": 0.02283835560647653,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.01134751559829571,
+            0.04737255433287896
+          ]
+        },
+        "gsm8k_cot_a2d/exact_match,flexible-extract": {
+          "value": 0.83,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.7833848085580865,
+            0.8682705276434078
+          ]
+        },
+        "gsm8k_cot_a2d/exact_match_stderr,flexible-extract": {
+          "value": 0.02172340568407841,
+          "stderr": null,
+          "n": 300,
+          "wilson95": [
+            0.01134751559829571,
+            0.04737255433287896
+          ]
+        }
+      }
+    },
+    "dream_transfer_a09/ifeval_a2d": {
+      "run": "dream_transfer_a09/ifeval_a2d",
+      "model": "dream_transfer_a09",
+      "n_prompts": {
+        "ifeval_a2d": 8
+      },
+      "n_original": {
+        "ifeval_a2d": 541
+      },
+      "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_transfer_a09,trust_remote_code=True,max_new_tokens=1280,diffusion_steps=1280,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+      "system_instruction": null,
+      "duration_s": "2862.0464034609977",
+      "metrics": {
+        "ifeval_a2d/prompt_level_strict_acc,none": {
+          "value": 0.5,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.21521252682444186,
+            0.7847874731755582
+          ]
+        },
+        "ifeval_a2d/prompt_level_strict_acc_stderr,none": {
+          "value": 0.1889822365046136,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.07147768885802763,
+            0.5907301208974108
+          ]
+        },
+        "ifeval_a2d/inst_level_strict_acc,none": {
+          "value": 0.6428571428571429,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.30573785458380187,
+            0.863158240538479
+          ]
+        },
+        "ifeval_a2d/prompt_level_loose_acc,none": {
+          "value": 0.5,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.21521252682444186,
+            0.7847874731755582
+          ]
+        },
+        "ifeval_a2d/prompt_level_loose_acc_stderr,none": {
+          "value": 0.1889822365046136,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.07147768885802763,
+            0.5907301208974108
+          ]
+        },
+        "ifeval_a2d/inst_level_loose_acc,none": {
+          "value": 0.6428571428571429,
+          "stderr": null,
+          "n": 8,
+          "wilson95": [
+            0.30573785458380187,
+            0.863158240538479
+          ]
+        }
+      }
+    },
+    "dream_transfer_a09/minerva_math_algebra": {
+      "run": "dream_transfer_a09/minerva_math_algebra",
+      "model": "dream_transfer_a09",
+      "n_prompts": {
+        "minerva_math_precalc": 25,
+        "minerva_math_prealgebra": 25,
+        "minerva_math_num_theory": 25,
+        "minerva_math_intermediate_algebra": 25,
+        "minerva_math_geometry": 25,
+        "minerva_math_counting_and_prob": 25,
+        "minerva_math_algebra": 25
+      },
+      "n_original": {
+        "minerva_math_precalc": 546,
+        "minerva_math_prealgebra": 871,
+        "minerva_math_num_theory": 540,
+        "minerva_math_intermediate_algebra": 903,
+        "minerva_math_geometry": 479,
+        "minerva_math_counting_and_prob": 474,
+        "minerva_math_algebra": 1187
+      },
+      "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_transfer_a09,trust_remote_code=True,max_new_tokens=512,diffusion_steps=512,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+      "system_instruction": null,
+      "duration_s": "6149.0869843420005",
+      "metrics": {
+        "minerva_math_algebra/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_algebra/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_algebra/math_verify,none": {
+          "value": 0.68,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.48409913734576715,
+            0.8279501248310887
+          ]
+        },
+        "minerva_math_algebra/math_verify_stderr,none": {
+          "value": 0.09521904571390467,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.02221993369109193,
+            0.24966512122957818
+          ]
+        },
+        "minerva_math_counting_and_prob/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_counting_and_prob/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_counting_and_prob/math_verify,none": {
+          "value": 0.32,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.17204987516891143,
+            0.5159008626542329
+          ]
+        },
+        "minerva_math_counting_and_prob/math_verify_stderr,none": {
+          "value": 0.09521904571390466,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.02221993369109193,
+            0.24966512122957818
+          ]
+        },
+        "minerva_math_geometry/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_geometry/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_geometry/math_verify,none": {
+          "value": 0.16,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.06403347608577989,
+            0.34654013980238163
+          ]
+        },
+        "minerva_math_geometry/math_verify_stderr,none": {
+          "value": 0.07483314773547882,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.02221993369109193,
+            0.24966512122957818
+          ]
+        },
+        "minerva_math_intermediate_algebra/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_intermediate_algebra/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_intermediate_algebra/math_verify,none": {
+          "value": 0.16,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.06403347608577989,
+            0.34654013980238163
+          ]
+        },
+        "minerva_math_intermediate_algebra/math_verify_stderr,none": {
+          "value": 0.07483314773547882,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.02221993369109193,
+            0.24966512122957818
+          ]
+        },
+        "minerva_math_num_theory/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_num_theory/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_num_theory/math_verify,none": {
+          "value": 0.4,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.23403057664190918,
+            0.5926087221487266
+          ]
+        },
+        "minerva_math_num_theory/math_verify_stderr,none": {
+          "value": 0.1,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.02221993369109193,
+            0.24966512122957818
+          ]
+        },
+        "minerva_math_prealgebra/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_prealgebra/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_prealgebra/math_verify,none": {
+          "value": 0.6,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.40739127785127344,
+            0.7659694233580909
+          ]
+        },
+        "minerva_math_prealgebra/math_verify_stderr,none": {
+          "value": 0.1,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.02221993369109193,
+            0.24966512122957818
+          ]
+        },
+        "minerva_math_precalc/exact_match,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_precalc/exact_match_stderr,none": {
+          "value": 0.0,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.0,
+            0.13319649395317873
+          ]
+        },
+        "minerva_math_precalc/math_verify,none": {
+          "value": 0.04,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.007096050386699165,
+            0.19544472405022525
+          ]
+        },
+        "minerva_math_precalc/math_verify_stderr,none": {
+          "value": 0.04,
+          "stderr": null,
+          "n": 25,
+          "wilson95": [
+            0.007096050386699165,
+            0.19544472405022525
+          ]
+        }
+      }
     }
   },
   "rows": [
@@ -1439,6 +2237,646 @@
       ],
       "target": 38.4,
       "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_merge_l06/gsm8k_cot_a2d",
+      "model": "dream_merge_l06",
+      "task": "gsm8k_cot_a2d",
+      "benchmark": "GSM8K",
+      "metric": "exact_match,strict-match",
+      "value": 0.8533333333333334,
+      "n": 300,
+      "stderr": null,
+      "wilson95": [
+        0.8088365903800316,
+        0.888895385754902
+      ],
+      "target": null,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)"
+    },
+    {
+      "run": "dream_merge_l06/gsm8k_cot_a2d",
+      "model": "dream_merge_l06",
+      "task": "gsm8k_cot_a2d",
+      "benchmark": "GSM8K",
+      "metric": "exact_match,flexible-extract",
+      "value": 0.8566666666666667,
+      "n": 300,
+      "stderr": null,
+      "wilson95": [
+        0.8124985303950185,
+        0.8918158228732633
+      ],
+      "target": null,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)"
+    },
+    {
+      "run": "dream_merge_l06/ifeval_a2d",
+      "model": "dream_merge_l06",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "prompt_level_strict_acc,none",
+      "value": 0.625,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.30573785458380187,
+        0.863158240538479
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
+    },
+    {
+      "run": "dream_merge_l06/ifeval_a2d",
+      "model": "dream_merge_l06",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "inst_level_strict_acc,none",
+      "value": 0.7142857142857143,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.40926987910258916,
+        0.9285223111419724
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
+    },
+    {
+      "run": "dream_merge_l06/ifeval_a2d",
+      "model": "dream_merge_l06",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "prompt_level_loose_acc,none",
+      "value": 0.75,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.40926987910258916,
+        0.9285223111419724
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
+    },
+    {
+      "run": "dream_merge_l06/ifeval_a2d",
+      "model": "dream_merge_l06",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "inst_level_loose_acc,none",
+      "value": 0.7857142857142857,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.40926987910258916,
+        0.9285223111419724
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
+    },
+    {
+      "run": "dream_merge_l06/minerva_math_algebra",
+      "model": "dream_merge_l06",
+      "task": "minerva_math_algebra",
+      "benchmark": "MATH-175",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_merge_l06/minerva_math_algebra",
+      "model": "dream_merge_l06",
+      "task": "minerva_math_algebra",
+      "benchmark": "MATH-175",
+      "metric": "math_verify,none",
+      "value": 0.6,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.40739127785127344,
+        0.7659694233580909
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_merge_l06/minerva_math_algebra",
+      "model": "dream_merge_l06",
+      "task": "minerva_math_counting_and_prob",
+      "benchmark": "MATH-175",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_merge_l06/minerva_math_algebra",
+      "model": "dream_merge_l06",
+      "task": "minerva_math_counting_and_prob",
+      "benchmark": "MATH-175",
+      "metric": "math_verify,none",
+      "value": 0.4,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.23403057664190918,
+        0.5926087221487266
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_merge_l06/minerva_math_algebra",
+      "model": "dream_merge_l06",
+      "task": "minerva_math_geometry",
+      "benchmark": "MATH-175",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_merge_l06/minerva_math_algebra",
+      "model": "dream_merge_l06",
+      "task": "minerva_math_geometry",
+      "benchmark": "MATH-175",
+      "metric": "math_verify,none",
+      "value": 0.24,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.11496157730326725,
+        0.43430059955238565
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_merge_l06/minerva_math_algebra",
+      "model": "dream_merge_l06",
+      "task": "minerva_math_intermediate_algebra",
+      "benchmark": "MATH-175",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_merge_l06/minerva_math_algebra",
+      "model": "dream_merge_l06",
+      "task": "minerva_math_intermediate_algebra",
+      "benchmark": "MATH-175",
+      "metric": "math_verify,none",
+      "value": 0.08,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.02221993369109193,
+        0.24966512122957818
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_merge_l06/minerva_math_algebra",
+      "model": "dream_merge_l06",
+      "task": "minerva_math_num_theory",
+      "benchmark": "MATH-175",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_merge_l06/minerva_math_algebra",
+      "model": "dream_merge_l06",
+      "task": "minerva_math_num_theory",
+      "benchmark": "MATH-175",
+      "metric": "math_verify,none",
+      "value": 0.48,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.30031003928960015,
+        0.6650178204685269
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_merge_l06/minerva_math_algebra",
+      "model": "dream_merge_l06",
+      "task": "minerva_math_prealgebra",
+      "benchmark": "MATH-175",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_merge_l06/minerva_math_algebra",
+      "model": "dream_merge_l06",
+      "task": "minerva_math_prealgebra",
+      "benchmark": "MATH-175",
+      "metric": "math_verify,none",
+      "value": 0.52,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.334982179531473,
+        0.6996899607103998
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_merge_l06/minerva_math_algebra",
+      "model": "dream_merge_l06",
+      "task": "minerva_math_precalc",
+      "benchmark": "MATH-175",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_merge_l06/minerva_math_algebra",
+      "model": "dream_merge_l06",
+      "task": "minerva_math_precalc",
+      "benchmark": "MATH-175",
+      "metric": "math_verify,none",
+      "value": 0.08,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.02221993369109193,
+        0.24966512122957818
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_transfer_a09/gsm8k_cot_a2d",
+      "model": "dream_transfer_a09",
+      "task": "gsm8k_cot_a2d",
+      "benchmark": "GSM8K",
+      "metric": "exact_match,strict-match",
+      "value": 0.8066666666666666,
+      "n": 300,
+      "stderr": null,
+      "wilson95": [
+        0.7582152889916499,
+        0.8473634072764055
+      ],
+      "target": null,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)"
+    },
+    {
+      "run": "dream_transfer_a09/gsm8k_cot_a2d",
+      "model": "dream_transfer_a09",
+      "task": "gsm8k_cot_a2d",
+      "benchmark": "GSM8K",
+      "metric": "exact_match,flexible-extract",
+      "value": 0.83,
+      "n": 300,
+      "stderr": null,
+      "wilson95": [
+        0.7833848085580865,
+        0.8682705276434078
+      ],
+      "target": null,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)"
+    },
+    {
+      "run": "dream_transfer_a09/ifeval_a2d",
+      "model": "dream_transfer_a09",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "prompt_level_strict_acc,none",
+      "value": 0.5,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.21521252682444186,
+        0.7847874731755582
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
+    },
+    {
+      "run": "dream_transfer_a09/ifeval_a2d",
+      "model": "dream_transfer_a09",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "inst_level_strict_acc,none",
+      "value": 0.6428571428571429,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.30573785458380187,
+        0.863158240538479
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
+    },
+    {
+      "run": "dream_transfer_a09/ifeval_a2d",
+      "model": "dream_transfer_a09",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "prompt_level_loose_acc,none",
+      "value": 0.5,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.21521252682444186,
+        0.7847874731755582
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
+    },
+    {
+      "run": "dream_transfer_a09/ifeval_a2d",
+      "model": "dream_transfer_a09",
+      "task": "ifeval_a2d",
+      "benchmark": "IFEval",
+      "metric": "inst_level_loose_acc,none",
+      "value": 0.6428571428571429,
+      "n": 8,
+      "stderr": null,
+      "wilson95": [
+        0.30573785458380187,
+        0.863158240538479
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)"
+    },
+    {
+      "run": "dream_transfer_a09/minerva_math_algebra",
+      "model": "dream_transfer_a09",
+      "task": "minerva_math_algebra",
+      "benchmark": "MATH-175",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_transfer_a09/minerva_math_algebra",
+      "model": "dream_transfer_a09",
+      "task": "minerva_math_algebra",
+      "benchmark": "MATH-175",
+      "metric": "math_verify,none",
+      "value": 0.68,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.48409913734576715,
+        0.8279501248310887
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_transfer_a09/minerva_math_algebra",
+      "model": "dream_transfer_a09",
+      "task": "minerva_math_counting_and_prob",
+      "benchmark": "MATH-175",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_transfer_a09/minerva_math_algebra",
+      "model": "dream_transfer_a09",
+      "task": "minerva_math_counting_and_prob",
+      "benchmark": "MATH-175",
+      "metric": "math_verify,none",
+      "value": 0.32,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.17204987516891143,
+        0.5159008626542329
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_transfer_a09/minerva_math_algebra",
+      "model": "dream_transfer_a09",
+      "task": "minerva_math_geometry",
+      "benchmark": "MATH-175",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_transfer_a09/minerva_math_algebra",
+      "model": "dream_transfer_a09",
+      "task": "minerva_math_geometry",
+      "benchmark": "MATH-175",
+      "metric": "math_verify,none",
+      "value": 0.16,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.06403347608577989,
+        0.34654013980238163
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_transfer_a09/minerva_math_algebra",
+      "model": "dream_transfer_a09",
+      "task": "minerva_math_intermediate_algebra",
+      "benchmark": "MATH-175",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_transfer_a09/minerva_math_algebra",
+      "model": "dream_transfer_a09",
+      "task": "minerva_math_intermediate_algebra",
+      "benchmark": "MATH-175",
+      "metric": "math_verify,none",
+      "value": 0.16,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.06403347608577989,
+        0.34654013980238163
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_transfer_a09/minerva_math_algebra",
+      "model": "dream_transfer_a09",
+      "task": "minerva_math_num_theory",
+      "benchmark": "MATH-175",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_transfer_a09/minerva_math_algebra",
+      "model": "dream_transfer_a09",
+      "task": "minerva_math_num_theory",
+      "benchmark": "MATH-175",
+      "metric": "math_verify,none",
+      "value": 0.4,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.23403057664190918,
+        0.5926087221487266
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_transfer_a09/minerva_math_algebra",
+      "model": "dream_transfer_a09",
+      "task": "minerva_math_prealgebra",
+      "benchmark": "MATH-175",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_transfer_a09/minerva_math_algebra",
+      "model": "dream_transfer_a09",
+      "task": "minerva_math_prealgebra",
+      "benchmark": "MATH-175",
+      "metric": "math_verify,none",
+      "value": 0.6,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.40739127785127344,
+        0.7659694233580909
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_transfer_a09/minerva_math_algebra",
+      "model": "dream_transfer_a09",
+      "task": "minerva_math_precalc",
+      "benchmark": "MATH-175",
+      "metric": "exact_match,none",
+      "value": 0.0,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.0,
+        0.13319649395317873
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
+    },
+    {
+      "run": "dream_transfer_a09/minerva_math_algebra",
+      "model": "dream_transfer_a09",
+      "task": "minerva_math_precalc",
+      "benchmark": "MATH-175",
+      "metric": "math_verify,none",
+      "value": 0.04,
+      "n": 25,
+      "stderr": null,
+      "wilson95": [
+        0.007096050386699165,
+        0.19544472405022525
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT"
     }
   ],
   "targets_a2d_table16": {
@@ -1739,6 +3177,286 @@
       ]
     },
     {
+      "model": "dream_merge_l06",
+      "benchmark": "GSM8K",
+      "filter": "exact_match,flexible-extract",
+      "value": 0.8566666666666667,
+      "n": 300,
+      "wilson95": [
+        0.8124985303950185,
+        0.8918158228732633
+      ],
+      "target": null,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)",
+      "tasks": [
+        "gsm8k_cot_a2d"
+      ]
+    },
+    {
+      "model": "dream_merge_l06",
+      "benchmark": "GSM8K",
+      "filter": "exact_match,strict-match",
+      "value": 0.8533333333333334,
+      "n": 300,
+      "wilson95": [
+        0.8088365903800316,
+        0.888895385754902
+      ],
+      "target": null,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)",
+      "tasks": [
+        "gsm8k_cot_a2d"
+      ]
+    },
+    {
+      "model": "dream_merge_l06",
+      "benchmark": "IFEval",
+      "filter": "inst_level_loose_acc,none",
+      "value": 0.7857142857142857,
+      "n": 8,
+      "wilson95": [
+        0.40926987910258916,
+        0.9285223111419724
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_merge_l06",
+      "benchmark": "IFEval",
+      "filter": "inst_level_strict_acc,none",
+      "value": 0.7142857142857143,
+      "n": 8,
+      "wilson95": [
+        0.40926987910258916,
+        0.9285223111419724
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_merge_l06",
+      "benchmark": "IFEval",
+      "filter": "prompt_level_loose_acc,none",
+      "value": 0.75,
+      "n": 8,
+      "wilson95": [
+        0.40926987910258916,
+        0.9285223111419724
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_merge_l06",
+      "benchmark": "IFEval",
+      "filter": "prompt_level_strict_acc,none",
+      "value": 0.625,
+      "n": 8,
+      "wilson95": [
+        0.30573785458380187,
+        0.863158240538479
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_merge_l06",
+      "benchmark": "MATH-175",
+      "filter": "exact_match,none",
+      "value": 0.0,
+      "n": 175,
+      "wilson95": [
+        0.0,
+        0.021480460921843688
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT",
+      "tasks": [
+        "minerva_math_algebra",
+        "minerva_math_counting_and_prob",
+        "minerva_math_geometry",
+        "minerva_math_intermediate_algebra",
+        "minerva_math_num_theory",
+        "minerva_math_prealgebra",
+        "minerva_math_precalc"
+      ]
+    },
+    {
+      "model": "dream_merge_l06",
+      "benchmark": "MATH-175",
+      "filter": "math_verify,none",
+      "value": 0.34285714285714286,
+      "n": 175,
+      "wilson95": [
+        0.27658299658271074,
+        0.415882291135583
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT",
+      "tasks": [
+        "minerva_math_algebra",
+        "minerva_math_counting_and_prob",
+        "minerva_math_geometry",
+        "minerva_math_intermediate_algebra",
+        "minerva_math_num_theory",
+        "minerva_math_prealgebra",
+        "minerva_math_precalc"
+      ]
+    },
+    {
+      "model": "dream_transfer_a09",
+      "benchmark": "GSM8K",
+      "filter": "exact_match,flexible-extract",
+      "value": 0.83,
+      "n": 300,
+      "wilson95": [
+        0.7833848085580865,
+        0.8682705276434078
+      ],
+      "target": null,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)",
+      "tasks": [
+        "gsm8k_cot_a2d"
+      ]
+    },
+    {
+      "model": "dream_transfer_a09",
+      "benchmark": "GSM8K",
+      "filter": "exact_match,strict-match",
+      "value": 0.8066666666666666,
+      "n": 300,
+      "wilson95": [
+        0.7582152889916499,
+        0.8473634072764055
+      ],
+      "target": null,
+      "target_scope": "GSM8K (meme jeu, sous-ensemble)",
+      "tasks": [
+        "gsm8k_cot_a2d"
+      ]
+    },
+    {
+      "model": "dream_transfer_a09",
+      "benchmark": "IFEval",
+      "filter": "inst_level_loose_acc,none",
+      "value": 0.6428571428571429,
+      "n": 8,
+      "wilson95": [
+        0.30573785458380187,
+        0.863158240538479
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_transfer_a09",
+      "benchmark": "IFEval",
+      "filter": "inst_level_strict_acc,none",
+      "value": 0.6428571428571429,
+      "n": 8,
+      "wilson95": [
+        0.30573785458380187,
+        0.863158240538479
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_transfer_a09",
+      "benchmark": "IFEval",
+      "filter": "prompt_level_loose_acc,none",
+      "value": 0.5,
+      "n": 8,
+      "wilson95": [
+        0.21521252682444186,
+        0.7847874731755582
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_transfer_a09",
+      "benchmark": "IFEval",
+      "filter": "prompt_level_strict_acc,none",
+      "value": 0.5,
+      "n": 8,
+      "wilson95": [
+        0.21521252682444186,
+        0.7847874731755582
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_transfer_a09",
+      "benchmark": "MATH-175",
+      "filter": "exact_match,none",
+      "value": 0.0,
+      "n": 175,
+      "wilson95": [
+        0.0,
+        0.021480460921843688
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT",
+      "tasks": [
+        "minerva_math_algebra",
+        "minerva_math_counting_and_prob",
+        "minerva_math_geometry",
+        "minerva_math_intermediate_algebra",
+        "minerva_math_num_theory",
+        "minerva_math_prealgebra",
+        "minerva_math_precalc"
+      ]
+    },
+    {
+      "model": "dream_transfer_a09",
+      "benchmark": "MATH-175",
+      "filter": "math_verify,none",
+      "value": 0.33714285714285713,
+      "n": 175,
+      "wilson95": [
+        0.2712679205596076,
+        0.4100142867120786
+      ],
+      "target": null,
+      "target_scope": "MATH-500 (500 problemes) — PERIMETRE DIFFERENT",
+      "tasks": [
+        "minerva_math_algebra",
+        "minerva_math_counting_and_prob",
+        "minerva_math_geometry",
+        "minerva_math_intermediate_algebra",
+        "minerva_math_num_theory",
+        "minerva_math_prealgebra",
+        "minerva_math_precalc"
+      ]
+    },
+    {
       "model": "dream_7b_base",
       "benchmark": "IFEval",
       "filter": "moyenne des 4 metriques",
@@ -1765,6 +3483,38 @@
         0.863158240538479
       ],
       "target": 63.0,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_merge_l06",
+      "benchmark": "IFEval",
+      "filter": "moyenne des 4 metriques",
+      "value": 0.71875,
+      "n": 8,
+      "wilson95": [
+        0.40926987910258916,
+        0.9285223111419724
+      ],
+      "target": null,
+      "target_scope": "IFEval (meme jeu, sous-ensemble)",
+      "tasks": [
+        "ifeval_a2d"
+      ]
+    },
+    {
+      "model": "dream_transfer_a09",
+      "benchmark": "IFEval",
+      "filter": "moyenne des 4 metriques",
+      "value": 0.5714285714285714,
+      "n": 8,
+      "wilson95": [
+        0.30573785458380187,
+        0.863158240538479
+      ],
+      "target": null,
       "target_scope": "IFEval (meme jeu, sous-ensemble)",
       "tasks": [
         "ifeval_a2d"

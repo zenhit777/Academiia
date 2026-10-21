@@ -234,6 +234,240 @@
         "torch_seed": 1234,
         "fewshot_seed": 1234
       }
+    },
+    {
+      "run": "eval/dream_a2d/dream_merge_l06/gsm8k_cot_a2d",
+      "n_items": 300,
+      "items_sha256": "2d56d1fdcbd24b575c3eec4c8eb972d46b6f9f86568819e7bae5141c77d4d304",
+      "items_order_sha256": "1ddf927532a3b08a85001793cb70c0a981d0334a2e8e9f370bc087e7e05f7751",
+      "prompts_sha256": "cc3e4a4bfa53ea71342aea40b83c02df16c6d7b7a5c50a9af186c9eaa40f0f90",
+      "targets_sha256": "29ff35f4eabe6b8b2413fd539b8c053571f03c935ea14ca282c7ba5200011269",
+      "n_samples": {
+        "gsm8k_cot_a2d": {
+          "original": 1319,
+          "effective": 300
+        }
+      },
+      "fork_git_hash": "31f94a6",
+      "academiia_head_at_run": "c849b5d9f3bded07272c4885a01436c2b7c4a8cd",
+      "config": {
+        "model": "diffllm",
+        "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_merge_l06,trust_remote_code=True,max_new_tokens=256,diffusion_steps=256,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+        "batch_size": "4",
+        "batch_sizes": [],
+        "device": null,
+        "use_cache": null,
+        "limit": 300.0,
+        "bootstrap_iters": 100000,
+        "gen_kwargs": null,
+        "random_seed": 0,
+        "numpy_seed": 1234,
+        "torch_seed": 1234,
+        "fewshot_seed": 1234
+      }
+    },
+    {
+      "run": "eval/dream_a2d/dream_merge_l06/ifeval_a2d",
+      "n_items": 8,
+      "items_sha256": "0d66e89ed6abd889241d1437e2037836f41ed17d7176242d8f43d2bd95f1a98f",
+      "items_order_sha256": "0d66e89ed6abd889241d1437e2037836f41ed17d7176242d8f43d2bd95f1a98f",
+      "prompts_sha256": "62df58fa1ef767e77a510bd5e130440308757f1d870e60100e37e1013446f877",
+      "targets_sha256": "b5eb0d8cf4355309c10e87c04e6523afd9c25518deb92f7407355478446d3e3c",
+      "n_samples": {
+        "ifeval_a2d": {
+          "original": 541,
+          "effective": 8
+        }
+      },
+      "fork_git_hash": "31f94a6",
+      "academiia_head_at_run": "0d22e5237df336c000647d2b2bfb525a6e3e9246",
+      "config": {
+        "model": "diffllm",
+        "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_merge_l06,trust_remote_code=True,max_new_tokens=1280,diffusion_steps=1280,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+        "batch_size": "4",
+        "batch_sizes": [],
+        "device": null,
+        "use_cache": null,
+        "limit": 8.0,
+        "bootstrap_iters": 100000,
+        "gen_kwargs": null,
+        "random_seed": 0,
+        "numpy_seed": 1234,
+        "torch_seed": 1234,
+        "fewshot_seed": 1234
+      }
+    },
+    {
+      "run": "eval/dream_a2d/dream_merge_l06/minerva_math_algebra",
+      "n_items": 175,
+      "items_sha256": "e8d1dae81491a7c8b7526a1cb71ef521aa2a3b688e618922dd0691106f277445",
+      "items_order_sha256": "2a47e1676847630dde5e1aed16a403a8bdaa6fd4d1d07ed4442f2f34819543f0",
+      "prompts_sha256": "a00782289787b2e9224df0efd46769b50f0ea78674c9bf8f4634cd761feb6864",
+      "targets_sha256": "fab19cbe8ae1ec91bb8d0f131bb0a28e37b969b594a1c109b9f02cfb996a6913",
+      "n_samples": {
+        "minerva_math_precalc": {
+          "original": 546,
+          "effective": 25
+        },
+        "minerva_math_prealgebra": {
+          "original": 871,
+          "effective": 25
+        },
+        "minerva_math_num_theory": {
+          "original": 540,
+          "effective": 25
+        },
+        "minerva_math_intermediate_algebra": {
+          "original": 903,
+          "effective": 25
+        },
+        "minerva_math_geometry": {
+          "original": 479,
+          "effective": 25
+        },
+        "minerva_math_counting_and_prob": {
+          "original": 474,
+          "effective": 25
+        },
+        "minerva_math_algebra": {
+          "original": 1187,
+          "effective": 25
+        }
+      },
+      "fork_git_hash": "31f94a6",
+      "academiia_head_at_run": "0d22e5237df336c000647d2b2bfb525a6e3e9246",
+      "config": {
+        "model": "diffllm",
+        "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_merge_l06,trust_remote_code=True,max_new_tokens=512,diffusion_steps=512,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+        "batch_size": "4",
+        "batch_sizes": [],
+        "device": null,
+        "use_cache": null,
+        "limit": 25.0,
+        "bootstrap_iters": 100000,
+        "gen_kwargs": null,
+        "random_seed": 0,
+        "numpy_seed": 1234,
+        "torch_seed": 1234,
+        "fewshot_seed": 1234
+      }
+    },
+    {
+      "run": "eval/dream_a2d/dream_transfer_a09/gsm8k_cot_a2d",
+      "n_items": 300,
+      "items_sha256": "2d56d1fdcbd24b575c3eec4c8eb972d46b6f9f86568819e7bae5141c77d4d304",
+      "items_order_sha256": "1ddf927532a3b08a85001793cb70c0a981d0334a2e8e9f370bc087e7e05f7751",
+      "prompts_sha256": "cc3e4a4bfa53ea71342aea40b83c02df16c6d7b7a5c50a9af186c9eaa40f0f90",
+      "targets_sha256": "29ff35f4eabe6b8b2413fd539b8c053571f03c935ea14ca282c7ba5200011269",
+      "n_samples": {
+        "gsm8k_cot_a2d": {
+          "original": 1319,
+          "effective": 300
+        }
+      },
+      "fork_git_hash": "31f94a6",
+      "academiia_head_at_run": "c849b5d9f3bded07272c4885a01436c2b7c4a8cd",
+      "config": {
+        "model": "diffllm",
+        "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_transfer_a09,trust_remote_code=True,max_new_tokens=256,diffusion_steps=256,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+        "batch_size": "4",
+        "batch_sizes": [],
+        "device": null,
+        "use_cache": null,
+        "limit": 300.0,
+        "bootstrap_iters": 100000,
+        "gen_kwargs": null,
+        "random_seed": 0,
+        "numpy_seed": 1234,
+        "torch_seed": 1234,
+        "fewshot_seed": 1234
+      }
+    },
+    {
+      "run": "eval/dream_a2d/dream_transfer_a09/ifeval_a2d",
+      "n_items": 8,
+      "items_sha256": "0d66e89ed6abd889241d1437e2037836f41ed17d7176242d8f43d2bd95f1a98f",
+      "items_order_sha256": "0d66e89ed6abd889241d1437e2037836f41ed17d7176242d8f43d2bd95f1a98f",
+      "prompts_sha256": "62df58fa1ef767e77a510bd5e130440308757f1d870e60100e37e1013446f877",
+      "targets_sha256": "b5eb0d8cf4355309c10e87c04e6523afd9c25518deb92f7407355478446d3e3c",
+      "n_samples": {
+        "ifeval_a2d": {
+          "original": 541,
+          "effective": 8
+        }
+      },
+      "fork_git_hash": "31f94a6",
+      "academiia_head_at_run": "c849b5d9f3bded07272c4885a01436c2b7c4a8cd",
+      "config": {
+        "model": "diffllm",
+        "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_transfer_a09,trust_remote_code=True,max_new_tokens=1280,diffusion_steps=1280,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+        "batch_size": "4",
+        "batch_sizes": [],
+        "device": null,
+        "use_cache": null,
+        "limit": 8.0,
+        "bootstrap_iters": 100000,
+        "gen_kwargs": null,
+        "random_seed": 0,
+        "numpy_seed": 1234,
+        "torch_seed": 1234,
+        "fewshot_seed": 1234
+      }
+    },
+    {
+      "run": "eval/dream_a2d/dream_transfer_a09/minerva_math_algebra",
+      "n_items": 175,
+      "items_sha256": "e8d1dae81491a7c8b7526a1cb71ef521aa2a3b688e618922dd0691106f277445",
+      "items_order_sha256": "2a47e1676847630dde5e1aed16a403a8bdaa6fd4d1d07ed4442f2f34819543f0",
+      "prompts_sha256": "a00782289787b2e9224df0efd46769b50f0ea78674c9bf8f4634cd761feb6864",
+      "targets_sha256": "fab19cbe8ae1ec91bb8d0f131bb0a28e37b969b594a1c109b9f02cfb996a6913",
+      "n_samples": {
+        "minerva_math_precalc": {
+          "original": 546,
+          "effective": 25
+        },
+        "minerva_math_prealgebra": {
+          "original": 871,
+          "effective": 25
+        },
+        "minerva_math_num_theory": {
+          "original": 540,
+          "effective": 25
+        },
+        "minerva_math_intermediate_algebra": {
+          "original": 903,
+          "effective": 25
+        },
+        "minerva_math_geometry": {
+          "original": 479,
+          "effective": 25
+        },
+        "minerva_math_counting_and_prob": {
+          "original": 474,
+          "effective": 25
+        },
+        "minerva_math_algebra": {
+          "original": 1187,
+          "effective": 25
+        }
+      },
+      "fork_git_hash": "31f94a6",
+      "academiia_head_at_run": "c849b5d9f3bded07272c4885a01436c2b7c4a8cd",
+      "config": {
+        "model": "diffllm",
+        "model_args": "pretrained=/mnt/d/Intelligence_Artificielle/Projects/Academiia/checkpoints/dream_transfer_a09,trust_remote_code=True,max_new_tokens=512,diffusion_steps=512,dtype=bfloat16,temperature=0.1,top_p=0.9,alg=entropy",
+        "batch_size": "4",
+        "batch_sizes": [],
+        "device": null,
+        "use_cache": null,
+        "limit": 25.0,
+        "bootstrap_iters": 100000,
+        "gen_kwargs": null,
+        "random_seed": 0,
+        "numpy_seed": 1234,
+        "torch_seed": 1234,
+        "fewshot_seed": 1234
+      }
     }
   ]
 }
