@@ -40,17 +40,12 @@ sous-dossier `adapter_scaled/` (lora_B * (1-lambda), lora_alpha inchange).
 
 import argparse
 import os
-import sys
 
 import torch
 
-SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, SCRIPTS_DIR)
-
-from a2d import (MODE_ALIASES, MODES, CheckpointPairSource, LoraAdapterSource,
-                 MergeConfig, MergeError, MergeRefused, MissingVectorError,
-                 get_mapping, merge_checkpoint, normalize_mode)
+from academiia.a2d import (MODE_ALIASES, MODES, CheckpointPairSource, LoraAdapterSource,
+                           MergeConfig, MergeError, MergeRefused, MissingVectorError,
+                           get_mapping, merge_checkpoint, normalize_mode)
 
 
 def build_parser() -> argparse.ArgumentParser:

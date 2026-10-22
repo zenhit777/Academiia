@@ -34,13 +34,8 @@ import unicodedata
 import urllib.error
 import urllib.request
 
-# Le test de degeneracy vit dans vLLM/smoke_chat.py (client stdlib du
-# sous-projet vLLM) : on le reutilise tel quel plutot que d'en ecrire une
-# seconde version divergente.
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__)))))
-sys.path.insert(0, os.path.join(REPO_ROOT, "infra", "vllm"))
-from smoke_chat import degenerate  # noqa: E402
+from academiia.a2d.textcheck import check_format, normalize, strip_reasoning
+from academiia.core.text import degenerate
 
 
 def parse_args() -> argparse.Namespace:

@@ -20,8 +20,7 @@ import os
 import struct
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from _common import list_source_sidecar_files
+from academiia.core.common import list_source_sidecar_files
 
 
 def read_all_header_meta(ckpt_dir):

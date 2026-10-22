@@ -1,6 +1,6 @@
 """Tests de la bibliotheque A2D (scripts/a2d) — modeles jouets, sans GPU.
 
-Lancer : pytest scripts/tests -q
+Lancer : pytest modules/a2d/tests -q
 
 Garanties verifiees :
   * transfert   : D_b + alpha*tau_A
@@ -31,10 +31,8 @@ from safetensors.torch import load_file, save_file
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 CLI = SCRIPTS / "cli"
-if str(SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS))
 
-from a2d import (CheckpointPairSource, LegacyNpySource, LoraAdapterSource,
+from academiia.a2d import (CheckpointPairSource, LegacyNpySource, LoraAdapterSource,
                  MergeConfig, MergeError, MergeRefused, MissingVectorError,
                  compute_effective_coefficients, family_of, get_mapping,
                  load_weight_map, merge_checkpoint, normalize_mode,
@@ -726,7 +724,7 @@ def test_verify_merge_detects_wrong_alpha(tmp_path):
     # fusionne a 0.8, verifie comme si c'etait 0.3
     merge_checkpoint(config("ablation-dp-plus-tau-a", post, out, alpha=0.8, tau_a=tau))
     cfg = config("ablation-dp-plus-tau-a", post, out, alpha=0.3, tau_a=tau, verify=False)
-    from a2d import compute_effective_coefficients
+    from academiia.a2d import compute_effective_coefficients
     report = compute_effective_coefficients(out, post, cfg)
     assert not report["ok"]
     assert report["families"]["__all__"]["effective_coefficient"] == pytest.approx(0.8, abs=1e-2)
@@ -760,7 +758,7 @@ def test_refuses_to_overwrite(tmp_path):
     out = tmp_path / "out"
     out.mkdir()
     (out / "model-00001-of-00001.safetensors").write_bytes(b"previous")
-    from a2d import MergeRefused
+    from academiia.a2d import MergeRefused
     with pytest.raises(MergeRefused):
         merge_checkpoint(config("transfer", base, out, alpha=0.3, tau_a=tau))
 

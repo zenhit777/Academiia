@@ -24,20 +24,13 @@ Usage (identique a l'historique) :
 import argparse
 import json
 import os
-import sys
 
-# Script deplace dans legacy/ (J9) : la bibliotheque A2D vit dans <repo>/modules/a2d/.
-SCRIPTS_DIR = os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))))
-if SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, SCRIPTS_DIR)
+import torch
 
-import torch  # noqa: E402
-
-from a2d import (FAMILY_EMBED, FAMILY_NORMS, GEMMA4_TO_DIFFUSIONGEMMA, LegacyNpySource,
-                 MergeConfig, MergeError, MergeRefused, NameMapping, family_of,
-                 merge_checkpoint, module_of)
-from a2d.sources import load_weight_map  # noqa: E402
+from academiia.a2d import (FAMILY_EMBED, FAMILY_NORMS, GEMMA4_TO_DIFFUSIONGEMMA,
+                           LegacyNpySource, MergeConfig, MergeError, MergeRefused,
+                           NameMapping, family_of, merge_checkpoint, module_of)
+from academiia.a2d.sources import load_weight_map
 
 LEGACY_MAPPING_ID = "gemma4-diffusiongemma"
 
@@ -152,7 +145,7 @@ def main():
         },
     )
 
-    from a2d.merge import build_plan
+    from academiia.a2d.merge import build_plan
     plan, _counters = build_plan(load_weight_map(args.diffusiongemma), cfg)
     print(f"Mapped tensors (Gemma4 -> DiffusionGemma): {len(plan)}"
           + (" (variante AVEC norms/embed)" if args.include_norms_embed

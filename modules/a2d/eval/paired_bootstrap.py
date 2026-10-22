@@ -36,20 +36,25 @@ from __future__ import annotations
 import argparse
 import glob
 import json
-import os
-import random
-import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-FORK = REPO_ROOT / "harness" / "dream" / ".fork" / "eval_instruct"
+from academiia.core.stats import bootstrap_ci95, wilson
 
 
 def _load_process_results():
-    """Charge `process_results` du fork (logique MATH du papier)."""
-    if str(FORK) not in sys.path:
-        sys.path.insert(0, str(FORK))
-    from lm_eval.tasks.minerva_math.utils import process_results
+    """Charge `process_results` du fork (logique MATH du papier).
+
+    Le fork lm-eval est installé en editable par `modules/a2d/harness/dream/setup.sh` :
+    utiliser le Python du harnais pour la métrique `math_verify`.
+    """
+    try:
+        from lm_eval.tasks.minerva_math.utils import process_results
+    except ImportError as exc:  # pragma: no cover - depend de l'environnement
+        raise SystemExit(
+            "ERREUR: lm_eval introuvable (metrique math_verify). Utiliser le venv "
+            "du harnais : modules/a2d/harness/dream/.venv/bin/python "
+            "modules/a2d/eval/paired_bootstrap.py ..."
+        ) from exc
     return process_results
 
 
@@ -74,41 +79,6 @@ def per_item(run_dir: Path, metric: str, filter_name: str | None):
                     value = record.get("exact_match", 0)
                 out[key] = 1 if float(value) == 1.0 else 0
     return out
-
-
-def wilson(k: int, n: int, z: float = 1.96):
-    if n == 0:
-        return (None, None)
-    p = k / n
-    denom = 1 + z * z / n
-    centre = (p + z * z / (2 * n)) / denom
-    half = z * math_sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
-    return (max(0.0, centre - half), min(1.0, centre + half))
-
-
-def bootstrap_ci95(diffs, iters: int = 10000, seed: int = 0):
-    """IC bootstrap apparié 95 % de la moyenne de `diffs` (percentiles 2,5 / 97,5).
-
-    Rééchantillonnage **apparié** : les écarts par item sont tirés avec remise
-    (le même item est tiré pour les deux modèles, l'écart est déjà apparié).
-    """
-    n = len(diffs)
-    if n == 0:
-        return (None, None)
-    rng = random.Random(seed)
-    means = []
-    for _ in range(iters):
-        total = 0
-        for _ in range(n):
-            total += diffs[rng.randrange(n)]
-        means.append(total / n)
-    means.sort()
-    return (means[int(0.025 * (iters - 1))], means[int(0.975 * (iters - 1))])
-
-
-def math_sqrt(x: float) -> float:
-    import math
-    return math.sqrt(x)
 
 
 def main() -> int:

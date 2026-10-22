@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "academiia"
+version = "0.1.0"
+description = "Academiia — espace de recherche A2D (AR-to-Diffusion Transfer)"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Academiia contributors" },
+]
+keywords = ["diffusion", "language-model", "a2d", "lora", "ar-to-diffusion"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Apache Software License",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "numpy",
+  "safetensors",
+  "torch",
+]
+
+[project.optional-dependencies]
+eval = [
+  "huggingface_hub",
+  "transformers",
+  "pyyaml",
+]
+peft = [
+  "peft",
+]
+dev = [
+  "pytest",
+]
+
+[project.urls]
+Homepage = "https://github.com/academiia/academiia"
+
+# Paquets importables :
+#   academiia.core -> code generique (stats, empreintes, E/S safetensors)
+#   academiia.a2d  -> la methode A2D (mapping, sources, fusion, adaptateurs)
+#   academiia.a2d.eval -> scripts d'evaluation (verdict G1, bootstrap, ...)
+# Regle de dependance : modules -> core, jamais module -> module (ADR-001).
+[tool.setuptools]
+packages = [
+  "academiia",
+  "academiia.core",
+  "academiia.a2d",
+  "academiia.a2d.eval",
+]
+zip-safe = false
+license-files = ["LICENSE"]
+
+[tool.setuptools.package-dir]
+academiia = "academiia"
+"academiia.core" = "academiia/core"
+"academiia.a2d" = "modules/a2d/a2d"
+"academiia.a2d.eval" = "modules/a2d/eval"
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "modules/a2d/tests", "infra/vllm/scripts/tests"]
+filterwarnings = ["ignore::DeprecationWarning"]

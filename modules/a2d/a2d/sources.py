@@ -28,6 +28,8 @@ import numpy as np
 import torch
 from safetensors import safe_open
 
+from academiia.core.common import sha256_file
+
 from .naming import module_of
 
 
@@ -98,7 +100,6 @@ def shard_fingerprints(directory, weight_map, limit_mb: int = 32) -> dict:
     (Qwen2.5-7B et Qwen2.5-7B-Instruct ont le meme weight_map) : le prefixe de
     contenu des shards identifie reellement les poids utilises.
     """
-    from _common import sha256_file
     out = {}
     for fname in sorted(set(weight_map.values())):
         path = os.path.join(str(directory), fname)

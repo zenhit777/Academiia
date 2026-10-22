@@ -21,16 +21,11 @@ alors que son manifeste annoncait alpha=0.3.
 import argparse
 import json
 import os
-import sys
 
-SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, SCRIPTS_DIR)
-
-from a2d import (MODE_ALIASES, MODES, CheckpointPairSource, LegacyNpySource,
-                 LoraAdapterSource, MergeConfig, MergeError, MissingVectorError,
-                 compute_effective_coefficients, get_mapping, normalize_mode,
-                 verify_scaled_adapter)
+from academiia.a2d import (MODE_ALIASES, MODES, CheckpointPairSource, LegacyNpySource,
+                           LoraAdapterSource, MergeConfig, MergeError,
+                           MissingVectorError, compute_effective_coefficients,
+                           get_mapping, normalize_mode, verify_scaled_adapter)
 
 
 def build_parser() -> argparse.ArgumentParser:

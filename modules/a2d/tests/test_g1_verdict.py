@@ -1,20 +1,15 @@
-"""Tests de `scripts/g1_verdict.py` (logique pure des verdicts, sans GPU).
+"""Tests de `modules/a2d/eval/g1_verdict.py` (logique pure des verdicts, sans GPU).
 
 La faute la plus grave possible ici est un **mélange d'unités** : les écarts
 et les bornes sont des **proportions** (0,1433 = +14,33 points) alors que les
 seuils des critères sont en **points** (+10, +8, −2). Un test le verrouille.
 
 Lancer :
-    pytest scripts/tests -q
+    pytest modules/a2d/tests -q
 """
 
-import sys
-from pathlib import Path
-
-SCRIPTS = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(SCRIPTS / "eval"))
-
-from g1_verdict import verdict_gain, verdict_non_regression  # noqa: E402
+from academiia.a2d.eval.g1_verdict import (verdict_gain,  # noqa: E402
+                                        verdict_non_regression)
 
 
 def test_gain_met_avec_proportion_et_seuil_en_points():

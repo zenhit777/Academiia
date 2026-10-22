@@ -13,7 +13,7 @@ Chaque mutation est un cas de non-regression des constats :
   * MAJ-02 : une inversion de signe doit etre detectee (projection signee) ;
   * MAJ-03 : l'intersection des lignes d'embedding doit etre verifiable.
 
-Lancer : pytest scripts/tests -q
+Lancer : pytest modules/a2d/tests -q
 """
 
 import json
@@ -27,10 +27,8 @@ from safetensors.torch import load_file, save_file
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 CLI = SCRIPTS / "cli"
-if str(SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS))
 
-from a2d import (AdapterError, CheckpointPairSource, CoverageError, LoraAdapterSource,
+from academiia.a2d import (AdapterError, CheckpointPairSource, CoverageError, LoraAdapterSource,
                  MergeConfig, MergeError, MergeRefused, MissingVectorError,
                  compute_effective_coefficients, get_mapping, merge_checkpoint,
                  scale_adapter, verify_scaled_adapter)
@@ -366,7 +364,7 @@ def test_lora_source_requires_explicit_coverage(tmp_path):
     adapter_dir = tmp_path / "adapter"
     peft_model.save_pretrained(str(adapter_dir))
 
-    from a2d import LoraAdapterSource
+    from academiia.a2d import LoraAdapterSource
     ar_base, ar_post, diff_base, diff_post = ar_and_diffusion(tmp_path)
     tau_a = CheckpointPairSource(ar_post, ar_base)
     tau_d = LoraAdapterSource(adapter_dir)

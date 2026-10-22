@@ -12,11 +12,11 @@ script reste l'outil de mesure, pas une prévision du résultat.
 
 1. **contrôle bloquant** : les jeux d'items et les prompts doivent être
    **identiques** (`items_sha256`, `prompts_sha256`, calculés comme
-   `scripts/eval_item_fingerprint.py`) ;
+   `modules/a2d/eval/eval_item_fingerprint.py`) ;
 2. comparaison **item par item** : réponses brutes identiques, réponses filtrées
    identiques, verdicts identiques ;
 3. écart de précision apparié + **IC bootstrap apparié 95 %** (même algorithme
-   et même graine que `scripts/paired_bootstrap.py`).
+   et même graine que `modules/a2d/eval/paired_bootstrap.py`).
 
 Usage :
     python3 scripts/seed_noise_floor.py \
@@ -30,15 +30,10 @@ from __future__ import annotations
 import argparse
 import glob
 import json
-import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from eval_item_fingerprint import fingerprint  # noqa: E402
-from paired_bootstrap import bootstrap_ci95, wilson  # noqa: E402
+from academiia.a2d.eval.eval_item_fingerprint import fingerprint
+from academiia.core.stats import bootstrap_ci95, wilson
 
 
 def load_items(run_dir: Path, filter_name: str | None):

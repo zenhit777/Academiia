@@ -63,6 +63,8 @@ from .adapters import AdapterError, scale_adapter, verify_scaled_adapter
 from .naming import (FAMILY_EMBED, IDENTITY, NameMapping, family_of, module_of)
 from .sources import VectorSource, load_weight_map
 
+from academiia.core.common import git_commit, list_source_sidecar_files
+
 MODES = ("transfer", "merge", "merge-dg-scaled",
          "ablation-dp-plus-tau-a", "ablation-dp-minus-tau-d")
 
@@ -1219,11 +1221,6 @@ def _atomic_write_json(path: Path, payload: dict) -> None:
 
 
 def _copy_sidecars(recipient: Path, output: Path, log) -> None:
-    import sys
-    scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if scripts_dir not in sys.path:
-        sys.path.insert(0, scripts_dir)
-    from _common import list_source_sidecar_files
     for entry in list_source_sidecar_files(str(recipient)):
         src = recipient / entry
         dst = output / entry
@@ -1303,11 +1300,6 @@ def _build_manifest(cfg, plan, counters, stats, ratios, notes, warnings, weight_
                     policy: MergePolicy, guard: Optional[dict] = None,
                     adapter_manifest: Optional[dict] = None,
                     adapter_verification: Optional[dict] = None) -> dict:
-    import sys
-    scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if scripts_dir not in sys.path:
-        sys.path.insert(0, scripts_dir)
-    from _common import git_commit
     import safetensors
     coeff_name, coeff_value = effective_coefficient(cfg.mode, cfg.alpha, cfg.lam)
     manifest = {

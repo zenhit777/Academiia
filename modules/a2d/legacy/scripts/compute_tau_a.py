@@ -32,16 +32,13 @@ import argparse
 import datetime
 import json
 import os
-import sys
 
 import numpy as np
 import torch
 from safetensors import safe_open
 
-# Script deplace dans legacy/ (J9) : les helpers vivent dans <repo>/modules/a2d/.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__)))))
-from _common import gemma4_to_diffusiongemma, git_commit, tau_filename
+from academiia.a2d.mapping import gemma4_to_diffusiongemma, tau_filename
+from academiia.core.common import git_commit
 
 
 def load_fp32(directory, fname, name):

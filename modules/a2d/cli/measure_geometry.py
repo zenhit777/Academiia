@@ -28,17 +28,11 @@ import argparse
 import json
 import math
 import os
-import sys
 from collections import defaultdict
 
 import torch
 
-SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, SCRIPTS_DIR)
-
-from a2d import (CheckpointPairSource, family_of, index_fingerprint,  # noqa: E402
-                 module_of)
+from academiia.a2d import CheckpointPairSource, family_of, index_fingerprint, module_of
 
 DEFAULT_FAMILIES = ("attn", "mlp", "norms")
 

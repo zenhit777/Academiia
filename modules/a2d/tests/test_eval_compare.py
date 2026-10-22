@@ -1,18 +1,12 @@
-"""Tests de `scripts/eval_compare.py` (parties pures, sans réseau ni GPU).
+"""Tests de `modules/a2d/eval/eval_compare.py` (parties pures, sans réseau ni GPU).
 
 Cibles : les cas limites du contrôle de format et de la normalisation des
 réponses (préfixe « thought » du modèle de diffusion, JSON dans un bloc de
 code, listes à puces). Lancer :
-    pytest scripts/tests -q
+    pytest modules/a2d/tests -q
 """
 
-import sys
-from pathlib import Path
-
-SCRIPTS = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(SCRIPTS / "eval"))
-
-import eval_compare  # noqa: E402
+from academiia.a2d.eval import eval_compare  # noqa: E402
 
 
 def test_normalize_strip_accents_case_and_spaces():

@@ -1,7 +1,7 @@
 """Tests du pipeline Dp + alpha*tau_A (fixtures factices, sans GPU ni gros fichiers).
 
 Chaque test cible une garantie de surete du merge/verify. Lancer :
-    pytest scripts/tests -q
+    pytest modules/a2d/tests -q
 """
 
 import json

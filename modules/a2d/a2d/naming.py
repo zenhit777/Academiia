@@ -18,17 +18,11 @@ References :
 
 from __future__ import annotations
 
-import os
-import sys
 from dataclasses import dataclass
 from typing import Callable, FrozenSet, Optional
 
-_SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPTS_DIR)
-
-from _common import (diffusiongemma_to_gemma4,  # noqa: E402  (mapping officiel du projet)
-                     gemma4_to_diffusiongemma)
+from .mapping import (diffusiongemma_to_gemma4,  # mapping officiel du projet
+                      gemma4_to_diffusiongemma)
 
 FAMILY_EMBED = "embed"
 FAMILY_HEAD = "head"
