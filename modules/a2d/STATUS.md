@@ -7,6 +7,13 @@
 > verdict G1 recalculé est **strictement identique** à celui stocké. Voir
 > `docs/ARCHITECTURE.md`, `docs/adr/path-migration.md` et
 > `modules/a2d/docs/reports/J9.md`.
+>
+> **Mise à jour J10 (2026-10-22)** : nettoyage du workspace (harnais reconstruit
+> sous `modules/a2d/harness/dream/`, ancien dossier racine `harness/` supprimé),
+> README racine allégé (détail déplacé dans `modules/a2d/docs/QUICKSTART.md`),
+> entry-points CLI (`merge-a2d`, `verify-merge`, `measure-geometry`,
+> `verify-checkpoint`, `download-models`). **Aucun résultat, aucun seuil et aucun
+> verdict n'ont été modifiés.** Voir `modules/a2d/docs/reports/J10.md`.
 
 Ce document est le **point d'entrée** pour savoir ce qui est démontré, ce qui ne l'est pas, et
 où se trouve chaque chose. Il remplace les statuts dispersés dans les rapports de mission ;
@@ -87,6 +94,7 @@ la plus plausible, mais elle n'est **pas démontrée** (`modules/a2d/docs/report
 | `modules/a2d/eval/dream_a2d/` | résultats G1 versionnés + verdict + empreintes + troncature |
 | `modules/a2d/eval/dream_a2d_trunc/` | tentative de diagnostic 1 024 tokens (annulée : débit mesuré) |
 | `modules/a2d/docs/design/` | protocoles et conceptions (G1, G2, budget d'évaluation) |
+| `modules/a2d/docs/QUICKSTART.md` | détail opérationnel déplacé depuis le README racine (J10) : garanties de la bibliothèque, protocole App. A.1 et tableaux de scores, géométrie, workflow legacy, scripts vLLM |
 | `modules/a2d/docs/reports/` | rapports de mission (J6, J6bis, J7, **G1_BILAN**, audits, **G1_BILAN_1024**) |
 | `modules/a2d/legacy/scripts/`, `modules/a2d/legacy/docs/` | pipeline Jainius **déprécié** et archives (hors papier) |
 | `checkpoints/` | poids binaires, **non versionnés** |
