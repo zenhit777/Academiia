@@ -163,3 +163,63 @@ def test_verify_reference_ok_on_identical(tmp_path):
     ckpt = build_dp(tmp_path, name="ckpt")
     r = run("verify_checkpoint.py", "--checkpoint", ckpt, "--reference", ref)
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_wrapper_legacy_egal_bibliotheque_a2d(tmp_path):
+    """ADR-003 (règle de deux) : le wrapper legacy applique la MÊME règle.
+
+    Le legacy fusionne `D_p + α·τ` (τ en `.npy`) ; la bibliothèque applique
+    `D_b + α·τ_A` (τ recalculé à la volée). Sur la même source et le même
+    coefficient, le tenseur projeté doit être **identique** — sinon le
+    wrapper a divergé de la règle canonique.
+    """
+    from academiia.a2d import (CheckpointPairSource, MergeConfig, get_mapping,
+                                merge_checkpoint)
+
+    dp = build_dp(tmp_path)                      # D_p (noms decoder)
+    tau = build_tau(tmp_path)                    # τ legacy (.npy, noms AR)
+
+    # Même τ côté bibliothèque : A_base = 0, A_post = τ (noms AR Gemma 4).
+    ar_names = {
+        "model.language_model.layers.0.self_attn.q_proj.weight": (16, 16),
+        "model.language_model.layers.0.input_layernorm.weight": (16,),
+        "model.language_model.embed_tokens.weight": (8, 8),
+    }
+    tau_values = {
+        "model.language_model.layers.0.self_attn.q_proj.weight": 0.05,
+        "model.language_model.layers.0.input_layernorm.weight": 0.5,
+        "model.language_model.embed_tokens.weight": 0.5,
+    }
+    for name, values in (("ar_base", 0.0), ("ar_post", None)):
+        d = tmp_path / name
+        d.mkdir(parents=True, exist_ok=True)
+        tensors = {}
+        for tensor_name, shape in ar_names.items():
+            if values is None:
+                tensors[tensor_name] = torch.full(shape, tau_values[tensor_name],
+                                                  dtype=torch.float32)
+            else:
+                tensors[tensor_name] = torch.zeros(shape, dtype=torch.float32)
+        save_file(tensors, d / "model-00001-of-00001.safetensors")
+        (d / "model.safetensors.index.json").write_text(json.dumps(
+            {"metadata": {},
+             "weight_map": {k: "model-00001-of-00001.safetensors" for k in tensors}}))
+        (d / "config.json").write_text(json.dumps({"architectures": ["Toy"]}))
+
+    # 1. le wrapper legacy (τ persisté, sortie BF16)
+    legacy_out = tmp_path / "legacy_out"
+    r = merge(dp, tau, legacy_out, "--alpha", "0.3")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+    # 2. la bibliothèque (τ recalculé à la volée, même mapping, même coefficient)
+    cfg = MergeConfig(mode="transfer", recipient=dp, output=tmp_path / "lib_out",
+                      alpha=0.3, lam=0.0,
+                      tau_a=CheckpointPairSource(tmp_path / "ar_post",
+                                                tmp_path / "ar_base"),
+                      tau_d=None, mapping=get_mapping("gemma4-diffusiongemma"),
+                      dtype=torch.bfloat16)
+    merge_checkpoint(cfg)
+
+    legacy_q = load_file(legacy_out / "model-00001-of-00001.safetensors")[Q_PROJ]
+    lib_q = load_file(tmp_path / "lib_out" / "model-00001-of-00001.safetensors")[Q_PROJ]
+    assert torch.equal(legacy_q, lib_q), "le wrapper legacy a divergé de la bibliothèque"

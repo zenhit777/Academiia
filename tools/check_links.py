@@ -30,7 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 #: Répertoires non contrôlés (historique, artefacts, poids).
 SKIP_DIRS = {
     ".git", "_artefact", "checkpoints", ".venv", ".fork", ".cache",
-    "__pycache__", "node_modules",
+    "__pycache__", "node_modules", ".pytest_cache",
 }
 #: Arborescences explicitement historiques (bandeau de migration).
 SKIP_TREES = (

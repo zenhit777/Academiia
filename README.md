@@ -13,6 +13,27 @@ règles de mapping, chaque valeur référencée par son tableau/section.
 ce qui est démontré mécaniquement, ce qui ne l'est pas, contraintes de la machine et
 recommandation DiffusionGemma.
 
+## Pipeline et modules
+
+Le dépôt est un **pipeline** composé de modules à responsabilité unique. Le
+code générique est partagé ; la méthode A2D est un module ; OPDLM est prévu
+mais **n'existe pas encore**.
+
+| Module | Emplacement | Paquet importable | Statut |
+|---|---|---|---|
+| **core** (générique) | [`academiia/core/`](academiia/core/) | `academiia.core` | **en place** — bootstrap/Wilson, empreintes, E/S safetensors. Aucune dépendance vers un module. |
+| **a2d** (méthode) | [`modules/a2d/`](modules/a2d/) | `academiia.a2d` | **validé mécaniquement** — transfert, merge, ablations, vérification post hoc ; porte **G1 non franchie** (verdict inchangé, aucun seuil rejoué). |
+| **a2d legacy** | [`modules/a2d/legacy/`](modules/a2d/legacy/) | — | **déprécié** — pipeline Jainius (hors papier), conservé pour l'historique. |
+| **infra vLLM** | [`infra/vllm/`](infra/vllm/) | — | **en place** — service d'inférence (image FP8 épinglée). |
+| **opdlm** | *à créer* | `academiia.opdlm` | **planifié** — encapsulation du code officiel OPDLM + checkpoints 4B (Qwen3-4B comme modèle de référence). **Aucun code en J9.** |
+
+* Règle de dépendance : un module importe `academiia.core`, **jamais** un autre
+  module → [ADR-001](docs/adr/ADR-001-disposition.md).
+* Architecture détaillée : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+* Index des modules : [`docs/STATUS.md`](docs/STATUS.md).
+* Usage personnel, API non stabilisée ; licence Apache-2.0.
+
+
 > **Note de statut (mission J6, 2026-10-20).** Le checkpoint `checkpoints/Jainius` est une
 > **ablation hors papier** : il applique à DiffusionGemma-IT le vecteur *général*
 > `τ_A = Gemma4_IT − Gemma4_Base` avec α = 0.3, alors que le papier (Tableaux 1b, 6, 9, 19)
@@ -165,7 +186,7 @@ embeddings et tête exclus) :
 | cos(Δ_b, Δ_p) | +0.9986 | +0.999 | — |
 | cos(τ_A, τ_D) | +0.0130 | +0.013 | — |
 
-## Workflow legacy (Jainius, déprécié — déplacé dans `legacy/`)
+## Workflow legacy (Jainius, déprécié — déplacé dans `modules/a2d/legacy/`)
 
 `modules/a2d/legacy/scripts/merge_jainius.py` est un **wrapper déprécié** de la bibliothèque ; il conserve son
 interface historique (τ en `.npy`, α borné à [0,1], manifeste `merge_config.json`).
@@ -283,8 +304,8 @@ plus d'itérations de débruitage par token. Le sampler étant stochastique mêm
 `temperature=0`, la justesse de Jainius varie d'une exécution à l'autre
 (91,0 % puis 88,1 % sur deux passes) ; `D_p` est resté à 100 %.
 
-Détail des métriques et réponses : `eval/results_Dp.json`,
-`eval/results_jainius_a03.json`, rapport `modules/a2d/legacy/eval/RESULTS.md`.
+Détail des métriques et réponses : `modules/a2d/legacy/eval/results_Dp.json`,
+`modules/a2d/legacy/eval/results_jainius_a03.json`, rapport `modules/a2d/legacy/eval/RESULTS.md`.
  ## Mesure Dp + α·τ_A après arrondi BF16 (v2, 2026-10-17)
 
  Le script `modules/a2d/legacy/scripts/measure_effect.py` rapporte, en plus du % d'éléments modifiés,
@@ -312,7 +333,7 @@ Détail des métriques et réponses : `eval/results_Dp.json`,
 Client HTTP **stdlib uniquement** (aucune dépendance, ne charge pas le modèle) :
 `POST /v1/chat/completions` sur un serveur vLLM déjà lancé, contrôles objectifs
 (HTTP 200, texte non vide, pas de répétition dégénérée évidente), sauvegarde
-`eval/smoke_<modèle>_<horodatage>.json` :
+`modules/a2d/legacy/eval/smoke_<modèle>_<horodatage>.json` :
 
 ```bash
 python infra/vllm/smoke_chat.py --url http://localhost:8000 --model jainius
