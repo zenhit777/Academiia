@@ -45,9 +45,9 @@ L'installation editable fournit les **entry-points** :
 | Commande | Rôle |
 |---|---|
 | `merge-a2d` | fusion A2D : transfert, merge, ablations, mode DiffusionGemma |
-| `verify-merge` | vérification post hoc (`α_eff` / `λ_eff`, ULP, couverture) |
+| `verify-merge` | **vérification A2D** post hoc (`α_eff` / `λ_eff`, ULP, couverture) |
 | `measure-geometry` | géométrie des vecteurs (Table 21 du papier) |
-| `verify-checkpoint` | intégrité d'un checkpoint fusionné (format HF strict) |
+| `verify-checkpoint` | intégrité d'un checkpoint fusionné (format HF strict) — outil **général**, héritage Jainius ; ce n'est pas l'outil de vérification A2D (voir `verify-merge`) |
 | `download-models` | téléchargement des checkpoints (`--set dream\|gemma\|all`) |
 
 ## Commandes rapides

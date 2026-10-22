@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """
-Verify the integrity of the Jainius checkpoint.
+Verify the integrity of a merged checkpoint (safetensors / HuggingFace layout).
+
+OUT OF SCOPE OF THE A2D VERIFICATION : this tool does **not** check the fusion
+coefficients (alpha_eff / lambda_eff, ULP, coverage). That is the job of
+`verify_merge.py` (entry-point `verify-merge`), the reference tool of the A2D
+library. `verify-checkpoint` is a **generic checkpoint integrity checker**,
+historically introduced for the legacy Jainius build (first use case) and kept
+because the CI and the legacy path still rely on it.
+
 Checks (strict safetensors spec, no tolerance):
   - header JSON parseable WITHOUT stripping (no trailing \\x00, no double prefix)
   - all tensor dtypes are BF16 (warn on U16/F32/F16)
