@@ -117,6 +117,7 @@ produits) est **schématisé mais non implémenté** : ADR-002 fixe le format.
 | `docs/adr/ADR-001-disposition.md` | disposition et règles de dépendance |
 | `docs/adr/ADR-002-provenance.md` | manifeste de provenance (brouillon) |
 | `docs/adr/ADR-003-regle-de-deux.md` | règle de deux |
+| `docs/adr/ADR-004-import-torch-paresseux.md` | import de torch paresseux (M3 reporté) |
 | `docs/adr/path-migration.md` | ancien → nouveau chemin, exceptions |
 | `modules/a2d/STATUS.md` | état détaillé du module A2D |
 | `modules/a2d/docs/reports/**` | rapports J6–J8 (historiques, bandeau de migration) |
