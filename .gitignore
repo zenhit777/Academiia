@@ -4,6 +4,11 @@ _artefact/
 
 # Harnais d'évaluation : l'environnement n'est pas partageable (venv, clone du
 # fork, caches) et vit DANS le dépôt (règle « aucune écriture hors du dépôt »).
+modules/a2d/harness/**/.venv/
+modules/a2d/harness/**/.fork/
+modules/a2d/harness/**/.cache/
+# pre-J9 : les caches vivaient a la racine (`harness/`). Chemins conserves pour
+# le cas d'un worktree ancien ; le dossier racine `harness/` a ete supprime (J10).
 harness/**/.venv/
 harness/**/.fork/
 harness/**/.cache/
