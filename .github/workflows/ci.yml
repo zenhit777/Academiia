@@ -161,6 +161,8 @@ jobs:
           assert m["post_write_verification"]["ok"], m["post_write_verification"]
           print("zero-fill declare :", m["coverage"]["n_zero_filled"], "modules")
           EOF
+      - name: Liens relatifs des fichiers Markdown
+        run: python tools/check_links.py
       # Test compose vLLM (docker-compose.yml, sans Docker : YAML + simulation bash)
       - run: pytest infra/vllm/scripts/tests -q
       - run: bash -n infra/vllm/diagnose_image.sh infra/vllm/smoke.sh
