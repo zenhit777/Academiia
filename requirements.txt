@@ -1,16 +1,11 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# POINTEUR — la source de vérité des dépendances est `pyproject.toml`.
-# Ce fichier n'installe plus de paquets : il évite d'avoir deux listes de
-# versions qui divergent (constat de l'audit externe J11, point B4).
+# Source de vérité des versions : pyproject.toml
+# Ce fichier assure la compatibilité avec : pip install -r requirements.txt
+-e .
+
+# Développement / évaluation / PEFT (recommandé) :
+#   pip install -e ".[dev,eval,peft]"
 #
-#   pip install -e .            # runtime : numpy, safetensors, torch
-#   pip install -e ".[eval]"    # + huggingface_hub, transformers, pyyaml
-#   pip install -e ".[peft]"    # + peft (équivalence LoRA / merge_and_unload)
-#   pip install -e ".[dev]"     # + pytest, ruff (CI)
-#
-# Python **>= 3.12** requis (identique à `requires-python` du pyproject).
-#
-# Le harnais d'évaluation Dream-7B a ses propres versions (torch cu128,
-# transformers 4.46.2, fork lm-eval) :
+# Harnais Dream (versions propres) :
 #   modules/a2d/harness/dream/requirements-dream.txt
-# ─────────────────────────────────────────────────────────────────────────────
+#
+# Python >= 3.12 requis.

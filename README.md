@@ -35,10 +35,17 @@ Règle de dépendance : un module importe `academiia.core`, **jamais** un autre 
 ## Installation
 
 ```bash
-python3 -m pip install -e .            # paquet academiia (core + a2d + entry-points)
-python3 -m pip install -e ".[eval]"    # + huggingface_hub, transformers, pyyaml
-python3 -m pip install -e ".[dev]"     # + pytest
+python3 -m pip install -e .            # runtime (numpy, safetensors, torch) + entry-points CLI
+python3 -m pip install -e ".[dev,eval,peft]"   # dev + evaluation + PEFT
+# Alternative : `pip install -r requirements.txt` (équivalent à `-e .`)
 ```
+> **PEP 668** (`externally-managed-environment`) : si l'installation échoue avec
+> « This environment is externally managed », créer un venv dans le dépôt :
+> ```bash
+> python3 -m venv _artefact/venv-dev --system-site-packages
+> source _artefact/venv-dev/bin/activate
+> pip install -e .
+> ```
 
 L'installation editable fournit les **entry-points** :
 

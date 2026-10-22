@@ -132,7 +132,7 @@ jobs:
       # J11 : la suite de mutations n'est plus executee deux fois — la passe
       # generale l'exclut, la passe ci-dessous la detaille (sortie verbose).
       - name: Suite de tests (hors mutations)
-        run: pytest modules/a2d/tests tests -q --ignore=modules/a2d/tests/test_a2d_mutation.py
+        run: pytest modules/a2d/tests tests infra/vllm/scripts/tests -q --ignore=modules/a2d/tests/test_a2d_mutation.py
       - name: Tests adversariaux (mutations) de la bibliotheque A2D
         run: |
           # Chaque mutation d'un merge correct doit etre detectee par la
@@ -198,7 +198,7 @@ jobs:
       - name: Liens relatifs des fichiers Markdown
         run: python tools/check_links.py
       # Test compose vLLM (docker-compose.yml, sans Docker : YAML + simulation bash)
-      - run: pytest infra/vllm/scripts/tests -q
+      # Tests vLLM : syntaxe des scripts shell + compilation smoke_chat.py (la suite pytest generale inclut deja infra/vllm/scripts/tests).
       - run: bash -n infra/vllm/diagnose_image.sh infra/vllm/smoke.sh
       - run: python -m py_compile infra/vllm/smoke_chat.py
 
