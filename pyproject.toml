@@ -7,7 +7,7 @@ name = "academiia"
 version = "0.1.0"
 description = "Academiia — espace de recherche A2D (AR-to-Diffusion Transfer)"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 authors = [
   { name = "Academiia contributors" },
 ]
@@ -34,6 +34,7 @@ peft = [
 ]
 dev = [
   "pytest",
+  "ruff",
 ]
 
 [project.urls]
@@ -64,6 +65,9 @@ packages = [
 ]
 zip-safe = false
 license-files = ["LICENSE"]
+# Aucun fichier de donnees n'est embarque : les resultats de campagne
+# (`modules/a2d/eval/dream_a2d*/`, ~9,4 Mo) restent dans le depot, hors wheel.
+include-package-data = false
 
 [tool.setuptools.package-dir]
 academiia = "academiia"
@@ -75,3 +79,14 @@ academiia = "academiia"
 [tool.pytest.ini_options]
 testpaths = ["tests", "modules/a2d/tests", "infra/vllm/scripts/tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
+
+# Lint (J11, B1) : regles minimales E/F, alignees sur le plancher Python 3.12.
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F"]
+# E501 (longueur de ligne) est non bloquant : le code existant n'est pas
+# reformate en masse ; le reste (F401, F811, F841, E402...) est bloquant.
+ignore = ["E501"]

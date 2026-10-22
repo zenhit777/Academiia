@@ -1,15 +1,16 @@
-# Pinned runtime for the pipeline (voir AGENTS.md — Outils disponibles)
-# Python >= 3.12 requis (f-strings 3.12+ dans verify_checkpoint.py).
-huggingface_hub==1.18.0
-transformers>=5.10
-safetensors>=0.4
-torch>=2.4
-numpy>=1.26
-# Inference / eval :
-pillow>=10.0  # AutoProcessor / Gemma4Processor en dépend
-# - accelerate : device_map auto + offload disque (smoke_int8, eval perplexite)
-# - bitsandbytes : chargement 8-bit (test rapide 31 Go VRAM, relatif uniquement)
-accelerate>=0.30
-bitsandbytes>=0.43
-pyyaml>=6.0
-pytest>=8.0
+# ─────────────────────────────────────────────────────────────────────────────
+# POINTEUR — la source de vérité des dépendances est `pyproject.toml`.
+# Ce fichier n'installe plus de paquets : il évite d'avoir deux listes de
+# versions qui divergent (constat de l'audit externe J11, point B4).
+#
+#   pip install -e .            # runtime : numpy, safetensors, torch
+#   pip install -e ".[eval]"    # + huggingface_hub, transformers, pyyaml
+#   pip install -e ".[peft]"    # + peft (équivalence LoRA / merge_and_unload)
+#   pip install -e ".[dev]"     # + pytest, ruff (CI)
+#
+# Python **>= 3.12** requis (identique à `requires-python` du pyproject).
+#
+# Le harnais d'évaluation Dream-7B a ses propres versions (torch cu128,
+# transformers 4.46.2, fork lm-eval) :
+#   modules/a2d/harness/dream/requirements-dream.txt
+# ─────────────────────────────────────────────────────────────────────────────

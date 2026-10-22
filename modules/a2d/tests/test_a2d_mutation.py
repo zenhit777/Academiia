@@ -25,16 +25,16 @@ import pytest
 import torch
 from safetensors.torch import load_file, save_file
 
-SCRIPTS = Path(__file__).resolve().parents[1]
-CLI = SCRIPTS / "cli"
-
 from academiia.a2d import (AdapterError, CheckpointPairSource, CoverageError, LoraAdapterSource,
-                 MergeConfig, MergeError, MergeRefused, MissingVectorError,
-                 compute_effective_coefficients, get_mapping, merge_checkpoint,
+                 MergeError, MergeRefused, MissingVectorError,
+                 compute_effective_coefficients, merge_checkpoint,
                  scale_adapter, verify_scaled_adapter)
 
 from test_a2d_library import (QWEN, ar_and_diffusion, build_adapter,
                                build_checkpoint, config, pair, tensors_of)
+
+SCRIPTS = Path(__file__).resolve().parents[1]
+CLI = SCRIPTS / "cli"
 
 SHARD = "model-00001-of-00001.safetensors"
 
@@ -82,14 +82,14 @@ def merged(tmp_path):
 def _mutate_sign(merged, name):
     """Inversion de signe : out = ref - lambda*(tau_A - tau_D)."""
     ref = tensors_of(merged["diff_post"])[name]
-    out = read_shard(merged["out"])[name]
+    _out = read_shard(merged["out"])[name]
     mutate(merged["out"], name, lambda t: (2 * ref.to(torch.float32) - t).to(t.dtype))
 
 
 def _mutate_tau_swap(merged, name):
     """Permutation tau_A <-> tau_D : out = ref + lambda*(tau_D - tau_A)."""
     ref = tensors_of(merged["diff_post"])[name]
-    out = read_shard(merged["out"])[name]
+    _out = read_shard(merged["out"])[name]
     # out actuel = ref + l*(tau_A - tau_D) ; on veut ref + l*(tau_D - tau_A)
     mutate(merged["out"], name, lambda t: (2 * ref.to(torch.float32) - t).to(t.dtype))
 
@@ -364,7 +364,6 @@ def test_lora_source_requires_explicit_coverage(tmp_path):
     adapter_dir = tmp_path / "adapter"
     peft_model.save_pretrained(str(adapter_dir))
 
-    from academiia.a2d import LoraAdapterSource
     ar_base, ar_post, diff_base, diff_post = ar_and_diffusion(tmp_path)
     tau_a = CheckpointPairSource(ar_post, ar_base)
     tau_d = LoraAdapterSource(adapter_dir)

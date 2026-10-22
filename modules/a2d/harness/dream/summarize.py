@@ -15,8 +15,6 @@ import glob
 import json
 import math
 import os
-import re
-from collections import defaultdict
 
 # Cibles du papier (A2D Table 16, PDF p. 25). Attention : la cible MATH du
 # papier porte sur MATH-500 (500 problemes, split PRM800K, App. A.1) ; ce que

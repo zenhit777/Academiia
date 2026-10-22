@@ -20,7 +20,6 @@ alors que son manifeste annoncait alpha=0.3.
 
 import argparse
 import json
-import os
 
 from academiia.a2d import (MODE_ALIASES, MODES, CheckpointPairSource, LegacyNpySource,
                            LoraAdapterSource, MergeConfig, MergeError,

@@ -29,14 +29,14 @@ import torch
 from safetensors import safe_open
 from safetensors.torch import load_file, save_file
 
-SCRIPTS = Path(__file__).resolve().parents[1]
-CLI = SCRIPTS / "cli"
-
 from academiia.a2d import (CheckpointPairSource, LegacyNpySource, LoraAdapterSource,
                  MergeConfig, MergeError, MergeRefused, MissingVectorError,
                  compute_effective_coefficients, family_of, get_mapping,
                  load_weight_map, merge_checkpoint, normalize_mode,
                  scale_adapter, verify_scaled_adapter)
+
+SCRIPTS = Path(__file__).resolve().parents[1]
+CLI = SCRIPTS / "cli"
 
 QWEN = {
     "model.embed_tokens.weight": (8, 4),
@@ -156,7 +156,7 @@ def test_transfer_is_base_plus_alpha_tau(tmp_path):
     out = tmp_path / "out"
     result = merge_checkpoint(config("transfer", base, out, alpha=0.5, tau_a=tau))
     src, dst = tensors_of(base), tensors_of(out)
-    ref, diff = tensors_of(post), tensors_of(post)
+    _, diff = tensors_of(post), tensors_of(post)
     assert result.n_fused == len(QWEN)
     for name in QWEN:
         expected = src[name] + 0.5 * (diff[name] - src[name])

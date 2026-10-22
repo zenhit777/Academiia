@@ -117,10 +117,8 @@ def verify_safetensors_file(fpath):
                         cand = f.read(l2)
                     try:
                         json.loads(cand.decode("utf-8"))
-                        strict_dp = True
                     except Exception:
                         json.loads(cand.rstrip(b"\x00").decode("utf-8"))
-                        strict_dp = False
                     issues.append(
                         f"{fname}: double prefix de header detecte "
                         f"(L1={header_len}, L2={l2}) — relancer le merge"
@@ -131,8 +129,9 @@ def verify_safetensors_file(fpath):
         # Padding trailing ?
         try:
             json.loads(raw_header.rstrip(b"\x00").decode("utf-8"))
+            padding_bytes = header_len - len(raw_header.rstrip(b"\x00"))
             issues.append(
-                f"{fname}: padding nul trailing ({header_len - len(raw_header.rstrip(b'\x00'))} octets) "
+                f"{fname}: padding nul trailing ({padding_bytes} octets) "
                 f"— header non strict — relancer le merge"
             )
         except Exception:

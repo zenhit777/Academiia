@@ -37,8 +37,6 @@ Usage :
 import argparse
 import json
 import os
-import sys
-from collections import defaultdict
 
 import numpy as np
 import torch

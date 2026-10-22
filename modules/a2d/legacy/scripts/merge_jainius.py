@@ -170,7 +170,7 @@ def main():
     print(f"  Total tensors: {manifest['n_tensors']}")
     print(f"  Mapped (merge applique): {manifest['n_mapped']}")
     print(f"  Unchanged (DiffusionGemma-only): {manifest['n_unchanged']}")
-    print(f"  Manifest: merge_config.json")
+    print("  Manifest: merge_config.json")
 
 
 if __name__ == "__main__":
