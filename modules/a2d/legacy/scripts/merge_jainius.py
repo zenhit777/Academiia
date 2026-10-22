@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""DEPRECATED — wrapper autour de la bibliotheque A2D (`scripts/a2d/`).
+"""DEPRECATED — wrapper autour de la bibliotheque A2D (`modules/a2d/a2d/`).
 
 Ce script est conserve pour compatibilite (le checkpoint `checkpoints/Jainius`
 et sa docaute ont ete produits par cette interface). Il n'implique plus la
-logique de fusion : tout passe par `scripts/a2d/merge.py`.
+logique de fusion : tout passe par `modules/a2d/a2d/merge.py`.
 
   * Le calcul de tau se fait TOUJOURS a partir des `.npy` produits par
-    `legacy/scripts/compute_tau_a.py` (chemin legacy). Le pipeline A2D conforme
-    (`scripts/merge_a2d.py`) calcule tau a la volee et ne persiste rien.
+    `modules/a2d/legacy/scripts/compute_tau_a.py` (chemin legacy). Le pipeline A2D conforme
+    (`modules/a2d/cli/merge_a2d.py`) calcule tau a la volee et ne persiste rien.
   * Le plafond alpha dans [0,1] est conserve COTE LEGACY (le papier n'en
     impose pas : cf. Table 6, alpha jusqu'a 1.4). La bibliotheque, elle,
     accepte alpha >= 0 sans plafond.
-  * `legacy/scripts/compute_tau_a.py` est un chemin legacy : il n'est pas supprime.
+  * `modules/a2d/legacy/scripts/compute_tau_a.py` est un chemin legacy : il n'est pas supprime.
 
 Usage (identique a l'historique) :
-    python legacy/scripts/merge_jainius.py \
+    python modules/a2d/legacy/scripts/merge_jainius.py \
         --diffusiongemma checkpoints/diffusiongemma_it \
         --tau-dir _artefact/tau_a \
         --output checkpoints/Jainius \
@@ -93,7 +93,7 @@ def main():
     if not os.path.exists(manifest_path):
         if not args.allow_missing_tau_manifest:
             print(f"ERREUR: {manifest_path} absent : provenance du tau non verifiable. "
-                  f"Recalculer tau avec legacy/scripts/compute_tau_a.py, ou passer "
+                  f"Recalculer tau avec modules/a2d/legacy/scripts/compute_tau_a.py, ou passer "
                   f"--allow-missing-tau-manifest.")
             raise SystemExit(2)
         print("ATTENTION: tau_manifest.json absent et --allow-missing-tau-manifest "
@@ -134,8 +134,8 @@ def main():
         extra_manifest={
             "method": "Dp + alpha*tau_A (ablation inspiree A2D, pas de tau_D)",
             "deprecated": True,
-            "deprecation_note": ("wrapper : la logique de fusion vit dans scripts/a2d/ ; "
-                                 "le pipeline conforme est scripts/merge_a2d.py "
+            "deprecation_note": ("wrapper : la logique de fusion vit dans modules/a2d/a2d/ ; "
+                                 "le pipeline conforme est modules/a2d/cli/merge_a2d.py "
                                  "(tau calcule a la volee, jamais persiste)"),
             "include_norms_embed": args.include_norms_embed,
             "n_skipped_norms_embed": skipped,

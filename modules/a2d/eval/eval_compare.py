@@ -15,10 +15,10 @@ Un seul modèle à la fois (les checkpoints font ~49 Go : ils ne tiennent pas
 simultanément en VRAM ni en RAM).
 
 Usage :
-    python scripts/eval_compare.py \
+    python modules/a2d/eval/eval_compare.py \
         --base http://localhost:8000/v1/chat/completions \
         --model jainius \
-        --prompts eval/prompts.jsonl \
+        --prompts modules/a2d/legacy/eval/prompts.jsonl \
         --output eval/results_jainius.json
 """
 
@@ -43,7 +43,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--base", default="http://localhost:8000/v1/chat/completions",
                    help="URL de l'endpoint chat/completions")
     p.add_argument("--model", required=True, help="nom du modele servi")
-    p.add_argument("--prompts", default="eval/prompts.jsonl",
+    p.add_argument("--prompts", default="modules/a2d/legacy/eval/prompts.jsonl",
                    help="jeu de prompts (JSONL)")
     p.add_argument("--output", required=True, help="fichier JSON de sortie")
     p.add_argument("--max-tokens", type=int, default=128)

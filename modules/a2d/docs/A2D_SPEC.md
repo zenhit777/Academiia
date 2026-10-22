@@ -8,11 +8,11 @@ arXiv:2608.00146v1, 55 p. (<https://arxiv.org/abs/2608.00146>).
 
 Chaque valeur chiffrée porte son numéro de tableau / section. Les valeurs marquées
 **[mesuré J6]** sont celles recalculées localement le 2026-10-19/20
-(`docs/reports/J6.md`), pas des valeurs recopiées.
+(`modules/a2d/docs/reports/J6.md`), pas des valeurs recopiées.
 
-> L'audit `docs/AUDIT_A2D_vs_PAPIER.md` (19/10) est une source **secondaire** : il a servi
+> L'audit `modules/a2d/docs/AUDIT_A2D_vs_PAPIER.md` (19/10) est une source **secondaire** : il a servi
 > de piste de lecture, chaque point utilisé ici a été revérifié dans le PDF (Table 1/6/16/21,
-> App. A.1/A.2/B.7) — voir « Désaccords avec l'audit » dans `docs/reports/J6.md`.
+> App. A.1/A.2/B.7) — voir « Désaccords avec l'audit » dans `modules/a2d/docs/reports/J6.md`.
 
 ---
 
@@ -241,24 +241,24 @@ borne d'entropie `b = 0.1`, température `τ_max = 0.8 → τ_min = 0.4`, diffus
 
 | Élément du papier | Implémentation dans ce dépôt |
 |---|---|
-| eq. (1) transfert `D_b + ατ_A` | `scripts/merge_a2d.py --mode transfer` |
-| eq. (2) merge `D_p + λ(τ_A − τ_D)` | `scripts/merge_a2d.py --mode merge` |
-| ablation `D_p + ατ_A` (Table 9) | `scripts/merge_a2d.py --mode ablation-dp-plus-tau-a` |
-| ablation `D_p − λτ_D` (Table 10) | `scripts/merge_a2d.py --mode ablation-dp-minus-tau-d` |
-| `τ_A = A_p − A_b` (paire de checkpoints) | `a2d.sources.CheckpointPairSource` |
-| `τ` d'un adaptateur LoRA `(α/r)·B·A` (App. A.2 : adapters publiés) | `a2d.sources.LoraAdapterSource` |
-| mapping Qwen→Dream (identité, tout fusionné) | `a2d.naming.IDENTITY` |
-| mapping Gemma4→DiffusionGemma (embeddings/normes/tête inchangés) | `a2d.naming.GEMMA4_TO_DIFFUSIONGEMMA` (réutilise `scripts/_common.py`) |
-| FP32 séquentiel + un seul cast BF16 (App. A.3) | `a2d.merge.merge_checkpoint` |
-| contrôle post-écriture `α_eff` / `λ_eff` | `a2d.merge.verify_written` + `scripts/verify_merge.py` |
-| Table 21 (géométrie) | `scripts/measure_geometry.py` |
-| protocole Dream (App. A.1) | `harness/dream/` (harnais versionné) + `eval/dream_a2d/` (résultats) |
+| eq. (1) transfert `D_b + ατ_A` | `modules/a2d/cli/merge_a2d.py --mode transfer` |
+| eq. (2) merge `D_p + λ(τ_A − τ_D)` | `modules/a2d/cli/merge_a2d.py --mode merge` |
+| ablation `D_p + ατ_A` (Table 9) | `modules/a2d/cli/merge_a2d.py --mode ablation-dp-plus-tau-a` |
+| ablation `D_p − λτ_D` (Table 10) | `modules/a2d/cli/merge_a2d.py --mode ablation-dp-minus-tau-d` |
+| `τ_A = A_p − A_b` (paire de checkpoints) | `academiia.a2d.sources.CheckpointPairSource` |
+| `τ` d'un adaptateur LoRA `(α/r)·B·A` (App. A.2 : adapters publiés) | `academiia.a2d.sources.LoraAdapterSource` |
+| mapping Qwen→Dream (identité, tout fusionné) | `academiia.a2d.naming.IDENTITY` |
+| mapping Gemma4→DiffusionGemma (embeddings/normes/tête inchangés) | `academiia.a2d.naming.GEMMA4_TO_DIFFUSIONGEMMA` (réutilise `academiia/core/common.py`) |
+| FP32 séquentiel + un seul cast BF16 (App. A.3) | `academiia.a2d.merge.merge_checkpoint` |
+| contrôle post-écriture `α_eff` / `λ_eff` | `academiia.a2d.merge.verify_written` + `modules/a2d/cli/verify_merge.py` |
+| Table 21 (géométrie) | `modules/a2d/cli/measure_geometry.py` |
+| protocole Dream (App. A.1) | `modules/a2d/harness/dream/` (harnais versionné) + `modules/a2d/eval/dream_a2d/` (résultats) |
 
 ---
 
 ## 8. Mesures locales de la Table 21 (Dream-7B) — **[mesuré J6]**
 
-Recalculées le 2026-10-20 avec `scripts/measure_geometry.py` sur les tenseurs du backbone
+Recalculées le 2026-10-20 avec `modules/a2d/cli/measure_geometry.py` sur les tenseurs du backbone
 (attention + MLP + norms ; embeddings et tête exclus), entre
 `Qwen/Qwen2.5-7B` ↔ `Qwen/Qwen2.5-7B-Instruct` et `Dream-org/Dream-v0-Base-7B` ↔
 `Dream-org/Dream-v0-Instruct-7B` (337 tenseurs) :
@@ -273,4 +273,4 @@ Recalculées le 2026-10-20 avec `scripts/measure_geometry.py` sur les tenseurs d
 | cos(τ_A, τ_D) | +0.0130 | +0.013 | — |
 
 Détail par famille : `attn` (196 tenseurs), `mlp` (84), `norms` (57) — rapport complet :
-`_artefact/j6/geometry_dream.json` (non versionné) et `docs/reports/J6.md`.
+`_artefact/j6/geometry_dream.json` (non versionné) et `modules/a2d/docs/reports/J6.md`.

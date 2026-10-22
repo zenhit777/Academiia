@@ -77,14 +77,14 @@ python smoke_chat.py    # autre terminal ; stdlib uniquement
 - **Revue côté Windows (PowerShell/CMD) : sans Docker** — la relecture
   documentaire et les diffs git n'exigent ni GPU ni runtime Docker. Les
   commandes Linux restent invocables depuis Windows via `wsl.exe -e <cmd>`
-  (p. ex. `wsl.exe -e docker compose -f vLLM/docker-compose.yml config`).
+  (p. ex. `wsl.exe -e docker compose -f infra/vllm/docker-compose.yml config`).
   Depuis WSL, `wsl.exe -e …` échoue (`execvpe(nvidia-smi) failed`) : on est
   déjà dans WSL, les commandes se lancent directement.
 
 > **RAM WSL2 : 30 GiB au total, ~29 GiB disponibles** (`free -h`, mesuré le
 > 2026-10-19). Le checkpoint fait 48,14 GiB : en BF16, `--cpu-offload-gb 30`
 > est **impossible** ici (30 GiB de RAM pour les poids seuls, hors tampons).
-> Voir `../legacy/docs/GUIDE_RESTANT.md` (les trois chiffres : poids / budget vLLM /
+> Voir `../modules/a2d/legacy/docs/GUIDE_RESTANT.md` (les trois chiffres : poids / budget vLLM /
 > VRAM).
 
 ## Règle VRAM (LM Studio) — pour les agents
@@ -130,7 +130,7 @@ de `command` (avec `bash -c`, seul le premier argument est lu comme script).
 
 **Aucun backslash dans le bloc `>-`** : le repli YAML transforme les sauts de
 ligne en espaces, bash recevrait un backslash littéral suivi d'un espace
-(bug corrigé en 686c5a8, regression testée par `scripts/tests/test_compose.py`).
+(bug corrigé en 686c5a8, regression testée par `modules/a2d/tests/test_compose.py`).
 
 Vérification de l'entrypoint de l'image :
 
@@ -141,7 +141,7 @@ docker image inspect vllm/vllm-openai:gemma --format '{{json .Config.Entrypoint}
 
 ## Tests sans Docker
 
-`scripts/tests/test_compose.py` (pytest + PyYAML) valide le compose :
+`modules/a2d/tests/test_compose.py` (pytest + PyYAML) valide le compose :
 structure, pas de backslash, simulation `bash -c` du script (aucun argument
 vide, `--enforce-eager` conditionnel, override runner). C'est ce test qui
 tourne dans la CI.
@@ -167,6 +167,6 @@ tourne dans la CI.
   ~6 min de profilage/autotune ; 1re requête plus lente, JIT Triton).
 - **Débit max** : batch 1, sampler par défaut (adaptive stopping ON),
   mode no-think pour le volume. Mesurer TPF/steps effectifs/TPS
-  (éq. 10/12 du rapport) avant toute allégation - faiblesse n°2 de `legacy/docs/AUDIT.md`.
+  (éq. 10/12 du rapport) avant toute allégation - faiblesse n°2 de `modules/a2d/legacy/docs/AUDIT.md`.
 - **Dépannage** : `restart: "no"` volontaire (un OOM doit se voir).
   `docker compose logs vllm` pour le détail.

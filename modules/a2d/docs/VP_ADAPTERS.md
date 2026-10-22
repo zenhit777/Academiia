@@ -94,7 +94,7 @@ Le mécanisme (à ne pas confondre avec la seule expression régulière) :
 | AR (Gemma 4) | `model.language_model.layers.N.…` — c'est **la convention Gemma 4** (identique à celle des checkpoints `google/gemma-4-26B-A4B[-it]` du dépôt) |
 | Diffusion (DiffusionGemma) | `model.decoder.layers.N.…` **et** `model.encoder.language_model.layers.N.…` — convention **DiffusionGemma** |
 
-→ Le mapping `Gemma4 → DiffusionGemma` déjà présent dans `scripts/_common.py`
+→ Le mapping `Gemma4 → DiffusionGemma` déjà présent dans `academiia/core/common.py`
 (`model.language_model.layers.` → `model.decoder.layers.`) est **exactement** celui qu'il faut
 pour ces adaptateurs, et les formes des modules AR et diffusion sont **identiques**
 (q_proj `[64, 2816]→[4096, 64]`, gate/up `[64,2816]→[2112,64]`, down `[64,2112]→[2816,64]`) :
@@ -137,13 +137,13 @@ reference* ».
 
 ---
 
-## 3. Conséquences pour la bibliothèque A2D (`scripts/a2d/`)
+## 3. Conséquences pour la bibliothèque A2D (`modules/a2d/a2d/`)
 
-1. **Source LoRA** : `a2d.sources.LoraAdapterSource` lit exactement ce format
+1. **Source LoRA** : `academiia.a2d.sources.LoraAdapterSource` lit exactement ce format
    (`base_model.model.` + suffixe `.lora_A.weight` / `.lora_B.weight`, `r`/`lora_alpha` de
    `adapter_config.json`, facteur `alpha/r`). L'équivalence avec `peft.merge_and_unload` est
-   vérifiée par test (`scripts/tests/test_a2d_library.py::test_lora_source_matches_peft_merge_and_unload`).
-2. **Mapping** : `a2d.naming.GEMMA4_TO_DIFFUSIONGEMMA` (qui réutilise `scripts/_common.py`)
+   vérifiée par test (`modules/a2d/tests/test_a2d_library.py::test_lora_source_matches_peft_merge_and_unload`).
+2. **Mapping** : `academiia.a2d.naming.GEMMA4_TO_DIFFUSIONGEMMA` (qui réutilise `academiia/core/common.py`)
    s'applique tel quel aux adaptateurs `ar-*` → projections du decoder DiffusionGemma.
 3. **Piège « double comptage » (à traiter à la porte G2)** : les adaptateurs `diffusion-*`
    contiennent **deux jeux d'updates sur des poids partagés** (`model.decoder.layers.*` et

@@ -18,12 +18,12 @@ lm-evaluation-harness de l'équipe Dream** (`DreamLM/Dream`, dossier
 | `tasks/` | tâches lm_eval : `gsm8k_cot_a2d.yaml`, `ifeval_a2d.yaml` + utilitaires |
 | `run_evals.sh` | lanceur paramétré (chemins relatifs, skip, entrelacement) |
 | `summarize.py` | consolidation des `results_*.json` → scores + IC de Wilson |
-| `.venv/`, `.fork/`, `.cache/` | **non versionnés** (voir `harness/README.md`) |
+| `.venv/`, `.fork/`, `.cache/` | **non versionnés** (voir `modules/a2d/harness/README.md`) |
 
 ## Reconstruire l'environnement
 
 ```bash
-bash harness/dream/setup.sh
+bash modules/a2d/harness/dream/setup.sh
 ```
 
 * clone le fork `DreamLM/Dream` dans `.fork/`, **épinglé sur le commit**
@@ -46,11 +46,11 @@ dépôt » : le harnais est dans le dépôt, donc sur DrvFs.
 
 ```bash
 # tout : base + instruct, GSM8K + MATH + IFEval (entrelacé par tâche)
-bash harness/dream/run_evals.sh
+bash modules/a2d/harness/dream/run_evals.sh
 
 # un seul modèle, une seule tâche, effectif réduit
 MODEL_DIR=checkpoints/dream_7b_base TASK=gsm8k LIMIT=8 \
-  bash harness/dream/run_evals.sh
+  bash modules/a2d/harness/dream/run_evals.sh
 ```
 
 | Variable | Défaut | Rôle |
@@ -59,7 +59,7 @@ MODEL_DIR=checkpoints/dream_7b_base TASK=gsm8k LIMIT=8 \
 | `TASK` | `gsm8k,math,ifeval` | tâches ; `math` = les 7 sous-tâches `minerva_math_*` |
 | `LIMIT` | `300` / `25` / `8` | effectif par tâche (`tache=N` ou nombre unique) |
 | `SEED` | `0,1234,1234,1234` | graines lm_eval (`random,numpy,torch,fewshot`) — **valeur par défaut du fork**, celle de J6 |
-| `OUTDIR` | `eval/dream_a2d` | racine des résultats |
+| `OUTDIR` | `modules/a2d/eval/dream_a2d` | racine des résultats |
 | `BATCH` | `4` | taille de batch |
 | `SKIP_EXISTING` / `FORCE` | `1` / `0` | ne pas rejouer une tâche déjà faite / la rejouer quand même |
 
@@ -71,18 +71,18 @@ l'App. A.1 cité mot pour mot.
 
 **Sortie** : `OUTDIR/<alias_modele>/<tache>/results_*.json` et
 `…/samples_*.jsonl` — noms de dossiers **portables** (plus de chemin absolu
-encodé dans le nom, cf. `scripts/restructure_eval_dirs.py`).
+encodé dans le nom, cf. `modules/a2d/eval/restructure_eval_dirs.py`).
 
 ## Résultats : provenance exacte
 
 | Jeu de résultats | Commande d'origine | Version | Durée |
 |---|---|---|---|
-| `eval/dream_a2d/dream_7b_base/gsm8k_cot_a2d` (n=300) | `run_dream_evals2.sh` (script hors dépôt de la mission J6, V2 entrelacé) | fork `31f94a6`, graines `0,1234,1234,1234` | 00:02:25 → 00:53:06 |
-| `eval/dream_a2d/dream_7b_instruct/gsm8k_cot_a2d` (n=300) | idem | idem | 00:53:54 → 01:44:41 |
-| `eval/dream_a2d/dream_7b_base/minerva_math_algebra` (n=175) | idem | idem | 01:44:41 → 03:25:13 |
-| `eval/dream_a2d/dream_7b_instruct/minerva_math_algebra` (n=175) | idem | idem | 03:25:13 → 05:05:05 |
-| `eval/dream_a2d/dream_7b_base/ifeval_a2d` (n=8) | idem, **relance avec `LIMIT_IFEVAL=8`** après interruption de la passe à 30 | idem | 05:43:24 → 06:26:56 |
-| `eval/dream_a2d/dream_7b_instruct/ifeval_a2d` (n=8) | idem | idem | 06:26:56 → 07:10:41 |
+| `modules/a2d/eval/dream_a2d/dream_7b_base/gsm8k_cot_a2d` (n=300) | `run_dream_evals2.sh` (script hors dépôt de la mission J6, V2 entrelacé) | fork `31f94a6`, graines `0,1234,1234,1234` | 00:02:25 → 00:53:06 |
+| `modules/a2d/eval/dream_a2d/dream_7b_instruct/gsm8k_cot_a2d` (n=300) | idem | idem | 00:53:54 → 01:44:41 |
+| `modules/a2d/eval/dream_a2d/dream_7b_base/minerva_math_algebra` (n=175) | idem | idem | 01:44:41 → 03:25:13 |
+| `modules/a2d/eval/dream_a2d/dream_7b_instruct/minerva_math_algebra` (n=175) | idem | idem | 03:25:13 → 05:05:05 |
+| `modules/a2d/eval/dream_a2d/dream_7b_base/ifeval_a2d` (n=8) | idem, **relance avec `LIMIT_IFEVAL=8`** après interruption de la passe à 30 | idem | 05:43:24 → 06:26:56 |
+| `modules/a2d/eval/dream_a2d/dream_7b_instruct/ifeval_a2d` (n=8) | idem | idem | 06:26:56 → 07:10:41 |
 
 * **V1 vs V2.** La copie V1 (`run_dream_evals.sh`) est celle qui était dans le
   dépôt : boucle par modèle (base entière puis instruct entière) et **pas** de
@@ -106,11 +106,11 @@ encodé dans le nom, cf. `scripts/restructure_eval_dirs.py`).
 ## Synthèse
 
 ```bash
-python harness/dream/summarize.py --root eval/dream_a2d \
-    --out eval/dream_a2d/SUMMARY.json --markdown eval/dream_a2d/SUMMARY.md
+python modules/a2d/harness/dream/summarize.py --root modules/a2d/eval/dream_a2d \
+    --out modules/a2d/eval/dream_a2d/SUMMARY.json --markdown modules/a2d/eval/dream_a2d/SUMMARY.md
 ```
 
 Les cibles de la Table 16 de l'article sont **MATH-500** alors que la mesure est
 **MATH-175** : la comparaison est à périmètre différent (voir
-`docs/reports/AUDIT_J6.md`, MAJ-04). IFEval (n=8) est un contrôle de
+`modules/a2d/docs/reports/AUDIT_J6.md`, MAJ-04). IFEval (n=8) est un contrôle de
 fonctionnement, pas une mesure.

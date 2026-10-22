@@ -1,6 +1,6 @@
 """Bibliotheque A2D conforme (AR-to-Diffusion Transfer / Merge).
 
-Point d'entree : `scripts/merge_a2d.py` (CLI) et `scripts/verify_merge.py`.
+Point d'entree : `modules/a2d/cli/merge_a2d.py` (CLI) et `modules/a2d/cli/verify_merge.py`.
 
 Principes (A2D, arXiv:2610.08108) :
   - tau_A = A_p - A_b, tau_D = D_p - D_b (§2.1)

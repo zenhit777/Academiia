@@ -6,9 +6,9 @@
 # meme commande lm_eval, meme entrelacement, mais tout est parametrable et tous
 # les chemins sont RELATIFS au depot.
 #
-#   bash harness/dream/run_evals.sh                      # base + instruct, 3 taches
+#   bash modules/a2d/harness/dream/run_evals.sh                      # base + instruct, 3 taches
 #   MODEL_DIR=checkpoints/dream_7b_base TASK=gsm8k LIMIT=8 \
-#     bash harness/dream/run_evals.sh                    # un seul modele, une tache
+#     bash modules/a2d/harness/dream/run_evals.sh                    # un seul modele, une tache
 #
 # Variables d'environnement :
 #   MODEL_DIR  liste de checkpoints (relatifs a la racine du depot ou absolus),
@@ -22,7 +22,7 @@
 #   SEED      graines lm_eval "random,numpy,torch,fewshot". Defaut : la
 #              valeur du fork (0,1234,1234,1234) — celle utilisee par J6.
 #   OUTDIR    dossier de resultats (relatif a la racine du depot). Defaut :
-#              eval/dream_a2d. Structure de sortie : <OUTDIR>/<alias>/<tache>/
+#              modules/a2d/eval/dream_a2d. Structure de sortie : <OUTDIR>/<alias>/<tache>/
 #   BATCH     taille de batch lm_eval. Defaut : 4 (mesure J6).
 #   SKIP_EXISTING=1 (defaut) : ne rejoue pas une tache dont le
 #              `results_*.json` existe deja dans <OUTDIR>/<alias>/<tache>/.
@@ -62,11 +62,11 @@ FORCE="${FORCE:-0}"
 LIMIT="${LIMIT:-}"
 
 if [ ! -x "${VENV}/bin/python" ]; then
-  echo "ERREUR: environnement absent (${VENV}). Lancer : bash harness/dream/setup.sh" >&2
+  echo "ERREUR: environnement absent (${VENV}). Lancer : bash modules/a2d/harness/dream/setup.sh" >&2
   exit 2
 fi
 if [ ! -d "${FORK}/eval_instruct" ]; then
-  echo "ERREUR: fork du harnais absent (${FORK}). Lancer : bash harness/dream/setup.sh" >&2
+  echo "ERREUR: fork du harnais absent (${FORK}). Lancer : bash modules/a2d/harness/dream/setup.sh" >&2
   exit 2
 fi
 

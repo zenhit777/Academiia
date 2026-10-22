@@ -2,16 +2,16 @@
 # setup.sh — construction de l'environnement d'évaluation Dream-7B, DANS le dépôt.
 #
 # Idempotent : peut être rejoué sans effet de bord. Tout ce qui n'est pas
-# partageable (venv, clone du fork, caches) vit sous harness/dream/ :
+# partageable (venv, clone du fork, caches) vit sous modules/a2d/harness/dream/ :
 #
-#   harness/dream/.venv/   environnement Python (torch cu128, transformers 4.46.2, fork lm_eval)
-#   harness/dream/.fork/  clone du fork DreamLM/Dream, epingle par COMMIT
-#   harness/dream/.cache/  HF_HOME, PIP_CACHE_DIR, TMPDIR, XDG_CACHE_HOME
+#   modules/a2d/harness/dream/.venv/   environnement Python (torch cu128, transformers 4.46.2, fork lm_eval)
+#   modules/a2d/harness/dream/.fork/  clone du fork DreamLM/Dream, epingle par COMMIT
+#   modules/a2d/harness/dream/.cache/  HF_HOME, PIP_CACHE_DIR, TMPDIR, XDG_CACHE_HOME
 #
 # Aucun ecriture hors du depot : les variables de cache sont redirigees vers
-# harness/dream/.cache avant toute operation reseau.
+# modules/a2d/harness/dream/.cache avant toute operation reseau.
 #
-# Usage : bash harness/dream/setup.sh
+# Usage : bash modules/a2d/harness/dream/setup.sh
 set -euo pipefail
 
 HARNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

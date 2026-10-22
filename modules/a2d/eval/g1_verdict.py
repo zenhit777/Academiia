@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verdict de la porte G1 — application mécanique des critères amendés (J7, Phase 4).
 
-La porte G1 est **franchie** si, et seulement si (`docs/design/G1_PROTOCOL.md` §1) :
+La porte G1 est **franchie** si, et seulement si (`modules/a2d/docs/design/G1_PROTOCOL.md` §1) :
 
 1. les quatre modèles (D_b, D_p, Transfer α=0,9, Merge λ=0,6) sont évalués sur
    les **mêmes items** (preuve par empreinte) et avec le **même protocole** ;
@@ -28,7 +28,7 @@ Ce script mechanise les points 1, 3 et 4 :
 
 Usage (le métrique `math_verify` impose le venv du harnais) :
 
-    harness/dream/.venv/bin/python scripts/g1_verdict.py --root eval/dream_a2d
+    modules/a2d/harness/dream/.venv/bin/python modules/a2d/eval/g1_verdict.py --root modules/a2d/eval/dream_a2d
 
 Code de sortie : **0** = porte franchie, **1** = porte **non** franchie (verdict négatif,
 calcul sans erreur), **2** = erreur de contrôle (items différents, run manquant).
@@ -94,7 +94,7 @@ def compare(run_a: Path, run_b: Path, metric: str, filter_name: str,
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", default="eval/dream_a2d",
+    parser.add_argument("--root", default="modules/a2d/eval/dream_a2d",
                         help="racine des resultats (<root>/<modele>/<tache>)")
     parser.add_argument("--iters", type=int, default=10000,
                         help="nombre de re-echantillonnages bootstrap")

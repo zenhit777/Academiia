@@ -1,6 +1,6 @@
 """Verdicts mécaniques de la porte G1 (parties pures, sans I/O).
 
-Extraits de l'ancien `scripts/g1_verdict.py` : le script reste la CLI qui lit
+Extraits de l'ancien `modules/a2d/eval/g1_verdict.py` : le script reste la CLI qui lit
 les résultats et calcule les IC ; les règles de verdict vivent ici pour être
 testées sur le paquet installé, sans aménagement de `sys.path`.
 """

@@ -16,7 +16,7 @@ from safetensors.torch import load_file, save_file
 SCRIPTS = Path(__file__).resolve().parents[1]
 CLI = SCRIPTS / "cli"
 PY = sys.executable
-# Depuis J8, le pipeline legacy (Jainius) vit dans legacy/scripts/.
+# Depuis J8, le pipeline legacy (Jainius) vit dans modules/a2d/legacy/scripts/.
 LEGACY_SCRIPTS = SCRIPTS / "legacy" / "scripts"
 
 Q_PROJ = "model.decoder.layers.0.self_attn.q_proj.weight"

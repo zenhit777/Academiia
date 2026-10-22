@@ -3,7 +3,7 @@
 - [`.cursorrules`](.cursorrules) → règles Cursor IDE (lu automatiquement par l'IDE)
 - [`CHECKLIST.md`](CHECKLIST.md) → vérifications obligatoires avant de considérer le projet "prêt"
 - [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) → anomalies connues (blocage mmap/RAM, J4Bis, J5 non conforme)
-- [`docs/A2D_SPEC.md`](docs/A2D_SPEC.md) → **spécification de la méthode A2D** (équations, Table 6, cibles des Tables 1/16/21)
+- [`modules/a2d/docs/A2D_SPEC.md`](modules/a2d/docs/A2D_SPEC.md) → **spécification de la méthode A2D** (équations, Table 6, cibles des Tables 1/16/21)
 
 **Ces fichiers contiennent des informations invisibles par un simple `ls`. Ne jamais push/upload sans les avoir lus.**
 
@@ -16,34 +16,33 @@
 ```
 Academiia/
 ├── AGENTS.md              ← Tu es ici
-├── README.md              # Documentation projet
+├── README.md              # Documentation projet (pipeline)
 ├── .gitignore             # Fichiers exclus du versioning
 ├── requirements.txt       # Runtime principal
-├── harness/               # Harnais d'évaluation (convention harness/<famille>/)
-│   ├── README.md          # la convention
-│   └── dream/             # harnais Dream-7B (setup.sh, run_evals.sh, tasks/, summarize.py)
-├── docs/
-│   ├── A2D_SPEC.md        # SPÉCIFICATION (équations, Table 6, cibles chiffrées)
-│   │                      # sources : arXiv:2610.08108, arXiv:2608.00146
-│   ├── VP_ADAPTERS.md     # inspection des adaptateurs médicaux publiés
-│   ├── AUDIT_A2D_vs_PAPIER.md  # audit 19/10 (source secondaire)
-│   ├── design/            # notes de conception (G1_PROTOCOL, G2_adapter_scaling, …)
-│   └── reports/           # rapports de mission (J6.md, J6bis.md ...)
-├── scripts/
-│   ├── a2d/               # BIBLIOTHÈQUE A2D (naming, sources, moteur de fusion)
-│   ├── merge_a2d.py       # CLI : transfert / merge / ablations  ← pipeline CONFORME
-│   ├── verify_merge.py    # vérification post hoc (alpha_eff / lambda_eff)
-│   ├── measure_geometry.py# géométrie des vecteurs (Table 21 du papier)
-│   ├── download_models.py # --set gemma|dream|all
-│   ├── eval_compare.py    # 103 prompts texte, FP8 (non conforme au papier)
-│   ├── verify_checkpoint.py # integrite stricte HF
-│   ├── restructure_eval_dirs.py # renommage portable des dossiers de résultats
-│   ├── smoke_int8.py      # test rapide INT8 (iteration, pas preuve)
-│   ├── _common.py         # mapping Gemma4<->DiffusionGemma, helpers
-│   └── tests/             # pytest (test_a2d_library.py, test_a2d_mutation.py)
-├── legacy/                # pipeline Jainius, DÉPRÉCIÉ (hors papier)
-│   ├── scripts/           # compute_tau_a.py, merge_jainius.py, measure_effect.py
-│   └── docs/              # AUDIT.md, GUIDE_RESTANT.md (archives)
+├── pyproject.toml         # Paquets importables : academiia.core, academiia.a2d
+├── academiia/             # CODE GÉNÉRIQUE (paquet `academiia.core`)
+│   └── core/              # stats (bootstrap/Wilson), empreintes, E/S safetensors
+├── modules/
+│   └── a2d/               # MODULE A2D (paquet `academiia.a2d`)
+│       ├── a2d/           # BIBLIOTHÈQUE A2D (naming, sources, moteur de fusion)
+│       ├── cli/           # CLI : merge_a2d.py, verify_merge.py, measure_geometry.py…
+│       ├── eval/          # scripts d'évaluation (verdict G1, bootstrap, empreintes)
+│       ├── harness/       # Harnais d'évaluation (convention <famille>/)
+│       │   ├── README.md  # la convention
+│       │   └── dream/     # harnais Dream-7B (setup.sh, run_evals.sh, tasks/, summarize.py)
+│       ├── tests/         # pytest (test_a2d_library.py, test_a2d_mutation.py…)
+│       ├── docs/          # SPEC (A2D_SPEC, VP_ADAPTERS), design/, reports/
+│       ├── legacy/        # pipeline Jainius, DÉPRÉCIÉ (hors papier)
+│       │   ├── scripts/   # compute_tau_a.py, merge_jainius.py, measure_effect.py
+│       │   ├── docs/      # AUDIT.md, GUIDE_RESTANT.md (archives)
+│       │   └── eval/      # résultats legacy (RESULTS.md, prompts.jsonl)
+│       └── STATUS.md      # état du module A2D
+├── docs/                  # documentation DU PROJET
+│   ├── STATUS.md          # index court des modules (créé en J9)
+│   ├── ARCHITECTURE.md    # architecture (J9)
+│   └── adr/               # ADR-001..003 + table de migration des chemins
+├── tests/                 # pytest du CORE (academiia.core)
+├── infra/vllm/            # service vLLM (infra J4Bis)
 ├── checkpoints/           # Checkpoints binaires (non partages)
 │   ├── gemma4_base/       # A_b — Gemma 4 AR base
 │   ├── gemma4_it/         # A_p — Gemma 4 AR post-trained
@@ -53,51 +52,49 @@ Academiia/
 │   ├── qwen25_7b_it/      # A_p — Qwen2.5-7B-Instruct
 │   ├── dream_7b_base/     # D_b — Dream-7B-Base (indispensable)
 │   └── dream_7b_instruct/ # D_p — Dream-7B-Instruct
-├── eval/                  # resultats d'evaluation (dont dream_a2d/)
-├── vLLM/                  # service vLLM (infra J4Bis)
 └── _artefact/             # Dossier temporaire agents (non partage)
 ```
 
 ### Règles de travail
 
-1. **Toujours lire les scripts dans `scripts/` avant d'agir** — ils contiennent la logique exacte du pipeline.
+1. **Toujours lire le code dans `modules/a2d/` avant d'agir** — il contient la logique exacte du pipeline ; le code générique est dans `academiia/core/`.
 2. **Les checkpoints sont dans `checkpoints/`** — ne jamais les modifier directement ; recréer via les scripts.
 3. **`checkpoints/` est à la racine** — ignoré par git, contient les modèles binaires. Ne jamais le modifier directement.
 4. **`_artefact/` est un dossier temporaire agents** — tous les fichiers générés qui n'ont pas vocation à être partagés (logs, exports, résultats de tests) doivent y être placés. Ignoré par git, jamais commité.
 5. **Lecture des safetensors via `safetensors.safe_open` uniquement** — parseur maison interdit (`.cursorrules`).
-6. **GPU/VRAM (inférence vLLM et harnais Dream)** : Docker et le GPU (RTX 5090 32 Go) fonctionnent dans WSL2. Avant TOUTE opération GPU : mesurer `nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free --format=csv` ; besoin vLLM ≈ `VLLM_GPU_MEMORY_UTILIZATION × total` (0,90 → ≈ 28,8 GiB). Si un modèle LM Studio est chargé ET `memory.free < besoin + 1 GiB` : STOPPER et demander la permission (citer mémoire libre, besoin, modèle détecté). Ne JAMAIS décharger un modèle LM Studio ni tuer de processus. Après chaque série GPU : `docker compose down`, re-mesurer. Détails : `vLLM/README.md` (règle VRAM).
+6. **GPU/VRAM (inférence vLLM et harnais Dream)** : Docker et le GPU (RTX 5090 32 Go) fonctionnent dans WSL2. Avant TOUTE opération GPU : mesurer `nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free --format=csv` ; besoin vLLM ≈ `VLLM_GPU_MEMORY_UTILIZATION × total` (0,90 → ≈ 28,8 GiB). Si un modèle LM Studio est chargé ET `memory.free < besoin + 1 GiB` : STOPPER et demander la permission (citer mémoire libre, besoin, modèle détecté). Ne JAMAIS décharger un modèle LM Studio ni tuer de processus. Après chaque série GPU : `docker compose down`, re-mesurer. Détails : `infra/vllm/README.md` (règle VRAM).
 7. **Trajectoire par portes** : **G1** mécanique validée sur Qwen2.5-7B → Dream-7B → **G2** reproduction du cas DiffusionGemma médical du papier → **G3** raisonnement (hors papier, conception d'abord). Ne pas commencer une porte avant d'avoir franchi la précédente ; consigner l'état de chaque porte dans `CHECKLIST.md`.
 8. **Toute évaluation générative consigne** : modèle, dtype/quantification, décodeur, paramètres, graine, nombre de prompts, et l'intervalle de confiance si l'effectif est réduit.
-9. **Aucune écriture hors du dépôt.** Tout ce qui est écrit doit vivre dans l'arborescence du dépôt (`_artefact/`, `harness/<famille>/.cache/`, `eval/`, `checkpoints/`…). Les caches d'outils (`~/.cache/huggingface`, `~/.cache/pip`, `/tmp`, `~/.cache/uv`) doivent être **redirigés** vers le dépôt, pas utilisés en plus. Une écriture déjà présente hors du dépôt est **inventoriée** (`docs/reports/OUT_OF_WORKSPACE.md`) et **jamais supprimée sans accord écrit de l'utilisateur**.
-10. **Harnais d'évaluation : convention `harness/<famille>/`.** Un harnais (lanceur, tâches, environnement, synthèse) vit dans `harness/<famille>/` : `setup.sh` (idempotent), `requirements-*.txt`, `tasks/`, `run_evals.sh`, `summarize.py`. Ce qui n'est pas partageable (`.venv/`, `.fork/`, `.cache/`) reste dans le dossier de la famille et est ignoré par git. Les résultats vont dans `eval/<famille>/<modèle>/<tâche>/`, **sans chemin absolu dans les noms de dossiers**. Voir `harness/README.md`.
+9. **Aucune écriture hors du dépôt.** Tout ce qui est écrit doit vivre dans l'arborescence du dépôt (`_artefact/`, `harness/<famille>/.cache/`, `eval/`, `checkpoints/`…). Les caches d'outils (`~/.cache/huggingface`, `~/.cache/pip`, `/tmp`, `~/.cache/uv`) doivent être **redirigés** vers le dépôt, pas utilisés en plus. Une écriture déjà présente hors du dépôt est **inventoriée** (`modules/a2d/docs/reports/OUT_OF_WORKSPACE.md`) et **jamais supprimée sans accord écrit de l'utilisateur**.
+10. **Harnais d'évaluation : convention `modules/a2d/harness/<famille>/`.** Un harnais (lanceur, tâches, environnement, synthèse) vit dans `modules/a2d/harness/<famille>/` : `setup.sh` (idempotent), `requirements-*.txt`, `tasks/`, `run_evals.sh`, `summarize.py`. Ce qui n'est pas partageable (`.venv/`, `.fork/`, `.cache/`) reste dans le dossier de la famille et est ignoré par git. Les résultats vont dans `modules/a2d/eval/<famille>/<modèle>/<tâche>/`, **sans chemin absolu dans les noms de dossiers**. Voir `modules/a2d/harness/README.md`.
 11. **`git push` est réservé à l'utilisateur.** L'agent produit des **commits locaux atomiques** et ne pousse jamais. Le reflog n'identifie pas l'auteur d'un push : ne rien en déduire.
 
 ### Pipeline CONFORME (bibliothèque A2D) — à utiliser par défaut
 
 ```bash
 # 0. checkpoints (famille Dream : 4 modeles, ~60 Go ; shards <= 5 Go)
-python scripts/download_models.py --set dream --output-dir ./checkpoints
+python modules/a2d/cli/download_models.py --set dream --output-dir ./checkpoints
 
 # 1. Transfert A2D (eq. 1) : D_b + alpha*tau_A   (tau calcule a la volee, jamais persiste)
-python scripts/merge_a2d.py --mode transfer \
+python modules/a2d/cli/merge_a2d.py --mode transfer \
     --diffusion-base checkpoints/dream_7b_base \
     --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b \
     --alpha 0.9 --mapping identity --output checkpoints/dream_transfer_a09
 
 # 2. Merge A2D (eq. 2) : D_p + lambda*(tau_A - tau_D)
-python scripts/merge_a2d.py --mode merge \
+python modules/a2d/cli/merge_a2d.py --mode merge \
     --diffusion checkpoints/dream_7b_instruct \
     --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b \
     --tau-d-post checkpoints/dream_7b_instruct --tau-d-base checkpoints/dream_7b_base \
     --lambda 0.6 --mapping identity --output checkpoints/dream_merge_l06
 
 # 3. Verification post hoc (detecte un coefficient errone, ex. le build a 0.8 etiquete 0.3)
-python scripts/verify_merge.py --merged checkpoints/dream_transfer_a09 \
+python modules/a2d/cli/verify_merge.py --merged checkpoints/dream_transfer_a09 \
     --reference checkpoints/dream_7b_base --mode transfer \
     --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b --alpha 0.9
 
 # 4. Geometrie des vecteurs (Table 21 du papier)
-python scripts/measure_geometry.py \
+python modules/a2d/cli/measure_geometry.py \
     --ar-base checkpoints/qwen25_7b --ar-post checkpoints/qwen25_7b_it \
     --diffusion-base checkpoints/dream_7b_base --diffusion-post checkpoints/dream_7b_instruct \
     --output _artefact/geometry_dream.json
@@ -117,26 +114,26 @@ la source** — sans lui, le checkpoint fusionné n'est **pas chargeable** par `
 ### Pipeline LEGACY (Jainius) — déprécié, conservé dans `legacy/`
 
 ```bash
-python legacy/scripts/compute_tau_a.py --base checkpoints/gemma4_base --posttrained checkpoints/gemma4_it --output-dir _artefact/tau_a
-python legacy/scripts/measure_effect.py --diffusiongemma checkpoints/diffusiongemma_it --tau-dir _artefact/tau_a --alphas 0.05,0.1,0.2,0.3,0.5,0.8
-python legacy/scripts/merge_jainius.py --diffusiongemma checkpoints/diffusiongemma_it --tau-dir _artefact/tau_a --output checkpoints/Jainius --alpha 0.3
-python scripts/verify_checkpoint.py --checkpoint checkpoints/Jainius
+python modules/a2d/legacy/scripts/compute_tau_a.py --base checkpoints/gemma4_base --posttrained checkpoints/gemma4_it --output-dir _artefact/tau_a
+python modules/a2d/legacy/scripts/measure_effect.py --diffusiongemma checkpoints/diffusiongemma_it --tau-dir _artefact/tau_a --alphas 0.05,0.1,0.2,0.3,0.5,0.8
+python modules/a2d/legacy/scripts/merge_jainius.py --diffusiongemma checkpoints/diffusiongemma_it --tau-dir _artefact/tau_a --output checkpoints/Jainius --alpha 0.3
+python modules/a2d/cli/verify_checkpoint.py --checkpoint checkpoints/Jainius
 ```
 
-`legacy/scripts/merge_jainius.py` est un **wrapper déprécié** de la bibliothèque (comportement
-observable identique, α borné à [0,1] **côté legacy** seulement) ; `legacy/scripts/compute_tau_a.py`
+`modules/a2d/legacy/scripts/merge_jainius.py` est un **wrapper déprécié** de la bibliothèque (comportement
+observable identique, α borné à [0,1] **côté legacy** seulement) ; `modules/a2d/legacy/scripts/compute_tau_a.py`
 est un **chemin legacy** (il persiste τ en `.npy`) : il n'est pas supprimé.
 
 ### Contexte scientifique (à jour au 2026-10-20)
 
-- **Source** : Qin et al., "Enhancing Diffusion Language Models with Autoregressive Post-Training Weights", arXiv:2610.08108, 2026 (EPFL). Spécification complète et vérifiée : `docs/A2D_SPEC.md`.
-- **Ce que le papier étudie pour DiffusionGemma** : `D_b` = le checkpoint **IT** (aucun base diffusion public), `τ_A` = delta LoRA **de domaine** (IT → médical), `τ_D` = delta LoRA diffusion. Les adaptateurs sont **publiés** (`gevaertlab/diffusiongemma-radiology-vqa`, LoRA r=64, α=128 ; experts/routeur/vision gelés — vérifié dans `docs/VP_ADAPTERS.md`).
+- **Source** : Qin et al., "Enhancing Diffusion Language Models with Autoregressive Post-Training Weights", arXiv:2610.08108, 2026 (EPFL). Spécification complète et vérifiée : `modules/a2d/docs/A2D_SPEC.md`.
+- **Ce que le papier étudie pour DiffusionGemma** : `D_b` = le checkpoint **IT** (aucun base diffusion public), `τ_A` = delta LoRA **de domaine** (IT → médical), `τ_D` = delta LoRA diffusion. Les adaptateurs sont **publiés** (`gevaertlab/diffusiongemma-radiology-vqa`, LoRA r=64, α=128 ; experts/routeur/vision gelés — vérifié dans `modules/a2d/docs/VP_ADAPTERS.md`).
 - **Ce que fait le build `Jainius`** : une **ablation hors papier** (`D_p` + α·τ_A général, α=0.3 non sélectionné sur ancre). Ce n'est ni le transfert du papier (Table 8), ni son ablation « Table 9 » (qui suppose un τ_A médical), ni le A2D-Merge (Table 7/12, qui exige λ et τ_D).
 - **Le routeur est fusionné** par défaut (90 des 355 tenseurs du build legacy) : les docs le disaient « inchangé », c'est corrigé.
-- **Évaluation J5 (2026-10-19) : non conforme** au protocole du papier (FP8, `temperature=0`, 128 tokens, 103 prompts de texte, sans juge). C'est un contrôle de non-régression, pas une mesure de qualité. Voir `eval/RESULTS.md`.
-- **Mesures GPU vLLM (2026-10-19)** : seule config qui produit une génération sur cette machine = image vLLM 0.24.0 épinglée par digest + `--quantization fp8` + `--cpu-offload-gb 0` + `--max-model-len 2048` + `--enforce-eager`. Outils : `vLLM/smoke_chat.py`, `scripts/eval_compare.py`, `eval/prompts.jsonl`.
+- **Évaluation J5 (2026-10-19) : non conforme** au protocole du papier (FP8, `temperature=0`, 128 tokens, 103 prompts de texte, sans juge). C'est un contrôle de non-régression, pas une mesure de qualité. Voir `modules/a2d/legacy/eval/RESULTS.md`.
+- **Mesures GPU vLLM (2026-10-19)** : seule config qui produit une génération sur cette machine = image vLLM 0.24.0 épinglée par digest + `--quantization fp8` + `--cpu-offload-gb 0` + `--max-model-len 2048` + `--enforce-eager`. Outils : `infra/vllm/smoke_chat.py`, `modules/a2d/eval/eval_compare.py`, `modules/a2d/legacy/eval/prompts.jsonl`.
 - **Aucun gain vs `D_p`** (mesuré) : Jainius α=0.3 → 88,1 % de justesse / 21,1 tok/s ; `D_p` → 100 % / 116,4 tok/s. `D_p` reste le témoin.
-- **Le chemin legacy `compute_tau_a.py`** (déplacé dans `legacy/scripts/`) **est bloqué en ENOMEM** sur cette VM (30 GiB) : `safetensors.safe_open` pré-fault la projection du shard AR de 46,5 GiB. **La bibliothèque conforme n'est pas concernée** (τ recalculé à la volée, sans matérialisation). Ne pas contourner par un parseur safetensors maison.
+- **Le chemin legacy `compute_tau_a.py`** (déplacé dans `modules/a2d/legacy/scripts/`) **est bloqué en ENOMEM** sur cette VM (30 GiB) : `safetensors.safe_open` pré-fault la projection du shard AR de 46,5 GiB. **La bibliothèque conforme n'est pas concernée** (τ recalculé à la volée, sans matérialisation). Ne pas contourner par un parseur safetensors maison.
 
 ### Outils disponibles
 

@@ -5,11 +5,11 @@ Ce dépôt implémente la méthode **A2D** (Qin et al., EPFL, 2026,
 transférer un vecteur de tâche autoregressif vers un modèle de diffusion, puis composer
 ce transfert avec le vecteur de post-training du modèle de diffusion.
 
-**La spécification de référence est [`docs/A2D_SPEC.md`](docs/A2D_SPEC.md)** : équations,
+**La spécification de référence est [`modules/a2d/docs/A2D_SPEC.md`](modules/a2d/docs/A2D_SPEC.md)** : équations,
 tableau des coefficients (Table 6 du papier), cibles chiffrées (Tables 1, 16, 21) et
 règles de mapping, chaque valeur référencée par son tableau/section.
 
-**État consolidé du projet** : [`docs/STATUS.md`](docs/STATUS.md) — état des portes G1/G2/G1b/G3,
+**État consolidé du projet** : [`modules/a2d/STATUS.md`](modules/a2d/STATUS.md) — état des portes G1/G2/G1b/G3,
 ce qui est démontré mécaniquement, ce qui ne l'est pas, contraintes de la machine et
 recommandation DiffusionGemma.
 
@@ -19,23 +19,23 @@ recommandation DiffusionGemma.
 > étudie pour DiffusionGemma un vecteur **de domaine** (IT → médical, LoRA) et sélectionne
 > α ou λ **sur une tâche ancre**. Ce build n'est donc plus une référence scientifique ;
 > il reste un témoin de l'outillage legacy. Le pipeline conforme est
-> `scripts/merge_a2d.py` + `scripts/a2d/` (voir « Bibliothèque A2D »).
+> `modules/a2d/cli/merge_a2d.py` + `modules/a2d/a2d/` (voir « Bibliothèque A2D »).
 
 ## Trajectoire par portes
 
 | Porte | Contenu | Statut |
 |---|---|---|
-| **G1** | mécanique de fusion sur la paire publique Qwen2.5-7B → Dream-7B (Tableaux 6, 16, 21) | **OUVERTE — G1 NON FRANCHIE (J7, 2026-10-21)**. géométrie Table 21 : **écarts mesurés ≤ 0,11 %** ; baseline D_b/D_p **exécutée** sur GSM8K (n=300) et MATH-175 (n=175) ; critère de reproduction ±3 pts **non atteint** (C0.5 : Base MATH-175 +3,2 ; IFEval n=8 non concluant). **J7** : les modèles fusionnés **M2** (transfert α=0,9) et **M3** (merge λ=0,6) ont été **produits, vérifiés** (`post_write_verification` v2, `verify_merge` VERDICT OK, 0 ULP) et **évalués** sur les **mêmes items** (empreintes identiques sur les 4 modèles ; plancher de bruit de décodage **nul** au lot 4). Verdict amendé (M1/M2/M3) : **C2 atteint** (transfert − base, GSM8K : **+14,33** pts, IC [+9,33 ; +19,67] ; papier **+15,2** sur la même paire) ; **C1 non atteint** (MATH-175 : **+9,71** pts, IC [+2,86 ; +16,57] — **0,29 pt sous** le seuil de +10) ; **C3/C4 non établis** ; **un seul point** de la règle de franchissement échoue ⇒ **la porte reste ouverte**. **J8 phase A** — bilan de clôture (`docs/reports/G1_BILAN.md`) : M2 épuise 512 tokens sur 82/175 générations MATH, dont 67 sans réponse finale ; sur ces 67 items M2 − M0 = −2,99 [−11,94 ; +5,97], contre **+17,59** [+9,26 ; +26,85] sur les 108 autres ⇒ l'effet C1 est **dilué par le plafond**, le verdict est inchangé. Rapport : [`docs/reports/J7.md`](docs/reports/J7.md) ; protocole : [`docs/design/G1_PROTOCOL.md`](docs/design/G1_PROTOCOL.md) |
-| **G1b** | faisabilité Nemotron-Labs-Diffusion-3B (Ministral-3-3B) | **non démarrée** — étude de faisabilité en lecture seule : [`docs/design/G1B_NEMOTRON3B.md`](docs/design/G1B_NEMOTRON3B.md) |
-| **G2** | reproduction du setup médical DiffusionGemma du papier (adaptateurs publiés, voir [`docs/VP_ADAPTERS.md`](docs/VP_ADAPTERS.md)) | **DÉBLOQUÉE CÔTÉ BIBLIOTHÈQUE (J8)** — mode `merge-dg-scaled` implémenté et testé (adaptateur τ_D **non fusionné**, `lora_B × (1−λ)`, vérification V5/V6) ; **évaluation non faite** : le décodeur DG 26B + juge 27B ne tiennent pas sur 32 Go sans quantification (changement de protocole à déclarer). Conception/implémentation : [`docs/design/G2_adapter_scaling.md`](docs/design/G2_adapter_scaling.md) |
+| **G1** | mécanique de fusion sur la paire publique Qwen2.5-7B → Dream-7B (Tableaux 6, 16, 21) | **OUVERTE — G1 NON FRANCHIE (J7, 2026-10-21)**. géométrie Table 21 : **écarts mesurés ≤ 0,11 %** ; baseline D_b/D_p **exécutée** sur GSM8K (n=300) et MATH-175 (n=175) ; critère de reproduction ±3 pts **non atteint** (C0.5 : Base MATH-175 +3,2 ; IFEval n=8 non concluant). **J7** : les modèles fusionnés **M2** (transfert α=0,9) et **M3** (merge λ=0,6) ont été **produits, vérifiés** (`post_write_verification` v2, `verify_merge` VERDICT OK, 0 ULP) et **évalués** sur les **mêmes items** (empreintes identiques sur les 4 modèles ; plancher de bruit de décodage **nul** au lot 4). Verdict amendé (M1/M2/M3) : **C2 atteint** (transfert − base, GSM8K : **+14,33** pts, IC [+9,33 ; +19,67] ; papier **+15,2** sur la même paire) ; **C1 non atteint** (MATH-175 : **+9,71** pts, IC [+2,86 ; +16,57] — **0,29 pt sous** le seuil de +10) ; **C3/C4 non établis** ; **un seul point** de la règle de franchissement échoue ⇒ **la porte reste ouverte**. **J8 phase A** — bilan de clôture (`modules/a2d/docs/reports/G1_BILAN.md`) : M2 épuise 512 tokens sur 82/175 générations MATH, dont 67 sans réponse finale ; sur ces 67 items M2 − M0 = −2,99 [−11,94 ; +5,97], contre **+17,59** [+9,26 ; +26,85] sur les 108 autres ⇒ l'effet C1 est **dilué par le plafond**, le verdict est inchangé. Rapport : [`modules/a2d/docs/reports/J7.md`](modules/a2d/docs/reports/J7.md) ; protocole : [`modules/a2d/docs/design/G1_PROTOCOL.md`](modules/a2d/docs/design/G1_PROTOCOL.md) |
+| **G1b** | faisabilité Nemotron-Labs-Diffusion-3B (Ministral-3-3B) | **non démarrée** — étude de faisabilité en lecture seule : [`modules/a2d/docs/design/G1B_NEMOTRON3B.md`](modules/a2d/docs/design/G1B_NEMOTRON3B.md) |
+| **G2** | reproduction du setup médical DiffusionGemma du papier (adaptateurs publiés, voir [`modules/a2d/docs/VP_ADAPTERS.md`](modules/a2d/docs/VP_ADAPTERS.md)) | **DÉBLOQUÉE CÔTÉ BIBLIOTHÈQUE (J8)** — mode `merge-dg-scaled` implémenté et testé (adaptateur τ_D **non fusionné**, `lora_B × (1−λ)`, vérification V5/V6) ; **évaluation non faite** : le décodeur DG 26B + juge 27B ne tiennent pas sur 32 Go sans quantification (changement de protocole à déclarer). Conception/implémentation : [`modules/a2d/docs/design/G2_adapter_scaling.md`](modules/a2d/docs/design/G2_adapter_scaling.md) |
 | **G3** | raisonnement (hors papier : conception d'abord) | **non démarrée** |
 
 ## Bibliothèque A2D (pipeline conforme)
 
 ```
-scripts/a2d/            # bibliothèque : mapping, sources de vecteurs, moteur de fusion
-scripts/merge_a2d.py    # CLI : transfert / merge / ablations
-scripts/verify_merge.py # vérification post hoc (alpha_eff, lambda_eff par famille)
+modules/a2d/a2d/            # bibliothèque : mapping, sources de vecteurs, moteur de fusion
+modules/a2d/cli/merge_a2d.py    # CLI : transfert / merge / ablations
+modules/a2d/cli/verify_merge.py # vérification post hoc (alpha_eff, lambda_eff par famille)
 ```
 
 * **Modes** : `transfer` (`D_b + α·τ_A`, eq. 1), `merge` (`D_p + λ·(τ_A − τ_D)`, eq. 2),
@@ -76,20 +76,20 @@ scripts/verify_merge.py # vérification post hoc (alpha_eff, lambda_eff par fami
 
 ```bash
 # Transfert A2D (eq. 1) : D_b + alpha*tau_A
-python scripts/merge_a2d.py --mode transfer \
+python modules/a2d/cli/merge_a2d.py --mode transfer \
     --diffusion-base checkpoints/dream_7b_base \
     --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b \
     --alpha 0.9 --mapping identity --output checkpoints/dream_transfer_a09
 
 # Merge A2D (eq. 2) : D_p + lambda*(tau_A - tau_D)
-python scripts/merge_a2d.py --mode merge \
+python modules/a2d/cli/merge_a2d.py --mode merge \
     --diffusion checkpoints/dream_7b_instruct \
     --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b \
     --tau-d-post checkpoints/dream_7b_instruct --tau-d-base checkpoints/dream_7b_base \
     --lambda 0.6 --mapping identity --output checkpoints/dream_merge_l06
 
 # DiffusionGemma (App. A.2) : base' = D_b + lambda*tau_A + adaptateur (1-lambda) NON fusionne
-python scripts/merge_a2d.py --mode merge-dg-scaled \
+python modules/a2d/cli/merge_a2d.py --mode merge-dg-scaled \
     --diffusion checkpoints/diffusiongemma_it \
     --tau-a-post checkpoints/gemma4_it --tau-a-base checkpoints/gemma4_base \
     --tau-d-adapter checkpoints/dg_adapters/diffusion-vqarad \
@@ -98,7 +98,7 @@ python scripts/merge_a2d.py --mode merge-dg-scaled \
 # -> checkpoints/diffusiongemma_merge_l03/adapter_scaled/ (lora_B x 0.7, lora_alpha inchange)
 
 # Verification post hoc (detecte un coefficient errone)
-python scripts/verify_merge.py --merged checkpoints/dream_transfer_a09 \
+python modules/a2d/cli/verify_merge.py --merged checkpoints/dream_transfer_a09 \
     --reference checkpoints/dream_7b_base --mode transfer \
     --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b --alpha 0.9
 ```
@@ -106,7 +106,7 @@ python scripts/verify_merge.py --merged checkpoints/dream_transfer_a09 \
 ## Baseline Dream-7B (porte G1) — protocole A2D App. A.1
 
 Harnais : **fork lm-evaluation-harness de Dream** (`DreamLM/Dream`, `eval_instruct/lm_eval`,
-modèle `diffllm`) dans un venv **séparé** (`harness/dream/requirements-dream.txt`) ;
+modèle `diffllm`) dans un venv **séparé** (`modules/a2d/harness/dream/requirements-dream.txt`) ;
 `temperature=0.1`, `top_p=0.9`, `alg=entropy`, `diffusion_steps = max_new_tokens` (un pas de
 débruitage par token), bfloat16, chat template appliqué, 0-shot pour GSM8K et MATH-175,
 prompt système GSM8K de l'App. A.1 cité mot pour mot.
@@ -125,7 +125,7 @@ prompt système GSM8K de l'App. A.1 cité mot pour mot.
 > **MATH-175** = sous-ensemble `minerva_math` du fork Dream (25 problèmes × 7 sujets = 175,
 > sur les 5 000 du test MATH). Le jeu du papier est **MATH-500** (500 problèmes, split PRM800K) :
 > la comparaison ci-dessus est **à périmètre différent** et ne vaut pas reproduction
-> (MAJ-04 de `docs/reports/AUDIT_J6.md`).
+> (MAJ-04 de `modules/a2d/docs/reports/AUDIT_J6.md`).
 
 **Ce que cette campagne établit, et ce qu'elle n'établit pas.** Elle établit que la
 **mécanique d'évaluation** (harnais, tâches, prompts système, extraction, scoring) fonctionne
@@ -145,15 +145,15 @@ atteints, **G1 reste ouverte** (règle de franchissement §1). Par ailleurs, « 
 tombe dans l'IC 95 % » est une **non-rejection**, pas une preuve d'équivalence à ±3 points : le
 critère C0.5 est **NON atteint** (Base MATH-175 : +3,2, hors ±3 ; IFEval : n = 8, non concluant)
 et la porte **G1 reste ouverte** (revue N2 ; protocole de remplacement :
-`docs/design/G1_PROTOCOL.md`).
+`modules/a2d/docs/design/G1_PROTOCOL.md`).
 
-Détail, échantillons et commande de rejeu : `docs/reports/J6.md`, `docs/reports/J6bis.md`,
-`docs/reports/J7.md` (verdict J7 et preuves), `eval/dream_a2d/SUMMARY.md`,
-`eval/dream_a2d/G1_VERDICT.json`.
+Détail, échantillons et commande de rejeu : `modules/a2d/docs/reports/J6.md`, `modules/a2d/docs/reports/J6bis.md`,
+`modules/a2d/docs/reports/J7.md` (verdict J7 et preuves), `modules/a2d/eval/dream_a2d/SUMMARY.md`,
+`modules/a2d/eval/dream_a2d/G1_VERDICT.json`.
 
 ## Géométrie des vecteurs (Table 21 du papier) — écarts mesurés ≤ 0,11 %
 
-`scripts/measure_geometry.py` recalcule, sur le backbone (attention + MLP + normes ;
+`modules/a2d/cli/measure_geometry.py` recalcule, sur le backbone (attention + MLP + normes ;
 embeddings et tête exclus) :
 
 | Grandeur | Mesuré (J6) | Table 21 | Écart |
@@ -167,40 +167,40 @@ embeddings et tête exclus) :
 
 ## Workflow legacy (Jainius, déprécié — déplacé dans `legacy/`)
 
-`legacy/scripts/merge_jainius.py` est un **wrapper déprécié** de la bibliothèque ; il conserve son
+`modules/a2d/legacy/scripts/merge_jainius.py` est un **wrapper déprécié** de la bibliothèque ; il conserve son
 interface historique (τ en `.npy`, α borné à [0,1], manifeste `merge_config.json`).
-`legacy/scripts/compute_tau_a.py` est un **chemin legacy** (il persiste τ) : il n'est pas supprimé,
+`modules/a2d/legacy/scripts/compute_tau_a.py` est un **chemin legacy** (il persiste τ) : il n'est pas supprimé,
 mais le pipeline conforme ne s'en sert pas. Les archives de la période Jainius
-(`AUDIT.md`, `GUIDE_RESTANT.md`) sont dans `legacy/docs/`.
+(`AUDIT.md`, `GUIDE_RESTANT.md`) sont dans `modules/a2d/legacy/docs/`.
 
 ```bash
 # 1. Télécharger les checkpoints (~155 Go au total, mesuré : 3 × ~51.6 Go)
-python scripts/download_models.py --output-dir ./checkpoints
+python modules/a2d/cli/download_models.py --output-dir ./checkpoints
 #    (famille Dream : --set dream)
 
 # 2. Calculer tau_A = A_p - A_b (~10 min, ~3 GB RAM peak)   [LEGACY]
 #    ATTENTION : safetensors pré-fault la projection du shard AR de 46,5 GiB ->
 #    il faut >= 50 Go de RAM disponibles (sur WSL2 : memory= dans .wslconfig)
-python legacy/scripts/compute_tau_a.py \
+python modules/a2d/legacy/scripts/compute_tau_a.py \
     --base ./checkpoints/gemma4_base \
     --posttrained ./checkpoints/gemma4_it \
     --output-dir _artefact/tau_a
 
 # 3. Mesurer l'effet reel apres arrondi BF16 (CPU seul)   [LEGACY]
-python legacy/scripts/measure_effect.py \
+python modules/a2d/legacy/scripts/measure_effect.py \
     --diffusiongemma ./checkpoints/diffusiongemma_it \
     --tau-dir _artefact/tau_a \
     --alphas 0.05,0.1,0.2,0.3,0.5,0.8
 
 # 4. Appliquer le merge Dp + alpha*tau_A (~15 min, ~5 GB RAM peak)   [LEGACY]
-python legacy/scripts/merge_jainius.py \
+python modules/a2d/legacy/scripts/merge_jainius.py \
     --diffusiongemma ./checkpoints/diffusiongemma_it \
     --tau-dir _artefact/tau_a \
     --output ./checkpoints/Jainius \
     --alpha 0.3
 
 # 5. Verifier le checkpoint (format HuggingFace strict)
-python scripts/verify_checkpoint.py --checkpoint ./checkpoints/Jainius
+python modules/a2d/cli/verify_checkpoint.py --checkpoint ./checkpoints/Jainius
 ```
 
 ## Principe du build legacy
@@ -232,10 +232,10 @@ Jainius = DiffusionGemma + 0.3 * tau_A_mapped
    modèle **déjà post-entraîné** : c'est un *double comptage* par rapport au setup du papier, où
    `τ_A` est un vecteur **de domaine** (IT → médical) et où le coefficient est choisi sur une
    tâche ancre (Table 6 : α = 1.0 SLAKE / 0.7 VQA-RAD ; λ = 0.1 / 0.3). Voir
-   [`docs/A2D_SPEC.md`](docs/A2D_SPEC.md) et [`docs/VP_ADAPTERS.md`](docs/VP_ADAPTERS.md).
+   [`modules/a2d/docs/A2D_SPEC.md`](modules/a2d/docs/A2D_SPEC.md) et [`modules/a2d/docs/VP_ADAPTERS.md`](modules/a2d/docs/VP_ADAPTERS.md).
  - **« τ_D inexistant » n'est plus exact.** `τ_D` est bien défini (`D_p − D_b`, §2.1) ; pour
    DiffusionGemma il correspond au delta LoRA de post-training de domaine, **publié**
-   (`gevaertlab/diffusiongemma-radiology-vqa`, cf. `docs/VP_ADAPTERS.md`). Ce qui manque à ce
+   (`gevaertlab/diffusiongemma-radiology-vqa`, cf. `modules/a2d/docs/VP_ADAPTERS.md`). Ce qui manque à ce
    dépôt n'est pas τ_D mais la **chaîne complète** (adapters + merge + évaluation conforme).
  - **Le routeur est fusionné** (90 tenseurs sur 355), contrairement à ce qu'indiquaient
    `AGENTS.md`/`KNOWN_ISSUES.md` (« routeur inchangé »). C'est sans effet mesurable ici
@@ -246,8 +246,8 @@ Jainius = DiffusionGemma + 0.3 * tau_A_mapped
    `--include-norms-embed` fusionne 656 tenseurs (391 inchangés).
  - **Aucun gain démontré** : sur 103 prompts, Jainius (α=0.3) est moins bon que D_p sur la justesse des réponses (88,1 % contre 100 %) et 5,5× plus lent. `D_p` reste le témoin ; le merge A2D tel qu'implémenté ici dégrade le modèle de diffusion.
  - α=0.8 (défaut historique, rebuild v2) ne produit pas un texte cohérent : il perturbe les projections d'attention de ~50 % de leur norme. α=0.3 est le coefficient retenu.
- - Les mesures de génération ont été faites en **FP8** (quantification à la volée) : c'est la seule configuration qui tient dans 32 Go de VRAM, le modèle en BF16 faisant 48,1 GiB. Le comportement en BF16 n'est pas mesuré. Le runner v1 est inutilisable (crash scatter CUDA, cf. `vLLM/KNOWN_ISSUES.md`).
-- `tau_A` (chemin legacy, `.npy`) ne peut pas être recalculé sur cette machine : `safetensors.safe_open` pré-fault la projection du shard de 46,5 GiB des checkpoints AR, au-delà des 30 GiB de RAM de la VM WSL2 (ENOMEM). La **bibliothèque conforme** (`scripts/merge_a2d.py`) n'a pas ce problème : elle recalcule τ à la volée, tenseur par tenseur, sans jamais matérialiser le vecteur.
+ - Les mesures de génération ont été faites en **FP8** (quantification à la volée) : c'est la seule configuration qui tient dans 32 Go de VRAM, le modèle en BF16 faisant 48,1 GiB. Le comportement en BF16 n'est pas mesuré. Le runner v1 est inutilisable (crash scatter CUDA, cf. `infra/vllm/KNOWN_ISSUES.md`).
+- `tau_A` (chemin legacy, `.npy`) ne peut pas être recalculé sur cette machine : `safetensors.safe_open` pré-fault la projection du shard de 46,5 GiB des checkpoints AR, au-delà des 30 GiB de RAM de la VM WSL2 (ENOMEM). La **bibliothèque conforme** (`modules/a2d/cli/merge_a2d.py`) n'a pas ce problème : elle recalcule τ à la volée, tenseur par tenseur, sans jamais matérialiser le vecteur.
 - Poids dérivés de Gemma : soumis aux conditions d'utilisation Gemma (https://ai.google.dev/gemma/docs/gemma_4_license). Les repos sources (`google/gemma-4-26B-A4B`, `google/gemma-4-26B-A4B-it`, `google/diffusiongemma-26B-A4B-it`) ne publient **aucun fichier LICENSE** (vérifié le 2026-10-19) : rien à recopier, la model card déclare `apache-2.0` + le lien des conditions Gemma.
 
 ## Évaluation par génération (2026-10-19) — **non conforme au protocole du papier**
@@ -260,7 +260,7 @@ non-régression** entre deux checkpoints, pas des scores de benchmark.
 
 Serveur vLLM 0.24.0 (image épinglée par digest), RTX 5090 32 Go, WSL2/Ubuntu 24.04,
 `--quantization fp8`, `--max-model-len 2048`, `--max-num-seqs 1`, `--enforce-eager`,
-`max_tokens=128`, `temperature=0`, 103 prompts (`eval/prompts.jsonl` : faits FR/EN,
+`max_tokens=128`, `temperature=0`, 103 prompts (`modules/a2d/legacy/eval/prompts.jsonl` : faits FR/EN,
 maths, formats de sortie, questions libres).
 
 | Métrique | D_p (témoin) | Jainius α=0.3 | Jainius α=0.3 + norms/embed | Jainius α=0.8 (ancien build) |
@@ -284,10 +284,10 @@ plus d'itérations de débruitage par token. Le sampler étant stochastique mêm
 (91,0 % puis 88,1 % sur deux passes) ; `D_p` est resté à 100 %.
 
 Détail des métriques et réponses : `eval/results_Dp.json`,
-`eval/results_jainius_a03.json`, rapport `eval/RESULTS.md`.
+`eval/results_jainius_a03.json`, rapport `modules/a2d/legacy/eval/RESULTS.md`.
  ## Mesure Dp + α·τ_A après arrondi BF16 (v2, 2026-10-17)
 
- Le script `legacy/scripts/measure_effect.py` rapporte, en plus du % d'éléments modifiés,
+ Le script `modules/a2d/legacy/scripts/measure_effect.py` rapporte, en plus du % d'éléments modifiés,
  l'ampleur relative du delta (`ratio_rel = ||α·τ|| / ||Dp||`) et la fidélité de
  l'arrondi BF16 (`cosinus(applied, α·τ)`). Résultats α=0.3 sur les 656 tenseurs :
 
@@ -307,7 +307,7 @@ Détail des métriques et réponses : `eval/results_Dp.json`,
  évaluation (perplexité, bench) peut le faire.
 ## Scripts vLLM (WSL2)
 
-### `vLLM/smoke_chat.py` — Test de génération via l'API vLLM
+### `infra/vllm/smoke_chat.py` — Test de génération via l'API vLLM
 
 Client HTTP **stdlib uniquement** (aucune dépendance, ne charge pas le modèle) :
 `POST /v1/chat/completions` sur un serveur vLLM déjà lancé, contrôles objectifs
@@ -315,10 +315,10 @@ Client HTTP **stdlib uniquement** (aucune dépendance, ne charge pas le modèle)
 `eval/smoke_<modèle>_<horodatage>.json` :
 
 ```bash
-python vLLM/smoke_chat.py --url http://localhost:8000 --model jainius
+python infra/vllm/smoke_chat.py --url http://localhost:8000 --model jainius
 ```
 
-### `vLLM/diagnose_image.sh` — Diagnostic de l'image Docker vLLM
+### `infra/vllm/diagnose_image.sh` — Diagnostic de l'image Docker vLLM
 
 Sans GPU ni chargement de modèle : version de vLLM dans l'image, présence de
 `VLLM_WSL2_ENABLE_PIN_MEMORY` / `VLLM_WEIGHT_OFFLOADING_DISABLE_UVA` /

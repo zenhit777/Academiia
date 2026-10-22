@@ -42,7 +42,7 @@ dans `.env` (déconseillé). Voir l'arbre de décision dans `README.md`.
 ## 2026-10-19 (WSL2, RTX 5090 32 Go) — runner V2 : faits nouveaux
 
 **Diagnostiqué puis exécuté (sorties brutes dans le rapport
-J4Bis-bis : `vLLM/RAPPORT_J4BIS-BIS.md`, sources `_artefact/vllm_test/`) :**
+J4Bis-bis : `infra/vllm/RAPPORT_J4BIS-BIS.md`, sources `_artefact/vllm_test/`) :**
 - `gemma` (vLLM 0.22.1rc1.dev357) : `VLLM_WSL2_ENABLE_PIN_MEMORY` est
   **INCONNUE** de l'image — log serveur : `WARNING [envs.py:2111] Unknown
   vLLM environment variable detected: VLLM_WSL2_ENABLE_PIN_MEMORY` (le
@@ -301,7 +301,7 @@ checkpoint livré (α=0.3), la génération est saine. La config par défaut du
 compose (FP8 à la volée, sans offload CPU, `--max-model-len 2048`) est **validée
 sur GPU** ; toute comparaison se fait en FP8, pas en BF16.
 
-**Évaluation complète (103 prompts, `scripts/eval_compare.py`)** : Jainius
+**Évaluation complète (103 prompts, `modules/a2d/eval/eval_compare.py`)** : Jainius
 α=0.3 → 0 % dégénéré, 88,1 % de justesse, 75,0 % de format, 21,1 tok/s ;
 D_p → 0 % dégénéré, 100 % de justesse, 93,8 % de format, 116,4 tok/s.
-Détail : `eval/RESULTS.md`, `eval/results_*.json`.
+Détail : `modules/a2d/legacy/eval/RESULTS.md`, `eval/results_*.json`.

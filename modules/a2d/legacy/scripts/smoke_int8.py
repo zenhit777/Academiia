@@ -7,8 +7,8 @@
  mais la génération n'est pas évaluée quantitativement.
 
 Usage :
-    python scripts/smoke_int8.py --checkpoint checkpoints/diffusiongemma_it
-    python scripts/smoke_int8.py --checkpoint checkpoints/Jainius --no-generate
+    python modules/a2d/legacy/scripts/smoke_int8.py --checkpoint checkpoints/diffusiongemma_it
+    python modules/a2d/legacy/scripts/smoke_int8.py --checkpoint checkpoints/Jainius --no-generate
 """
  # Prérequis : pip install pillow (AutoProcessor/Gemma4Processor en dépend).
 

@@ -2,12 +2,12 @@
 """Resume des evaluations Dream (J6, porte G1) : scores + intervalle de confiance.
 
 Lit les `results_*.json` produits par le fork lm-eval de Dream dans
-`eval/dream_a2d/<modele>/<tache>/`, agrege les metriques, calcule l'intervalle de
+`modules/a2d/eval/dream_a2d/<modele>/<tache>/`, agrege les metriques, calcule l'intervalle de
 confiance de Wilson a 95 % pour les taux d'accuracy, et ecrit un resume JSON +
 markdown.
 
-    python harness/dream/summarize.py --root eval/dream_a2d \
-        --out eval/dream_a2d/SUMMARY.json --markdown eval/dream_a2d/SUMMARY.md
+    python modules/a2d/harness/dream/summarize.py --root modules/a2d/eval/dream_a2d \
+        --out modules/a2d/eval/dream_a2d/SUMMARY.json --markdown modules/a2d/eval/dream_a2d/SUMMARY.md
 """
 
 import argparse
@@ -72,7 +72,7 @@ def load_results(root):
 
     La cle de run est « <modele>/<tache> » : plusieurs taches pour un meme
     modele ne doivent pas s'ecraser (structure imposee par
-    `scripts/restructure_eval_dirs.py`).
+    `modules/a2d/eval/restructure_eval_dirs.py`).
     """
     runs = {}
     for path in sorted(glob.glob(os.path.join(root, "*", "*", "results_*.json"))):
@@ -87,7 +87,7 @@ def load_results(root):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root", default="eval/dream_a2d")
+    parser.add_argument("--root", default="modules/a2d/eval/dream_a2d")
     parser.add_argument("--out", default=None)
     parser.add_argument("--markdown", default=None)
     args = parser.parse_args()

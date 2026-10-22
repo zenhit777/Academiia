@@ -10,9 +10,9 @@ intégralement, index des checkpoints inspectés, mesures internes
 (arXiv:2607.01436, HF `gevaertlab/diffusiongemma-radiology-vqa`).
 
 > **Note de lecture (J8, 2026-10-21)** : cet audit décrit l'état du dépôt **au
-> 2026-10-19**. Depuis, le pipeline legacy a été déplacé dans `legacy/scripts/`
+> 2026-10-19**. Depuis, le pipeline legacy a été déplacé dans `modules/a2d/legacy/scripts/`
 > (`compute_tau_a.py`, `merge_jainius.py`, `measure_effect.py`) et les archives
-> dans `legacy/docs/`. Les chemins `scripts/...` cités ci-dessous sont ceux de
+> dans `modules/a2d/legacy/docs/`. Les chemins `scripts/...` cités ci-dessous sont ceux de
 > l'époque : ils restent exacts comme provenance historique, pas comme
 > emplacement actuel.
 
@@ -119,7 +119,7 @@ intégralement, index des checkpoints inspectés, mesures internes
 | `verify_checkpoint.py` | Intégrité stricte (headers, dtypes BF16, index, sidecars, `--reference`) | Correct ; n'a pas vocation à vérifier la conformité méthode. |
 | `smoke_int8.py` | Test de non-casse (forward INT8/offload) | Hors méthode ; documenté comme non-preuve. |
 | `_common.py` | Mapping Gemma4↔DG, helpers, manifest | Mapping **DG uniquement** ; pas de mapping générique inter-familles. |
-| `scripts/tests/` | Sûreté du merge (overwrite, manifest, shapes, README, exclusion) | Aucun test de τ_D/λ/adapters (fonctions inexistantes). |
+| `modules/a2d/tests/` | Sûreté du merge (overwrite, manifest, shapes, README, exclusion) | Aucun test de τ_D/λ/adapters (fonctions inexistantes). |
 
 ### 2.2 Constat sur `Jainius`
 
@@ -273,9 +273,9 @@ outil de vérification strict, tests de sûreté, métrologie de l'arrondi BF16.
 
 - `_artefact/a2d_paper.txt` (extraction du PDF, 31 pages).
 - `scripts/{download_models,compute_tau_a,merge_jainius,measure_effect,eval_compare,verify_checkpoint,smoke_int8,_common}.py`,
-  `scripts/tests/*`.
-- `_artefact/measure_effect*.json` (4 fichiers), `eval/RESULTS.md`,
-  `KNOWN_ISSUES.md`, `vLLM/.env.template`.
+  `modules/a2d/tests/*`.
+- `_artefact/measure_effect*.json` (4 fichiers), `modules/a2d/legacy/eval/RESULTS.md`,
+  `KNOWN_ISSUES.md`, `infra/vllm/.env.template`.
 - Index de `checkpoints/{gemma4_base,gemma4_it,diffusiongemma_it}` ;
   `checkpoints/diffusiongemma_it/generation_config.json`.
 - Van Puyvelde et al. : arXiv:2607.01436 ; HF `gevaertlab/diffusiongemma-radiology-vqa` ;

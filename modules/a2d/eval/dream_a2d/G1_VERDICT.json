@@ -1,5 +1,5 @@
 {
-  "root": "eval/dream_a2d",
+  "root": "modules/a2d/eval/dream_a2d",
   "identite_items": {
     "gsm8k_cot_a2d": {
       "items_sha256": "2d56d1fdcbd24b575c3eec4c8eb972d46b6f9f86568819e7bae5141c77d4d304",

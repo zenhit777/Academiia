@@ -8,13 +8,13 @@ les rapports eux-mêmes restent la source des chiffres.
 
 | Porte | Question | État | Preuve |
 |---|---|---|---|
-| **G1** | L'A2D-Transfer / A2D-Merge améliorent-ils Dream-7B avec un vecteur Qwen2.5-7B ? | **NON FRANCHIE — porte ouverte.** C2 atteint (GSM8K **+14,33** pts, IC [+9,33 ; +19,67]) ; C1 non atteint (MATH-175 **+9,71** pts, IC [+2,86 ; +16,57] — **0,29 pt** sous +10) ; C3/C4 non établis (merge indiscernable de D_p). | `docs/reports/J7.md`, `docs/reports/G1_BILAN.md`, `eval/dream_a2d/G1_VERDICT.json` |
-| **G2** | Reproduire le setup médical DiffusionGemma du papier | **Débloquée côté bibliothèque, NON évaluée.** Le mode `merge-dg-scaled` existe et est testé ; l'évaluation exige un GPU où le décodeur DG 26B et le juge 27B tiennent ensemble. | `docs/design/G2_adapter_scaling.md`, `scripts/a2d/adapters.py`, §5 |
-| **G1b** | Faisabilité Nemotron-Labs-Diffusion-3B | **Non démarrée** (étude en lecture seule). | `docs/design/G1B_NEMOTRON3B.md` |
+| **G1** | L'A2D-Transfer / A2D-Merge améliorent-ils Dream-7B avec un vecteur Qwen2.5-7B ? | **NON FRANCHIE — porte ouverte.** C2 atteint (GSM8K **+14,33** pts, IC [+9,33 ; +19,67]) ; C1 non atteint (MATH-175 **+9,71** pts, IC [+2,86 ; +16,57] — **0,29 pt** sous +10) ; C3/C4 non établis (merge indiscernable de D_p). | `modules/a2d/docs/reports/J7.md`, `modules/a2d/docs/reports/G1_BILAN.md`, `modules/a2d/eval/dream_a2d/G1_VERDICT.json` |
+| **G2** | Reproduire le setup médical DiffusionGemma du papier | **Débloquée côté bibliothèque, NON évaluée.** Le mode `merge-dg-scaled` existe et est testé ; l'évaluation exige un GPU où le décodeur DG 26B et le juge 27B tiennent ensemble. | `modules/a2d/docs/design/G2_adapter_scaling.md`, `modules/a2d/a2d/adapters.py`, §5 |
+| **G1b** | Faisabilité Nemotron-Labs-Diffusion-3B | **Non démarrée** (étude en lecture seule). | `modules/a2d/docs/design/G1B_NEMOTRON3B.md` |
 | **G3** | Raisonnement (hors papier) | **Non démarrée** (conception d'abord). | — |
-| **J5** | Campagne d'évaluation 103 prompts (vLLM FP8) | **Non conforme** au protocole du papier — contrôle de non-régression seulement. | `eval/RESULTS.md` |
+| **J5** | Campagne d'évaluation 103 prompts (vLLM FP8) | **Non conforme** au protocole du papier — contrôle de non-régression seulement. | `modules/a2d/legacy/eval/RESULTS.md` |
 
-**Lecture du verdict G1.** Le protocole pré-enregistré (`docs/design/G1_PROTOCOL.md` §4.1,
+**Lecture du verdict G1.** Le protocole pré-enregistré (`modules/a2d/docs/design/G1_PROTOCOL.md` §4.1,
 amendement M1) n'a **pas** été modifié après les résultats. L'échec de C1 pour 0,29 point est
 documenté comme un **problème de résolution et de budget de génération** : M2 épuise le plafond
 de 512 tokens sur 82/175 générations MATH, et sur les 67 items qu'il ne peut pas terminer il
@@ -22,11 +22,11 @@ n'est pas meilleur que la base, alors que sur les 108 autres il gagne **+17,59**
 **n'annule pas** le verdict : C1 est défini sur MATH-175 à 512 tokens. Le diagnostic à
 1 024 tokens qui devait tester directement cette hypothèse a été **annulé sur coût mesuré**
 (314 s/item ⇒ 5,8 h par modèle, au-delà du plafond de 5 h) : la troncature reste l'explication
-la plus plausible, mais elle n'est **pas démontrée** (`docs/reports/G1_BILAN_1024.md`).
+la plus plausible, mais elle n'est **pas démontrée** (`modules/a2d/docs/reports/G1_BILAN_1024.md`).
 
 ## 2. Ce qui est validé mécaniquement
 
-* **Bibliothèque A2D** (`scripts/a2d/`, CLI `scripts/merge_a2d.py`) : τ recalculé à la volée
+* **Bibliothèque A2D** (`modules/a2d/a2d/`, CLI `modules/a2d/cli/merge_a2d.py`) : τ recalculé à la volée
   (jamais persisté), arithmétique FP32 + un seul cast BF16, écriture atomique, **vérification
   post-écriture v2 obligatoire** avec `max_ulp = 0` par défaut (1 ULP = échec), manifeste
   complet (coefficients demandés/effectifs signés, hashes d'index et empreintes de contenu,
@@ -39,8 +39,9 @@ la plus plausible, mais elle n'est **pas démontrée** (`docs/reports/G1_BILAN_1
 * **G2 (bibliothèque)** : mode `merge-dg-scaled` / `adapter-scale` — `base' = D_b + λ·τ_A`,
   adaptateur τ_D **non fusionné**, `lora_B × (1−λ)`, `lora_alpha` inchangé, vérification V5/V6
   (L2 relative ≤ 1e-2 BF16 / 1e-3 FP32, cosinus ≥ 1 − 1e-4), manifeste `diffusion_adapter`.
-* **Suite de tests** : **81 tests** (`python -m pytest scripts/tests -q`), dont 8 ajoutés en J8
-  (G2, chargeabilité, mutations d'adaptateur).
+* **Suite de tests** : **85 tests** (`python -m pytest modules/a2d/tests -q`), dont 8 ajoutés en J8
+  (G2, chargeabilité, mutations d'adaptateur) et 4 en J9 (facteur nul, intégration PEFT).
+  Le code générique a ses propres tests : `tests/test_core.py` (14).
 
 ## 3. Ce qui n'est PAS démontré
 
@@ -63,41 +64,41 @@ la plus plausible, mais elle n'est **pas démontrée** (`docs/reports/G1_BILAN_1
   et re-mesurer la baseline D_b dans les mêmes conditions.
 * Budget GPU de J8 : **≤ 5 h**. Utilisé : **43 min** — diagnostic MATH 1 024 tokens lancé puis
   **annulé** après 4/67 items (314 s/item ⇒ 5,8 h/modèle projetées), plus ~5 min de pilote.
-  Aucun résultat n'a été écrit : `eval/dream_a2d_trunc/ATTEMPT_1024.{json,log}`.
+  Aucun résultat n'a été écrit : `modules/a2d/eval/dream_a2d_trunc/ATTEMPT_1024.{json,log}`.
 
 ## 5. Où est quoi
 
 | Chemin | Contenu |
 |---|---|
-| `scripts/a2d/` | bibliothèque : `naming.py`, `sources.py`, `adapters.py`, `merge.py` |
-| `scripts/merge_a2d.py` | CLI conforme (transfert, merge, DG, ablations) |
-| `scripts/verify_merge.py` | vérification post hoc (coefficients, ULP, adaptateur) |
-| `scripts/measure_geometry.py` | géométrie des vecteurs (Table 21) |
-| `harness/dream/` | harnais Dream-7B (setup, tâches, `run_evals.sh`, synthèse) |
-| `harness/dream/tasks/math_trunc_a2d.*` | sous-ensemble des 67 items tronqués (diagnostic) |
-| `eval/dream_a2d/` | résultats G1 versionnés + verdict + empreintes + troncature |
-| `eval/dream_a2d_trunc/` | tentative de diagnostic 1 024 tokens (annulée : débit mesuré) |
-| `docs/design/` | protocoles et conceptions (G1, G2, budget d'évaluation) |
-| `docs/reports/` | rapports de mission (J6, J6bis, J7, **G1_BILAN**, audits, **G1_BILAN_1024**) |
-| `legacy/scripts/`, `legacy/docs/` | pipeline Jainius **déprécié** et archives (hors papier) |
+| `modules/a2d/a2d/` | bibliothèque : `naming.py`, `sources.py`, `adapters.py`, `merge.py` |
+| `modules/a2d/cli/merge_a2d.py` | CLI conforme (transfert, merge, DG, ablations) |
+| `modules/a2d/cli/verify_merge.py` | vérification post hoc (coefficients, ULP, adaptateur) |
+| `modules/a2d/cli/measure_geometry.py` | géométrie des vecteurs (Table 21) |
+| `modules/a2d/harness/dream/` | harnais Dream-7B (setup, tâches, `run_evals.sh`, synthèse) |
+| `modules/a2d/harness/dream/tasks/math_trunc_a2d.*` | sous-ensemble des 67 items tronqués (diagnostic) |
+| `modules/a2d/eval/dream_a2d/` | résultats G1 versionnés + verdict + empreintes + troncature |
+| `modules/a2d/eval/dream_a2d_trunc/` | tentative de diagnostic 1 024 tokens (annulée : débit mesuré) |
+| `modules/a2d/docs/design/` | protocoles et conceptions (G1, G2, budget d'évaluation) |
+| `modules/a2d/docs/reports/` | rapports de mission (J6, J6bis, J7, **G1_BILAN**, audits, **G1_BILAN_1024**) |
+| `modules/a2d/legacy/scripts/`, `modules/a2d/legacy/docs/` | pipeline Jainius **déprécié** et archives (hors papier) |
 | `checkpoints/` | poids binaires, **non versionnés** |
 
 ## 6. Reproduire les vérifications
 
 ```bash
 # tests (DrvFs : rediriger TMPDIR dans le depot et garder la capture par defaut)
-TMPDIR="$PWD/_artefact/tmp" python -m pytest scripts/tests -q      # 81 verts
+TMPDIR="$PWD/_artefact/tmp" python -m pytest modules/a2d/tests tests -q   # 99 verts
 
 # verdict G1 (recalcule a partir des echantillons versionnes)
-python scripts/g1_verdict.py            # ecrit eval/dream_a2d/G1_VERDICT.json
+python modules/a2d/eval/g1_verdict.py            # ecrit modules/a2d/eval/dream_a2d/G1_VERDICT.json
 
 # troncature MATH et sous-ensemble de diagnostic (CPU)
-python scripts/measure_math_truncation.py \
-    --samples-root eval/dream_a2d --tokenizer checkpoints/dream_7b_instruct \
-    --budget 512 --output eval/dream_a2d/TRUNCATION_512.json
+python modules/a2d/eval/measure_math_truncation.py \
+    --samples-root modules/a2d/eval/dream_a2d --tokenizer checkpoints/dream_7b_instruct \
+    --budget 512 --output modules/a2d/eval/dream_a2d/TRUNCATION_512.json
 
 # mode G2 (exemple ; exige les adaptateurs publies et un GPU adapte pour l'evaluation)
-python scripts/merge_a2d.py --mode merge-dg-scaled \
+python modules/a2d/cli/merge_a2d.py --mode merge-dg-scaled \
     --diffusion checkpoints/diffusiongemma_it \
     --tau-a-post checkpoints/gemma4_it --tau-a-base checkpoints/gemma4_base \
     --tau-d-adapter checkpoints/dg_adapters/diffusion-vqarad \
@@ -115,7 +116,7 @@ python scripts/merge_a2d.py --mode merge-dg-scaled \
    (pas de base diffusion public), `τ_A` = delta **de domaine** (LoRA IT → médical) et `τ_D` =
    delta LoRA de diffusion. Le mode `merge-dg-scaled` accepte des sources LoRA
    (`--tau-a-adapter`, `--tau-d-adapter`).
-4. **Vérifier la disponibilité des adaptateurs** dans `docs/VP_ADAPTERS.md` avant de figer λ :
+4. **Vérifier la disponibilité des adaptateurs** dans `modules/a2d/docs/VP_ADAPTERS.md` avant de figer λ :
    λ vient de la Table 6/7 du papier, pas d'un balayage sur cette machine.
 5. **Protocole d'évaluation** : VQA-RAD / SLAKE / VQA-Med avec juge LLM, tel que App. A.1 ;
    baseline `D_b` et `D_b + λ·τ_A` mesurées dans les mêmes conditions. Sans juge, on ne

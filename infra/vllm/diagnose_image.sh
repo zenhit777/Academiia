@@ -61,4 +61,4 @@ fi
 '
 echo
 echo "Prochaine étape (GPU requis) : si VLLM_WSL2_ENABLE_PIN_MEMORY est CONNUE, lancer le compose par défaut (runner V2)."
-echo "Sinon : image plus récente ou machine Linux native. Voir vLLM/README.md (arbre de décision)."
+echo "Sinon : image plus récente ou machine Linux native. Voir infra/vllm/README.md (arbre de décision)."

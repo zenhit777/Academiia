@@ -8,10 +8,10 @@ architecte) — le critère C0.5 du prompt J6 (« ±3 points, IFEval complet »)
 > jeux **complets** (GSM8K 1 319, MATH-500 500, IFEval 541) pour quatre modèles
 > et deux points de grille. À la latence **mesurée** sur cette machine
 > (326 s/prompt en IFEval à 1 280 pas de débruitage, cf.
-> `docs/design/EVAL_BUDGET.md`), IFEval seul coûterait **98 h par point de
+> `modules/a2d/docs/design/EVAL_BUDGET.md`), IFEval seul coûterait **98 h par point de
 > grille**, et le jeu complet n'est pas jouable. De plus, « la cible du papier
 > est dans l'IC 95 % » est une **non-rejection**, pas une preuve d'équivalence :
-> l'argument de `docs/reports/J6.md` §1.1 ne démontre pas ±3 points
+> l'argument de `modules/a2d/docs/reports/J6.md` §1.1 ne démontre pas ±3 points
 > (MAJ-05). Le présent protocole **remplace** la question « le score de D_b
 > reproduit-il la Table 16 ? » par la question **que l'article pose
 > réellement** : « le transfert et le merge improves-ils le modèle de
@@ -65,11 +65,11 @@ souhaitable. On **réutilise** ces mesures, à condition de **prouver** que :
 * le jeu d'items est le même pour M0, M1, M2 et M3 ;
 * la configuration de décodage est la même.
 
-La preuve est **mécanique** : `scripts/eval_item_fingerprint.py` calcule, pour
+La preuve est **mécanique** : `modules/a2d/eval/eval_item_fingerprint.py` calcule, pour
 chaque run, le SHA-256 de la liste des `(doc_id, doc_hash)` et le SHA-256 des
 `prompt_hash` (le prompt exact envoyé au modèle, chat template inclus). Les
 empreintes **de référence** sont versionnées dans
-`eval/dream_a2d/ITEM_FINGERPRINTS.json` :
+`modules/a2d/eval/dream_a2d/ITEM_FINGERPRINTS.json` :
 
 | Tâche | n | `items_sha256` (préfixe) | `prompts_sha256` (préfixe) |
 |---|---:|---|---|
@@ -90,8 +90,8 @@ les baselines sont donc bien sur le même jeu d'items.
 **Contrôle à exécuter pour M2 et M3** (bloquant) :
 
 ```bash
-python scripts/eval_item_fingerprint.py --root eval/dream_a2d \
-    --out eval/dream_a2d/ITEM_FINGERPRINTS.json
+python modules/a2d/eval/eval_item_fingerprint.py --root modules/a2d/eval/dream_a2d \
+    --out modules/a2d/eval/dream_a2d/ITEM_FINGERPRINTS.json
 # puis : pour chaque tache, items_sha256 et prompts_sha256 doivent etre
 # IDENTIQUES a ceux de M0/M1 ; et le bloc `config` doit etre identique
 # (meme batch_size, memes graines, meme model_args a `pretrained` pres).
@@ -124,7 +124,7 @@ du lot (padding, longueur commune, ordre de traitement).
 
 **Conséquence** : M2 et M3 doivent être évalués avec `--batch_size 4`, exactement
 comme M0 et M1. Toute comparaison par item (bootstrap apparié) n'a de sens
-qu'à lot identique. Le harnais le fixe par défaut (`harness/dream/run_evals.sh`).
+qu'à lot identique. Le harnais le fixe par défaut (`modules/a2d/harness/dream/run_evals.sh`).
 
 ## 4. Critères (décision N2)
 
@@ -203,13 +203,13 @@ Pour chaque comparaison (M2−M0, M3−M1, sur chaque tâche) :
   `both`, `neither` ;
 * IC de Wilson de chaque précision individuelle.
 
-Outil : `harness/dream/.venv/bin/python scripts/paired_bootstrap.py --run-a … --run-b … --metric … --filter …`
+Outil : `modules/a2d/harness/dream/.venv/bin/python modules/a2d/eval/paired_bootstrap.py --run-a … --run-b … --metric … --filter …`
 
 ```bash
 # exemple de contrôle (déjà exécuté le 2026-10-20, M0 vs M1)
-harness/dream/.venv/bin/python scripts/paired_bootstrap.py \
-  --run-a eval/dream_a2d/dream_7b_base/gsm8k_cot_a2d \
-  --run-b eval/dream_a2d/dream_7b_instruct/gsm8k_cot_a2d \
+modules/a2d/harness/dream/.venv/bin/python modules/a2d/eval/paired_bootstrap.py \
+  --run-a modules/a2d/eval/dream_a2d/dream_7b_base/gsm8k_cot_a2d \
+  --run-b modules/a2d/eval/dream_a2d/dream_7b_instruct/gsm8k_cot_a2d \
   --metric exact_match --filter flexible-extract
 # -> 300 items apparies ; 68,67 % vs 84,00 % ; ecart +15,33 points ;
 #    IC 95 % [+10,00 ; +20,67] ; discordantes B seul 58 / A seul 12
@@ -271,7 +271,7 @@ touche **jamais** `temperature`, `top_p`, `alg`, `diffusion_steps`,
 
 1. **Fusion M2** (transfert α=0,9) :
    ```bash
-   python scripts/merge_a2d.py --mode transfer \
+   python modules/a2d/cli/merge_a2d.py --mode transfer \
        --diffusion-base checkpoints/dream_7b_base \
        --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b \
        --alpha 0.9 --mapping identity --output checkpoints/dream_transfer_a09
@@ -280,7 +280,7 @@ touche **jamais** `temperature`, `top_p`, `alg`, `diffusion_steps`,
    `c_a_eff ≈ 0,9`, `max_ulp ≤ 1`, `n_unchanged_bit_identical = n_unchanged`.
 2. **Vérification post hoc** :
    ```bash
-   python scripts/verify_merge.py --merged checkpoints/dream_transfer_a09 \
+   python modules/a2d/cli/verify_merge.py --merged checkpoints/dream_transfer_a09 \
        --reference checkpoints/dream_7b_base --mode transfer \
        --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b \
        --alpha 0.9 --mapping identity
@@ -292,18 +292,18 @@ touche **jamais** `temperature`, `top_p`, `alg`, `diffusion_steps`,
 4. **Évaluation de M2 et M3** :
    ```bash
    MODEL_DIR=checkpoints/dream_transfer_a09 TASK=gsm8k LIMIT=300 BATCH=4 \
-       bash harness/dream/run_evals.sh
+       bash modules/a2d/harness/dream/run_evals.sh
    MODEL_DIR=checkpoints/dream_transfer_a09 TASK=math LIMIT=25 BATCH=4 \
-       bash harness/dream/run_evals.sh
+       bash modules/a2d/harness/dream/run_evals.sh
    # idem pour dream_merge_l06
    ```
-5. **Empreintes d'items** : rejouer `scripts/eval_item_fingerprint.py` et
+5. **Empreintes d'items** : rejouer `modules/a2d/eval/eval_item_fingerprint.py` et
    vérifier l'identité des `items_sha256` / `prompts_sha256` avec M0/M1
    (**bloquant**).
-6. **Écarts appariés** : `scripts/paired_bootstrap.py` sur les quatre paires
+6. **Écarts appariés** : `modules/a2d/eval/paired_bootstrap.py` sur les quatre paires
    (M2−M0, M3−M1) × (GSM8K, MATH-175).
 7. **Verdict** : consigner dans `CHECKLIST.md` (table des portes) et dans
-   `docs/reports/J7.md` : franchie / non franchie, critère par critère.
+   `modules/a2d/docs/reports/J7.md` : franchie / non franchie, critère par critère.
    Chaque critère est rapporté dans la **formulation amendée** de §4.1 (point
    estimate **et** borne basse de l'IC apparié ; non-régression « non
    réfutée » / « établie »), et le **plancher de bruit de décodage** (mesuré

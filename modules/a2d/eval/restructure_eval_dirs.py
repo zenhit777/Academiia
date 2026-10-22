@@ -7,11 +7,11 @@ Ces noms ne sont pas portables et exposent l'arborescence de la machine.
 
 Ce script réorganise
 
-    eval/dream_a2d/<model>_<tache>/__mnt__d__…__checkpoints__<model>/<fichiers>
+    modules/a2d/eval/dream_a2d/<model>_<tache>/__mnt__d__…__checkpoints__<model>/<fichiers>
 
 en
 
-    eval/dream_a2d/<model>/<tache>/<fichiers>
+    modules/a2d/eval/dream_a2d/<model>/<tache>/<fichiers>
 
 **Le contenu des `.json` / `.jsonl` n'est pas modifié** : les chemins absolus
 qui y figurent (metadata `pretrained`, `config.model_args`, `model_name`) sont
@@ -24,7 +24,7 @@ taille et empreinte de chaque fichier (avant/après, pour prouver que le
 contenu n'a pas changé).
 
 Usage :
-    python scripts/restructure_eval_dirs.py --root eval/dream_a2d [--dry-run]
+    python modules/a2d/eval/restructure_eval_dirs.py --root modules/a2d/eval/dream_a2d [--dry-run]
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ def task_name(run_dir_name: str, model: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", default="eval/dream_a2d",
+    parser.add_argument("--root", default="modules/a2d/eval/dream_a2d",
                         help="racine des resultats a restructurer")
     parser.add_argument("--dry-run", action="store_true",
                         help="ecrit le plan sans deplacer les fichiers")
@@ -124,7 +124,7 @@ def main() -> int:
         return 0
 
     payload = {
-        "tool": "scripts/restructure_eval_dirs.py",
+        "tool": "modules/a2d/eval/restructure_eval_dirs.py",
         "root": str(root),
         "dry_run": args.dry_run,
         "note": ("Le CONTENU des .json / .jsonl n'est pas modifie : les chemins "

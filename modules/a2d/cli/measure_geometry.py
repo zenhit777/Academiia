@@ -17,7 +17,7 @@ Lecture seule (safetensors.safe_open), rien n'est ecrit sur disque.
 
 Exemple (famille Qwen2.5-7B -> Dream-7B du papier) :
 
-    python scripts/measure_geometry.py \
+    python modules/a2d/cli/measure_geometry.py \
         --ar-base checkpoints/qwen25_7b --ar-post checkpoints/qwen25_7b_it \
         --diffusion-base checkpoints/dream_7b_base \
         --diffusion-post checkpoints/dream_7b_instruct \

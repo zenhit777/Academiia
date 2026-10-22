@@ -10,13 +10,13 @@ Comparaison du checkpoint livré `Jainius` (α=0.3) avec son témoin `D_p`
 | Serveur | vLLM 0.24.0, image `vllm/vllm-openai@sha256:251eba5cc7c1…` (épinglée par digest) |
 | Matériel | RTX 5090 32 607 MiB, WSL2 / Ubuntu 24.04, 30 GiB de RAM hôte |
 | Flags | `--quantization fp8` (quantification à la volée des poids BF16), `--cpu-offload-gb 0`, `--max-model-len 2048`, `--max-num-seqs 1`, `--gpu-memory-utilization 0.92`, `--enforce-eager` |
-| Client | `scripts/eval_compare.py` (stdlib), `eval/prompts.jsonl` — 103 prompts (faits FR/EN, maths, formats, questions libres) |
+| Client | `modules/a2d/eval/eval_compare.py` (stdlib), `modules/a2d/legacy/eval/prompts.jsonl` — 103 prompts (faits FR/EN, maths, formats, questions libres) |
 | Génération | `max_tokens=128`, `temperature=0` |
 | Un modèle à la fois | oui (48,1 GiB de poids : impossible de servir les deux en même temps) |
 
 Les métriques sont calculées à partir des réponses brutes du serveur
 (`eval/results_Dp.json`, `eval/results_jainius_a03.json`) : latence, débit,
-réponses non vides, répétitions dégénérées (heuristique de `vLLM/smoke_chat.py`),
+réponses non vides, répétitions dégénérées (heuristique de `infra/vllm/smoke_chat.py`),
 présence de la valeur attendue, respect du format demandé.
 
 ## Résultats
@@ -47,7 +47,7 @@ présence de la valeur attendue, respect du format demandé.
 > 91,0 % puis 88,1 % de justesse (textes différents pour les mêmes prompts) ; le
 > témoin `D_p` a donné 100 % lors des deux passes. Les chiffres ci-dessus sont
 > ceux de la seconde passe (`eval/results_*.json`), exécutée avec la version
-> corrigée de `scripts/eval_compare.py` (le contrôle « one_line » ne comptait
+> corrigée de `modules/a2d/eval/eval_compare.py` (le contrôle « one_line » ne comptait
 > pas le préfixe « thought » du modèle de diffusion, ce qui faisait échouer à tort
 > 3 prompts `one_line` de Jainius et 4 de `D_p` lors de la première passe).
 

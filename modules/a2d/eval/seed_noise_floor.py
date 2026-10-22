@@ -3,11 +3,11 @@
 
 Le décodage de Dream-7B est **stochastique en principe** (`alg=entropy`,
 `temperature=0,1`) et **dépendant du lot** (§3.3 de
-`docs/design/G1_PROTOCOL.md`). Ce script **mesure** si rejouer le même modèle
+`modules/a2d/docs/design/G1_PROTOCOL.md`). Ce script **mesure** si rejouer le même modèle
 avec une autre graine change les réponses — et de combien : c'est le
 **plancher de bruit** dû au seul décodage, comparé sur deux runs du même
 modèle. La mesure J7 (2026-10-21) a trouvé **0,00 pt** à lot 4 : les 300
-réponses brutes étaient byte-identiques (voir `docs/reports/J7.md` §5) ; le
+réponses brutes étaient byte-identiques (voir `modules/a2d/docs/reports/J7.md` §5) ; le
 script reste l'outil de mesure, pas une prévision du résultat.
 
 1. **contrôle bloquant** : les jeux d'items et les prompts doivent être
@@ -19,9 +19,9 @@ script reste l'outil de mesure, pas une prévision du résultat.
    et même graine que `modules/a2d/eval/paired_bootstrap.py`).
 
 Usage :
-    python3 scripts/seed_noise_floor.py \
-        --run-a eval/dream_a2d/dream_7b_instruct/gsm8k_cot_a2d \
-        --run-b eval/dream_a2d_seed1/dream_7b_instruct/gsm8k_cot_a2d \
+    python3 modules/a2d/eval/seed_noise_floor.py \
+        --run-a modules/a2d/eval/dream_a2d/dream_7b_instruct/gsm8k_cot_a2d \
+        --run-b modules/a2d/eval/dream_a2d_seed1/dream_7b_instruct/gsm8k_cot_a2d \
         --filter flexible-extract
 """
 

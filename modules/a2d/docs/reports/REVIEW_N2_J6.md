@@ -1,5 +1,9 @@
 # Review architecte N2 — mission J6 (verdict)
 
+> **Document historique (J6–J8).** Les chemins cités dans ce rapport sont
+> ceux de l'époque : la table de migration des chemins est
+> [`docs/adr/path-migration.md`](../../../docs/adr/path-migration.md).
+
 **Date** : 2026-10-20 · **Auteur de la review** : l'architecte (N2) · **Reçu par** : OhMyPi,
 développeur, pour la mission J6bis (clôture corrective de J6).
 

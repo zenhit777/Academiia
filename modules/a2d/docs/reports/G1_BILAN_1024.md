@@ -1,5 +1,9 @@
 # G1 — addendum : diagnostic MATH à 1 024 tokens (J8, phase A2)
 
+> **Document historique (J6–J8).** Les chemins cités dans ce rapport sont
+> ceux de l'époque : la table de migration des chemins est
+> [`docs/adr/path-migration.md`](../../../docs/adr/path-migration.md).
+
 **Statut : annulé sur coût mesuré. Aucun résultat, aucun échantillon produit.**
 Le verdict G1 (`docs/reports/G1_BILAN.md` §1) et les mesures pré-enregistrées à 512 tokens
 restent **inchangés**. Ce document consigne le protocole prévu, la mesure de débit qui a

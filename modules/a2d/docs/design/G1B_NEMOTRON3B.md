@@ -157,7 +157,7 @@ Bilan : **236 paires** (M1–M11), **1 tenseur diffusion sans donneur** (M12),
 236 + 222 = 458 ✔ (côté AR).
 
 **Implémentation à prévoir** : un nouveau mapping `MINISTRAL_TO_NEMOTRON_LD`
-dans `scripts/a2d/naming.py`, avec :
+dans `modules/a2d/a2d/naming.py`, avec :
 * `rename` : `language_model.model.` → `encoder.` (+ `layers.N.` conservé) ;
 * `embedding_policy` : **lignes** (intersection) **avec masque de lignes
   protégées** — extension nécessaire de `MergePolicy` (la bibliothèque ne
@@ -301,7 +301,7 @@ Points opérationnels :
 ## 4. Coût par échantillon : AR vs diffusion
 
 > **Tout ce qui suit est une projection**, dérivée de (i) nos **mesures** sur
-> Dream-7B (cf. `docs/design/EVAL_BUDGET.md`), (ii) les **comptes de
+> Dream-7B (cf. `modules/a2d/docs/design/EVAL_BUDGET.md`), (ii) les **comptes de
 > paramètres** lus sur les `config.json`, (iii) le **TPF = 5,89** rapporté par
 > l'outil `evaluate.py` de NVlabs (mesuré sur **8B**, pas sur 3B). Aucun de ces
 > chiffres n'est une mesure sur le 3B.
@@ -412,7 +412,7 @@ transforme 6 « non vérifiable » en 6 mesures, pour ~23 Go et ~10 min.
 
 | Blocage | Gravité | Détail |
 |---|---|---|
-| **Coût du protocole papier** | bloquant | 8 192 tokens de sortie ⇒ ≈ 315 h (AR) ou ≈ 53 h (diffusion) **par benchmark** de 541 prompts, et **10 benchmarks** dans la Table 1c. Le budget de la mission est de 2 h par évaluation (`docs/design/G1_PROTOCOL.md`) |
+| **Coût du protocole papier** | bloquant | 8 192 tokens de sortie ⇒ ≈ 315 h (AR) ou ≈ 53 h (diffusion) **par benchmark** de 541 prompts, et **10 benchmarks** dans la Table 1c. Le budget de la mission est de 2 h par évaluation (`modules/a2d/docs/design/G1_PROTOCOL.md`) |
 | **Pile d'évaluation** |bloquant | le `ns eval` stock **ne supporte pas la diffusion** : il faut le client patché de NVlabs (`xp/nemo-skills/eval_dlm.py`) + un serveur DLM à construire et à déboguer (charge de travail non chiffrable ici) |
 | **Dépendance `transformers`** | moyen | le code distant de Nemotron-LD exige `transformers>=5.0.0` et importe `transformers.modeling_layers` / `masking_utils` ⇒ un environnement dédié (le venv du harnais Dream est en `transformers==4.46.2`, incompatible) |
 | **Juge / métriques** | moyen | les 10 benchmarks de la Table 1c exigent le scoring NeMo-Skills complet (math, code, IFEval, GPQA…) ; le chemin B (`evaluate.py`) ne couvre que gsm8k + math-500 |
@@ -436,12 +436,12 @@ GO.**
 
 ### 6.3 Ordre recommandé
 
-1. **G1** (Dream) — `docs/design/G1_PROTOCOL.md` —.transfert α=0,9 et merge
+1. **G1** (Dream) — `modules/a2d/docs/design/G1_PROTOCOL.md` —.transfert α=0,9 et merge
    λ=0,6, 4 évaluations, ≈ 4 h ;
 2. **G1b-m** (Nemotron-3B, mécanique) — GO : 23 Go + 10 min, 6 mesures de la
    Table 21 ;
 3. **G2** (DiffusionGemma) — bloquée par le mode « adaptateur à l'échelle »
-   (`docs/design/G2_adapter_scaling.md`) ;
+   (`modules/a2d/docs/design/G2_adapter_scaling.md`) ;
 4. **G1b-e** (Nemotron-3B, évaluation) — NO-GO tant que (1)-(4) du §6.2 ne
    sont pas levés.
 

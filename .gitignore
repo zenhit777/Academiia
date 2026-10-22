@@ -9,7 +9,7 @@ harness/**/.fork/
 harness/**/.cache/
 
 # Secrets locaux (ne pas commiter) :
-# - `.env` à TOUS les niveaux (racine, vLLM/, futurs dossiers...).
+# - `.env` à TOUS les niveaux (racine, infra/vllm/, futurs dossiers...).
 # - `**` = récursif ; un `git add -A` n'ajoutera jamais ces fichiers.
 **/.env
 # ... mais toujours versionner les templates (valeurs d'exemple, sans secret).

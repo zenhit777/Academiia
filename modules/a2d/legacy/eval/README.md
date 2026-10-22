@@ -2,8 +2,8 @@
 
 Contenu de ce dossier : les **preuves brutes** des générations de texte
 réalisées le 2026-10-19 sur vLLM (RTX 5090 32 Go, WSL2). Rien n'est calculé
-à la main : tout vient de `vLLM/smoke_chat.py` (smoke) et de
-`scripts/eval_compare.py` (évaluation).
+à la main : tout vient de `infra/vllm/smoke_chat.py` (smoke) et de
+`modules/a2d/eval/eval_compare.py` (évaluation).
 
 | Fichier | Provenance |
 |---|---|
@@ -25,9 +25,9 @@ réalisées le 2026-10-19 sur vLLM (RTX 5090 32 Go, WSL2). Rien n'est calculé
 Reproductible :
 
 ```bash
-cd vLLM && docker compose up -d      # config FP8 : voir vLLM/.env.template
-python scripts/eval_compare.py \
+cd vLLM && docker compose up -d      # config FP8 : voir infra/vllm/.env.template
+python modules/a2d/eval/eval_compare.py \
     --base http://localhost:8000/v1/chat/completions \
-    --model jainius --prompts eval/prompts.jsonl \
+    --model jainius --prompts modules/a2d/legacy/eval/prompts.jsonl \
     --output eval/results_jainius_a03.json
 ```

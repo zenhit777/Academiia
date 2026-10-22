@@ -9,7 +9,7 @@
 #   INUTILISABLE sous WSL2 : son runner V2 exige UVA, et cette image refuse la
 #   memoire einglee sous WSL (platforms/interface.py:758) -> "UVA is not
 #   available" a l'init ; son runner V1 charge le modele mais crash a la 1re
-#   generation (scatter index -1, cf. vLLM/KNOWN_ISSUES.md).
+#   generation (scatter index -1, cf. infra/vllm/KNOWN_ISSUES.md).
 #   Surcharger via VLLM_IMAGE uniquement pour experimenter.
 #
 # Configuration par defaut (mesuree le 2026-10-19 sur RTX 5090 32 Go / WSL2) :
@@ -80,7 +80,7 @@ services:
       # Override runner V1 : NE PAS definir VLLM_USE_V2_MODEL_RUNNER ici
       #   (le runner V2 est le defaut de vLLM). Pour forcer le runner V1
       #   (INUTILE ici : le 2026-10-18 a montre que la 1re generation plante
-      #   avec une assertion GPU scatter/gather — voir vLLM/KNOWN_ISSUES.md,
+      #   avec une assertion GPU scatter/gather — voir infra/vllm/KNOWN_ISSUES.md,
       #   E0), definir dans .env :
       #     VLLM_USE_V2_MODEL_RUNNER_OVERRIDE=0
       - VLLM_USE_V2_MODEL_RUNNER_OVERRIDE=${VLLM_USE_V2_MODEL_RUNNER_OVERRIDE:-}

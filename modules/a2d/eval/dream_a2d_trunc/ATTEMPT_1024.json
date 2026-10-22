@@ -10,7 +10,7 @@
     "diffusion_steps": 1024,
     "batch_size": 4,
     "seed": "0,1234,1234,1234",
-    "outdir": "eval/dream_a2d_trunc"
+    "outdir": "modules/a2d/eval/dream_a2d_trunc"
   },
   "run": {
     "started": "2026-10-21T13:48:24",
@@ -50,5 +50,5 @@
     "hypothesis_not_verified": "le pilote n'a probablement pas fixe diffusion_steps=1024 (le lanceur fixe max_new_tokens et diffusion_steps a la meme valeur) ; aucun journal de pilote n'a ete conserve"
   },
   "consequence": "aucune analyse de sensibilite a 1024 tokens ; le verdict G1 et l'analyse de troncature a 512 tokens sont inchanges",
-  "log": "eval/dream_a2d_trunc/ATTEMPT_1024.log (brut, sequences ANSI de tqdm incluses)"
+  "log": "modules/a2d/eval/dream_a2d_trunc/ATTEMPT_1024.log (brut, sequences ANSI de tqdm incluses)"
 }

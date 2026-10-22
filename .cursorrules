@@ -4,19 +4,19 @@
 
 Projet de recherche sur l'application de la méthode A2D (AR-to-Diffusion Transfer,
 arXiv:2610.08108) à DiffusionGemma et Dream-7B. **La spécification de référence est
-[`docs/A2D_SPEC.md`](docs/A2D_SPEC.md)** (équations, Table 6, cibles des Tables 1/16/21) :
+[`modules/a2d/docs/A2D_SPEC.md`](modules/a2d/docs/A2D_SPEC.md)** (équations, Table 6, cibles des Tables 1/16/21) :
 la lire avant toute modification du pipeline de fusion.
 
 ## Fichiers clés
-- `docs/A2D_SPEC.md` → spécification de la méthode (source primaire : le PDF)
-- `docs/VP_ADAPTERS.md` → adaptateurs médicaux publiés (LoRA r=64, α=128) et dépôt de référence
-- `scripts/a2d/` → **bibliothèque A2D** (mapping, sources de vecteurs, moteur de fusion)
-- `scripts/merge_a2d.py` → **CLI conforme** (transfert / merge / ablations)
-- `scripts/verify_merge.py` → vérification post hoc (`α_eff` / `λ_eff` par famille)
-- `scripts/measure_geometry.py` → géométrie des vecteurs (Table 21 du papier)
-- `legacy/scripts/merge_jainius.py` → **wrapper DÉPRÉCIÉ** (legacy) ; la logique est dans `scripts/a2d/`
-- `legacy/scripts/compute_tau_a.py` → **LEGACY** : persiste τ en `.npy` (ne pas supprimer, ne pas réintroduire)
-- `legacy/docs/` → archives Jainius (`AUDIT.md`, `GUIDE_RESTANT.md`), non normatives
+- `modules/a2d/docs/A2D_SPEC.md` → spécification de la méthode (source primaire : le PDF)
+- `modules/a2d/docs/VP_ADAPTERS.md` → adaptateurs médicaux publiés (LoRA r=64, α=128) et dépôt de référence
+- `modules/a2d/a2d/` → **bibliothèque A2D** (mapping, sources de vecteurs, moteur de fusion)
+- `modules/a2d/cli/merge_a2d.py` → **CLI conforme** (transfert / merge / ablations)
+- `modules/a2d/cli/verify_merge.py` → vérification post hoc (`α_eff` / `λ_eff` par famille)
+- `modules/a2d/cli/measure_geometry.py` → géométrie des vecteurs (Table 21 du papier)
+- `modules/a2d/legacy/scripts/merge_jainius.py` → **wrapper DÉPRÉCIÉ** (legacy) ; la logique est dans `modules/a2d/a2d/`
+- `modules/a2d/legacy/scripts/compute_tau_a.py` → **LEGACY** : persiste τ en `.npy` (ne pas supprimer, ne pas réintroduire)
+- `modules/a2d/legacy/docs/` → archives Jainius (`AUDIT.md`, `GUIDE_RESTANT.md`), non normatives
 - `./checkpoints/Jainius/` → build legacy (ablation hors papier, plus une référence scientifique)
 
 ## Dossiers temporaires
@@ -41,11 +41,11 @@ la lire avant toute modification du pipeline de fusion.
 - Toute fusion doit passer par la **vérification post-écriture** (`α_eff`/`λ_eff`, échec dur hors tolérance) : c'est elle qui aurait détecté le build livré à α=0.8 étiqueté 0.3. `--no-verify` la désactive mais laisse une trace au manifeste (`post_write_verification.skipped`).
 - **Un checkpoint fusionné doit être chargeable** : les shards écrits portent le bloc `__metadata__` (`format: pt`) repris de la source ; `transformers.load_state_dict` l'exige (sans lui : `AttributeError: 'NoneType' object has no attribute 'get'`). Un smoke de chargement (`from_pretrained` + génération) valide la fusion *après* la vérification mécanique.
 - **Coefficient nul = refus** : un transfert à `α=0` ou un merge à `λ=0` n'écrirait qu'une copie de la référence (`D_b` / `D_p`), indiscernable d'un modèle non fusionné. Ces fusions sont refusées tant que le plan contient des vecteurs non nuls ; `--allow-empty-coefficient` les assume explicitement (avertissement au manifeste, état dans `coefficient_guard`).
-- Mesurer avant de merger : `scripts/measure_geometry.py` (Table 21) et `scripts/verify_merge.py`.
+- Mesurer avant de merger : `modules/a2d/cli/measure_geometry.py` (Table 21) et `modules/a2d/cli/verify_merge.py`.
 - **Trajectoire par portes** : G1 (mécanique, Qwen2.5-7B → Dream-7B) → G2 (DiffusionGemma médical) → G3 (raisonnement, conception d'abord). Ne pas entamer une porte avant d'avoir franchi la précédente.
 
 ## Workflow typique
- 1. L'utilisateur demande une modification → lire `AGENTS.md` + `docs/A2D_SPEC.md`.
- 2. Si modification de la fusion → éditer `scripts/a2d/` (jamais une copie de la logique dans un script).
- 3. Si ajout d'un mode ou d'une source de vecteur → ajouter les tests dans `scripts/tests/test_a2d_library.py` (modèles jouets, sans GPU) et faire passer `pytest scripts/tests -q`.
+ 1. L'utilisateur demande une modification → lire `AGENTS.md` + `modules/a2d/docs/A2D_SPEC.md`.
+ 2. Si modification de la fusion → éditer `modules/a2d/a2d/` (jamais une copie de la logique dans un script).
+ 3. Si ajout d'un mode ou d'une source de vecteur → ajouter les tests dans `modules/a2d/tests/test_a2d_library.py` (modèles jouets, sans GPU) et faire passer `pytest modules/a2d/tests -q`.
  4. Si modification de l'évaluation → vérifier la conformité au protocole (App. A.1) et consigner modèle / dtype / décodeur / paramètres / graine / nombre de prompts.

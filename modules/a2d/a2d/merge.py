@@ -815,7 +815,7 @@ def verify_checkpoint(cfg: MergeConfig, merged_dir, reference_dir,
       4. tolerance derivee du residu BF16 mesure (et non de l'ecart reel).
 
     Utilisee par le writer (verification post-ecriture) ET par
-    `scripts/verify_merge.py` (verification post hoc) : une seule implementation.
+    `modules/a2d/cli/verify_merge.py` (verification post hoc) : une seule implementation.
     """
     merged = Path(merged_dir)
     reference = Path(reference_dir)
@@ -1359,7 +1359,7 @@ def compute_effective_coefficients(merged_dir, reference_dir, cfg: MergeConfig,
                                     log=print) -> dict:
     """Recalcule les coefficients effectifs sur un checkpoint deja fusionne.
 
-    Utilise par `scripts/verify_merge.py` : relit le checkpoint fusionne, le
+    Utilise par `modules/a2d/cli/verify_merge.py` : relit le checkpoint fusionne, le
     receveur, et recalcule les vecteurs depuis les sources. La configuration
     est d'abord validee (`validate_config`) : un merge verifie sans tau_D est
     refuse, au lieu d'etre accepte au titre d'un transfert.

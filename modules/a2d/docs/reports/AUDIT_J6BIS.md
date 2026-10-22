@@ -1,5 +1,9 @@
 # Audit indépendant de la mission J6bis — vérification en lecture seule
 
+> **Document historique (J6–J8).** Les chemins cités dans ce rapport sont
+> ceux de l'époque : la table de migration des chemins est
+> [`docs/adr/path-migration.md`](../../../docs/adr/path-migration.md).
+
 **Date** : 2026-10-20 · **Auditeur** : agent (OpenCode) · **Mode** : lecture seule,
 plus des écritures temporaires **dans le dépôt** (`_artefact/audit_j6bis/`).
 **Objet** : vérifier les livrables A1–A3, B1–B7, C1–C7, D1–D3, E1–E4 de

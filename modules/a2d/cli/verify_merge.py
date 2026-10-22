@@ -4,7 +4,7 @@
 Relit le checkpoint fusionne, le checkpoint receveur, recalcule les vecteurs
 depuis les sources, et compare le resultat au coefficient annonce.
 
-    python scripts/verify_merge.py \
+    python modules/a2d/cli/verify_merge.py \
         --merged checkpoints/dream_transfer_a09 \
         --reference checkpoints/dream_7b_base \
         --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b \
@@ -44,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--tau-a-post")
     parser.add_argument("--tau-a-base")
     parser.add_argument("--tau-a-adapter")
-    parser.add_argument("--tau-a-dir", help="LEGACY : dossier de .npy tau_A (legacy/scripts/compute_tau_a.py)")
+    parser.add_argument("--tau-a-dir", help="LEGACY : dossier de .npy tau_A (modules/a2d/legacy/scripts/compute_tau_a.py)")
     parser.add_argument("--tau-d-post")
     parser.add_argument("--tau-d-base")
     parser.add_argument("--tau-d-adapter")

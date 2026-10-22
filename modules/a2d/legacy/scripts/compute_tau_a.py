@@ -3,8 +3,8 @@
 LEGACY — Compute AR post-training task vector: tau_A = A_p - A_b.
 
 CHAMP LEGACY : ce script persiste tau_A sur disque (`.npy`). Il n'est
-utilise que par le wrapper deprecie `legacy/scripts/merge_jainius.py`. Le pipeline
-A2D conforme (`scripts/merge_a2d.py` + `scripts/a2d/`) calcule tau_A a la
+utilise que par le wrapper deprecie `modules/a2d/legacy/scripts/merge_jainius.py`. Le pipeline
+A2D conforme (`modules/a2d/cli/merge_a2d.py` + `modules/a2d/a2d/`) calcule tau_A a la
 volee depuis les checkpoints sources (3-4 handles `safe_open`) et ne persiste
 JAMAIS de vecteur de tache (la provenance est portee par les hashes d'index
 des sources dans le manifeste). Ce script n'est pas supprime : il reste utile
@@ -15,17 +15,17 @@ Lecture via safetensors.safe_open (bits exacts). ATTENTION : sur cette machine l
 legacy est BLOQUE en ENOMEM — `safe_open` pre-fault la projection du shard AR de 46,5 Go,
 au-dela des 30 Go de RAM de la VM WSL2 (cf. KNOWN_ISSUES.md). L'estimation historique
 « ~2-3 GB peak RAM » etait fausse (rectificatif J6bis : MIN-06). La bibliotheque conforme
-(`scripts/a2d/`) n'est pas concernee : elle recalcule tau_A a la volee, sans le
+(`modules/a2d/a2d/`) n'est pas concernee : elle recalcule tau_A a la volee, sans le
 materialiser.
 
 Usage:
-    python legacy/scripts/compute_tau_a.py \
+    python modules/a2d/legacy/scripts/compute_tau_a.py \
         --base /path/to/gemma4_base \
         --posttrained /path/to/gemma4_it \
         --output-dir _artefact/tau_a
     # Par defaut --filter decoder : seuls les tenseurs mappables sont ecrits
     # (economise ~35 Go). Ecrire les 1013 tenseurs (vision comprise) :
-    python legacy/scripts/compute_tau_a.py --filter all ...
+    python modules/a2d/legacy/scripts/compute_tau_a.py --filter all ...
 """
 
 import argparse

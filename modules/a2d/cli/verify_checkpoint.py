@@ -11,7 +11,7 @@ Checks (strict safetensors spec, no tolerance):
 ASCII-only output (compatible Windows cp1252).
 
 Usage:
-    python scripts/verify_checkpoint.py [--checkpoint checkpoints/Jainius]
+    python modules/a2d/cli/verify_checkpoint.py [--checkpoint checkpoints/Jainius]
 """
 
 import argparse

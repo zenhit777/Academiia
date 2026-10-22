@@ -1,7 +1,7 @@
 {
   "model": "diffusiongemma_it",
   "base": "http://localhost:8000/v1/chat/completions",
-  "prompts_file": "eval/prompts.jsonl",
+  "prompts_file": "modules/a2d/legacy/eval/prompts.jsonl",
   "date": "2026-10-19T18:57:37.178786+02:00",
   "config": {
     "max_tokens": 128,

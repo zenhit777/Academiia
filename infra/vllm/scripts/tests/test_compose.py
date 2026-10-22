@@ -1,4 +1,4 @@
-"""Test de non-régression pour vLLM/docker-compose.yml (pytest).
+"""Test de non-régression pour infra/vllm/docker-compose.yml (pytest).
 
 Reproduit le pipeline RÉEL : Compose interpole d'abord `$VAR`/`${VAR}`
 (y compris `${V:-défaut}`) dans TOUT le fichier — seul `$$` produit un `$`

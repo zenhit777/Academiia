@@ -19,7 +19,7 @@
 #     ("pip install transformers==4.46.2 and torch==2.5.1 ... Other versions ... not been
 #      fully tested") ; le code distant `modeling_dream.py` en depend.
 #   * datasets 2.21.0 : les versions >= 2.16 cassent le script de chargement de
-#     google/IFEval (cf. eval/dream_a2d/tasks/ifeval_a2d.yaml, chargement via la conversion
+#     google/IFEval (cf. modules/a2d/eval/dream_a2d/tasks/ifeval_a2d.yaml, chargement via la conversion
 #     parquet refs/convert/parquet).
 #   * numpy 2.x : pyarrow (datasets) l'exige ; transformers 4.46.2 est compatible.
 #

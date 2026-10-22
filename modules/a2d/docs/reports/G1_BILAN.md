@@ -1,5 +1,9 @@
 # Bilan de la porte G1 — clôture scientifique (J8, phase A)
 
+> **Document historique (J6–J8).** Les chemins cités dans ce rapport sont
+> ceux de l'époque : la table de migration des chemins est
+> [`docs/adr/path-migration.md`](../../../docs/adr/path-migration.md).
+
 **Date** : 2026-10-21 · **Statut** : **G1 NON FRANCHIE — porte laissée OUVERTE** ·
 **Périmètre** : consolidation de J7 + analyse de troncature MATH (nouvelle mesure J8) ·
 **HEAD de départ** : `bbcf626` · **Rapport J7** : `docs/reports/J7.md` (non réécrit).

@@ -2,7 +2,7 @@
   "note": "Provenance : `fork_git_hash` = commit du fork Dream (DreamLM/Dream) recopie depuis les results_*.json ; ce n'est PAS un commit d'Academiia. `academiia_head_at_run` = commit du depot Academiia qui etait HEAD au debut du run (horodatage du nom de fichier du fork, compare a l'historique git) ; l'arbre de travail pouvait contenir des modifications non commitees (le harnais Dream n'a ete versionne dans le depot qu'apres les runs, cf. 9ae02a1).",
   "runs": [
     {
-      "run": "eval/dream_a2d_seed1/dream_7b_instruct/gsm8k_cot_a2d",
+      "run": "modules/a2d/eval/dream_a2d_seed1/dream_7b_instruct/gsm8k_cot_a2d",
       "n_items": 300,
       "items_sha256": "2d56d1fdcbd24b575c3eec4c8eb972d46b6f9f86568819e7bae5141c77d4d304",
       "items_order_sha256": "1ddf927532a3b08a85001793cb70c0a981d0334a2e8e9f370bc087e7e05f7751",

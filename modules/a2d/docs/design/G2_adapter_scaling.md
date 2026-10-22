@@ -6,7 +6,7 @@ conditionnée à une machine capable de charger le décodeur DG 26B (voir §5.3)
 
 > Ce document est le cahier des charges de la porte G2. La **phase B de J8** a
 > implémenté le mode « base + adaptateur remis à l'échelle » dans la
-> bibliothèque : `scripts/a2d/adapters.py`, `MergeConfig(mode="merge-dg-scaled")`
+> bibliothèque : `modules/a2d/a2d/adapters.py`, `MergeConfig(mode="merge-dg-scaled")`
 > et les options CLI `--mode merge-dg-scaled` (alias `--mode adapter-scale`),
 > `--adapter-dtype`, `--adapter-output-name`. Les tests couvrent la formule,
 > l'absence de fusion de τ_D, la mise à l'échelle, la détection de mutation et
@@ -52,7 +52,7 @@ instruction-tuned reference checkpoint*** ».
 Pour DG, il n'y a pas de paire « base / post-entraîné » de checkpoints
 publics : le « base » est le **checkpoint IT**, et le « post-training » est un
 **adaptateur LoRA publié** (`gevaertlab/diffusiongemma-radiology-vqa`, §
-`docs/VP_ADAPTERS.md`). Donc :
+`modules/a2d/docs/VP_ADAPTERS.md`). Donc :
 
 ```
 D_b  = D_p  = checkpoint IT de DiffusionGemma           (D_p = D_b + adaptateurs)
@@ -90,7 +90,7 @@ le seul qui traite `τ_D` comme une dépendance d'inférence externe.
 ### 3.1 Interface (implémentée)
 
 ```
-python scripts/merge_a2d.py --mode merge-dg-scaled \
+python modules/a2d/cli/merge_a2d.py --mode merge-dg-scaled \
     --diffusion checkpoints/diffusiongemma_it \
     --tau-a-post <gemma4_it> --tau-a-base <gemma4_base> \
     --tau-d-adapter checkpoints/dg_adapters/diffusion-vqarad \
@@ -115,7 +115,7 @@ Sortie attendue (deux artefacts, **un seul modèle** au moment de l'inférence) 
 | **(c)** charger l'adaptateur avec un facteur externe | facteur appliqué à l'inférence | exacte si le facteur est appliqué en FP32 | dépend du code d'inférence (HF / vLLM / transformers) | **recommandée comme moyen de contrôle** (permet de vérifier (b) contre (c)) |
 
 **Décision de conception (implémentée)** : (b) comme mode d'écriture
-(`scripts/a2d/adapters.py::scale_adapter`), **plus** (c) comme procédure de
+(`modules/a2d/a2d/adapters.py::scale_adapter`), **plus** (c) comme procédure de
 vérification (`verify_scaled_adapter`). `lora_alpha` reste **intact** dans
 `adapter_config.json` ; seul `lora_B` est multiplié. Le dtype d'écriture est
 BF16 par défaut (`--adapter-dtype bfloat16`) ou FP32 (`--adapter-dtype float32`).
@@ -152,7 +152,7 @@ L'App. A.2 le dit (« *share their base weights* ») et l'index le confirme.
 
 **Conséquence n° 1** : le vecteur AR `τ_A` s'applique **une seule fois**, sur
 `model.decoder.layers.N.<proj>`. Le mapping existant
-(`scripts/_common.py::gemma4_to_diffusiongemma`, `model.language_model.layers.X`
+(`academiia/core/common.py::gemma4_to_diffusiongemma`, `model.language_model.layers.X`
 → `model.decoder.layers.X`) est donc **correct** et il n'y a **rien à
 dupliquer**. C'est aussi ce que le build legacy a fait (355 tenseurs : attn
 115 + mlp 90 + experts 60 + routeur 90).
@@ -163,7 +163,7 @@ dupliquer**. C'est aussi ce que le build legacy a fait (355 tenseurs : attn
 * `model.decoder.layers.N.{q,k,v,o,gate,up,down}_proj` — **205 modules** ;
 * `model.encoder.language_model.layers.N.{...}` — **205 modules** ;
 * `model.decoder.self_conditioning.{gate,up,down}_proj` — **3 modules** ;
-* total **413 modules** (`docs/VP_ADAPTERS.md` §1.3).
+* total **413 modules** (`modules/a2d/docs/VP_ADAPTERS.md` §1.3).
 
 À l'inférence, les deux jeux s'appliquent au **même** tenseur de base : le
 delta effectif est **la somme** des deux :
@@ -172,7 +172,7 @@ delta effectif est **la somme** des deux :
 ΔW_partagé(module) = ΔW_decoder(module) + ΔW_encoder(module)
 ```
 
-C'est le « double comptage » signalé dans `docs/VP_ADAPTERS.md` §3. Il n'est
+C'est le « double comptage » signalé dans `modules/a2d/docs/VP_ADAPTERS.md` §3. Il n'est
 pas un défaut des adaptateurs : c'est la structure du modèle DG (poids
 partagés, updates séparés encodeur/décodeur).
 
@@ -220,7 +220,7 @@ couverture) pour que la traçabilité soit complète.
 | # | Contrôle | Moyen | Critère |
 |---|---|---|---|
 | V1 | **Identité numérique de la formule** | recalcul de `base' + (1−λ)·τ_D_effectif` et comparaison à `D_b + λ·τ_A + (1−λ)·τ_D` | écart max **0 ULP** BF16 par élément (`max_ulp=0` : égalité avec `round_bf16(expected)`) |
-| V2 | **Projection signée** (réutiliser la vérification v2) | `scripts/verify_merge.py` sur le couple (base', D_b) avec τ_A | `c_a_eff = λ` dans la tolérance ; `c_d_eff` non applicable (τ_D n'est pas dans les poids) |
+| V2 | **Projection signée** (réutiliser la vérification v2) | `modules/a2d/cli/verify_merge.py` sur le couple (base', D_b) avec τ_A | `c_a_eff = λ` dans la tolérance ; `c_d_eff` non applicable (τ_D n'est pas dans les poids) |
 | V3 | **τ_D n'est PAS dans les poids** | sur le `base'` produit : `base' − D_b − λ·τ_A` doit être **exactement nul** sur les modules de τ_A | égalité avec l'arrondi BF16 attendu (`max_ulp=0`) ; `tau_d_merged_into_weights=false` |
 | V4 | **Tenseurs non appariés inchangés** | comparaison binaire `base'` vs `D_b` sur les 842 tenseurs hors plan | **bit-identiques** (contrôle déjà implémenté dans la vérification v2) |
 | V5 | **Échelle effective de l'adaptateur** | recharger l'adaptateur original avec le facteur `(1−λ)` (option (c)) et comparer ΔW | `cos(ΔW_scaled, (1−λ)·ΔW) ≥ 1 − 10⁻⁴` et `‖ΔW_scaled − (1−λ)·ΔW‖ / ‖(1−λ)·ΔW‖ ≤ 10⁻²` en BF16 (arrondi de `lora_B`, ε=2⁻⁸) ; `≤ 10⁻³` en FP32 |
@@ -281,7 +281,7 @@ baselines* » (Table 1b, `_artefact/a2d_paper.txt:765-770`).
 | H4 | À l'inférence, **les deux** jeux de l'adaptateur (decodeur et encodeur) sont appliqués simultanément | **[INFERENCE forte]** — l'adaptateur publié contient les deux et le modèle a des poids partagés ; l'App. A.2 mentionne « separate encoder and decoder updates » | charger l'adaptateur sur le modèle DG et mesurer `‖ΔW_total‖` ; comparer à `‖ΔW_dec + ΔW_enc‖` |
 | H5 | Le « D_b » du merge DG est bien le checkpoint IT (et non un base public) | **VÉRIFIÉ** — Table 7/8 (« *D_b denotes the instruction-tuned reference checkpoint* ») + App. A.1 (« *the two instruction-tuned checkpoints as the pre-task references* ») | — |
 | H6 | Le mapping AR → DG applique chaque mise à jour AR **une fois** sur le poids partagé | **VÉRIFIÉ** (App. A.2) **et** confirmé par l'index du checkpoint (une seule copie des poids) | — |
-| H7 | Les `self_conditioning` sont adaptés par l'adaptateur de diffusion | **VÉRIFIÉ** (`docs/VP_ADAPTERS.md` §1.3 : 3 modules `self_conditioning.{gate,up,down}_proj`) | — |
+| H7 | Les `self_conditioning` sont adaptés par l'adaptateur de diffusion | **VÉRIFIÉ** (`modules/a2d/docs/VP_ADAPTERS.md` §1.3 : 3 modules `self_conditioning.{gate,up,down}_proj`) | — |
 | H8 | Le récepteur DG de l'adaptateur publié est bien `diffusiongemma-26B-A4B-it` (le checkpoint IT local) | **VÉRIFIÉ** (`adapter_config.json` : `base_model_name_or_path: google/diffusiongemma-26B-A4B-it`) | — |
 | H9 | L'adaptateur `ar-*` (Gemma 4) et l'adaptateur `diffusion-*` ont été entraînés sur le **même** jeu (SLAKE / VQA-RAD / VQA-Med) | **VÉRIFIÉ** par le nommage des sous-dossiers (`ar-slake` ↔ `diffusion-slake`, …) | — |
 | H10 | Les poids `experts` de DG sont bien gelés par l'adaptateur (aucun module LoRA) | **VÉRIFIÉ** — la regex `target_modules` ne matche pas `gate_up_proj`/`down_proj` d'experts, et les experts sont des paramètres empilés 3-D | — |
@@ -299,25 +299,25 @@ quantification, qui changerait le protocole et devrait être déclarée.
 **Ordre de travail** :
 
 1. J7 (Dream) : transfert α=0,9 et merge λ=0,6, évalués selon
-   `docs/design/G1_PROTOCOL.md` → **G1** ;
+   `modules/a2d/docs/design/G1_PROTOCOL.md` → **G1** ;
 2. implémentation du mode « adaptateur à l'échelle » + V1–V8 → déblocage
    **G2** ;
 3. G2 : évaluation DG sur SLAKE / VQA-RAD / VQA-Med-2019 avec le protocole
    App. A.1 et les ancres α = 1,0 / 0,7 et λ = 0,1 / 0,3 ;
 4. G1b (Nemotron-3B) : faisabilité déjà instruite dans
-   `docs/design/G1B_NEMOTRON3B.md` ; à placer entre G1 et G2 selon la
+   `modules/a2d/docs/design/G1B_NEMOTRON3B.md` ; à placer entre G1 et G2 selon la
    disponibilité des poids.
 
 ## 8. Implémentation (J8, phase B)
 
 | Élément | Emplacement |
 |---|---|
-| Mise à l'échelle + vérification | `scripts/a2d/adapters.py` (`scale_adapter`, `verify_scaled_adapter`) |
-| Mode de fusion | `scripts/a2d/merge.py` (`MODES`, `mode_coefficients`, `required_sources`, `validate_config`, `merge_checkpoint`) |
-| CLI | `scripts/merge_a2d.py --mode merge-dg-scaled` (alias `adapter-scale`), `--adapter-dtype`, `--adapter-output-name` |
-| Vérification post hoc | `scripts/verify_merge.py --mode merge-dg-scaled --merged-adapter ...` |
+| Mise à l'échelle + vérification | `modules/a2d/a2d/adapters.py` (`scale_adapter`, `verify_scaled_adapter`) |
+| Mode de fusion | `modules/a2d/a2d/merge.py` (`MODES`, `mode_coefficients`, `required_sources`, `validate_config`, `merge_checkpoint`) |
+| CLI | `modules/a2d/cli/merge_a2d.py --mode merge-dg-scaled` (alias `adapter-scale`), `--adapter-dtype`, `--adapter-output-name` |
+| Vérification post hoc | `modules/a2d/cli/verify_merge.py --mode merge-dg-scaled --merged-adapter ...` |
 | Manifeste | `merge_config.json` : `diffusion_adapter`, `diffusion_adapter_verification`, `tau_d_merged_into_weights` |
-| Tests | `scripts/tests/test_a2d_library.py` (formule, non-fusion, échelle, recharge) ; `scripts/tests/test_a2d_mutation.py` (facteur erroné, refus d'écrasement) |
+| Tests | `modules/a2d/tests/test_a2d_library.py` (formule, non-fusion, échelle, recharge) ; `modules/a2d/tests/test_a2d_mutation.py` (facteur erroné, refus d'écrasement) |
 
 Limites **non vérifiées** contre le PDF (inchangées) : H1–H4 du §6. En
 particulier, le facteur `(1−λ)` appliqué à **toutes** les branches (décodeur,

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Mesure la troncature des generations MATH au budget de decodage (CPU).
 
-Critere (identique a `scripts/make_math_trunc_subset.py`) :
+Critere (identique a `modules/a2d/eval/make_math_trunc_subset.py`) :
 
     tokens(reponse) >= budget  ET  aucun marqueur de reponse finale
     (`\\boxed{...}` ou « answer is »)
@@ -12,10 +12,10 @@ verdict. Les generations qui atteignent le budget avec une reponse finale
 (`\\boxed`) ne sont pas comptees comme tronquees.
 
 Usage :
-    python scripts/measure_math_truncation.py \
-        --samples-root eval/dream_a2d \
+    python modules/a2d/eval/measure_math_truncation.py \
+        --samples-root modules/a2d/eval/dream_a2d \
         --tokenizer checkpoints/dream_7b_instruct \
-        --output eval/dream_a2d/TRUNCATION_512.json
+        --output modules/a2d/eval/dream_a2d/TRUNCATION_512.json
 """
 
 from __future__ import annotations
@@ -74,11 +74,11 @@ def count_model(root: Path, model: str, tokenizer, budget: int) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--samples-root", default="eval/dream_a2d")
+    parser.add_argument("--samples-root", default="modules/a2d/eval/dream_a2d")
     parser.add_argument("--tokenizer", default="checkpoints/dream_7b_instruct")
     parser.add_argument("--budget", type=int, default=512)
     parser.add_argument("--models", nargs="+", default=list(MODELS))
-    parser.add_argument("--output", default="eval/dream_a2d/TRUNCATION_512.json")
+    parser.add_argument("--output", default="modules/a2d/eval/dream_a2d/TRUNCATION_512.json")
     args = parser.parse_args()
 
     from transformers import AutoTokenizer

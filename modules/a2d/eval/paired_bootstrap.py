@@ -22,12 +22,12 @@ Métriques disponibles :
 
 Prérequis pour `math_verify` : `math_verify`, `sympy`, `antlr4-python3-runtime`
 (venv du harnais). Le script s'exécute donc avec
-`harness/dream/.venv/bin/python scripts/paired_bootstrap.py ...`.
+`modules/a2d/harness/dream/.venv/bin/python modules/a2d/eval/paired_bootstrap.py ...`.
 
 Usage :
-    harness/dream/.venv/bin/python scripts/paired_bootstrap.py \
-        --run-a eval/dream_a2d/dream_7b_base/gsm8k_cot_a2d \
-        --run-b eval/dream_a2d/dream_7b_instruct/gsm8k_cot_a2d \
+    modules/a2d/harness/dream/.venv/bin/python modules/a2d/eval/paired_bootstrap.py \
+        --run-a modules/a2d/eval/dream_a2d/dream_7b_base/gsm8k_cot_a2d \
+        --run-b modules/a2d/eval/dream_a2d/dream_7b_instruct/gsm8k_cot_a2d \
         --metric exact_match --filter flexible-extract
 """
 

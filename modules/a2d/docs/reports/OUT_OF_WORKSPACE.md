@@ -1,5 +1,9 @@
 # Inventaire des écritures hors du dépôt — et commandes de suppression PROPOSÉES
 
+> **Document historique (J6–J8).** Les chemins cités dans ce rapport sont
+> ceux de l'époque : la table de migration des chemins est
+> [`docs/adr/path-migration.md`](../../../docs/adr/path-migration.md).
+
 **Date** : 2026-10-20 · **Mission** : J6bis, tâche C5 · **Mode** : **LECTURE SEULE**
 
 > **Aucune suppression n'a été effectuée.** Les commandes de la section 3 sont des

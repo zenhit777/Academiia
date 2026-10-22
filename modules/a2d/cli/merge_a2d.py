@@ -5,7 +5,7 @@ Exemples
 --------
 Transfert (A2D-Transfer, eq. 1) : D_b + alpha*tau_A
 
-    python scripts/merge_a2d.py --mode transfer \
+    python modules/a2d/cli/merge_a2d.py --mode transfer \
         --diffusion-base checkpoints/dream_7b_base \
         --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b \
         --alpha 0.9 --mapping identity \
@@ -13,7 +13,7 @@ Transfert (A2D-Transfer, eq. 1) : D_b + alpha*tau_A
 
 Merge (A2D-Merge, eq. 2) : D_p + lambda*(tau_A - tau_D)
 
-    python scripts/merge_a2d.py --mode merge \
+    python modules/a2d/cli/merge_a2d.py --mode merge \
         --diffusion checkpoints/dream_7b_instruct \
         --tau-a-post checkpoints/qwen25_7b_it --tau-a-base checkpoints/qwen25_7b \
         --tau-d-post checkpoints/dream_7b_instruct --tau-d-base checkpoints/dream_7b_base \
@@ -27,7 +27,7 @@ aucun tau n'est ecrit sur disque.
 DiffusionGemma (App. A.2) : l'adaptateur de diffusion reste NON fusionne et
 est remis a l'echelle par (1-lambda) :
 
-    python scripts/merge_a2d.py --mode merge-dg-scaled \
+    python modules/a2d/cli/merge_a2d.py --mode merge-dg-scaled \
         --diffusion checkpoints/diffusiongemma_it \
         --tau-a-post checkpoints/gemma4_it --tau-a-base checkpoints/gemma4_base \
         --tau-d-adapter checkpoints/dg_adapters/diffusion-vqarad \

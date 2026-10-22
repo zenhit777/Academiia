@@ -6,7 +6,7 @@ dans les poids (App. A.2 : « *stay unmerged and are scaled* »). Le mode
 
 * un checkpoint de base modifie `base' = D_b + lambda*tau_A` (writer A2D) ;
 * une copie de l'adaptateur dont les tenseurs `lora_B` sont multiplies par
-  `(1 - lambda)` (option (b) du design `docs/design/G2_adapter_scaling.md`).
+  `(1 - lambda)` (option (b) du design `modules/a2d/docs/design/G2_adapter_scaling.md`).
 
 L'echelle PEFT etant `lora_alpha / r`, multiplier `B` par `s` multiplie le
 delta `(alpha/r) * B @ A` par `s` : c'est exact en FP32, a l'arrondi de

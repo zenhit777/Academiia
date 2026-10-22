@@ -13,8 +13,8 @@ log du harnais).
 
 | Source | Nature |
 |---|---|
-| `eval/dream_a2d/*/*/results_*.json` | champ `total_evaluation_time_seconds` des 6 runs J6 (champ fourni par le fork lm-eval) |
-| `harness/dream/.cache/logs/*.log` | horodatages de début/fin des runs J6bis |
+| `modules/a2d/eval/dream_a2d/*/*/results_*.json` | champ `total_evaluation_time_seconds` des 6 runs J6 (champ fourni par le fork lm-eval) |
+| `modules/a2d/harness/dream/.cache/logs/*.log` | horodatages de début/fin des runs J6bis |
 | `_artefact/smoke_c4/` | smoke GSM8K n=8, harnais reconstruit (batch 4) |
 | `_artefact/d3_sweep/b{1,2,4,8,16}/` | balayage de batch sur 16 prompts (D3) |
 
@@ -73,7 +73,7 @@ batch 4, **seul GSM8K complet est jouable** sur cette machine ; IFEval complet
 (541 prompts, ≈ 48 h 59 par modèle) et **MATH complet (5 000 problèmes,**
 ≈ 47 h 51 par modèle) sont hors budget. Le **MATH-500 du papier (500 sur
 5 000)** reste jouable en ≈ 4 h 47 par modèle, mais il est **hors du critère
-G1** : le protocole `docs/design/G1_PROTOCOL.md` compare sur **MATH-175**
+G1** : le protocole `modules/a2d/docs/design/G1_PROTOCOL.md` compare sur **MATH-175**
 (175), jouable en 1 h 40 par modèle.
 
 ## 4. Balayage des leviers de vitesse (D3) — 16 prompts GSM8K, protocole figé
@@ -116,7 +116,7 @@ Scores sur ces 16 prompts (`flexible-extract`) : 0,4375 (b1) · 0,4375 (b2) ·
 **Conséquence** : pour un modèle de diffusion, le **taille de lot fait partie
 du protocole effectif**. Deux évaluations à même graine mais à lot différent ne
 sont **pas** reproductibles. Toute reprise doit donc fixer `--batch_size 4`
-(cf. `docs/design/G1_PROTOCOL.md`), et toute affirmation de reproductibilité
+(cf. `modules/a2d/docs/design/G1_PROTOCOL.md`), et toute affirmation de reproductibilité
 doit préciser le lot.
 
 *Cause* [INFERENCE] : le décodage à diffusion est stochastique **par séquence**
@@ -152,10 +152,10 @@ paramètres de décodage :
   **cette** machine. Rien n'est mesuré pour Nemotron-Labs-Diffusion-3B, pour
   DiffusionGemma, ni pour le vLLM FP8 de la campagne J5.
 * Le coût **par échantillon** du diffusion Nemotron-3B est **projeté** dans
-  `docs/design/G1B_NEMOTRON3B.md` (marqué `[INFERENCE]`) : le débit de tokens
+  `modules/a2d/docs/design/G1B_NEMOTRON3B.md` (marqué `[INFERENCE]`) : le débit de tokens
   par forward (TPF) rapporté par l'outil `evaluate.py` de NVlabs vaut 5,89 sur
   **8B**, pas sur 3B.
 * Le coût d'un **sweep d'hyperparamètres** (λ × 541 prompts IFEval) est projeté
   à partir des latences ci-dessus : ≈ 2 × 541 × 326 s = **98 h** par point de
   grille en IFEval complet, d'où la décision d'exclure IFEval du critère G1
-  (cf. `docs/design/G1_PROTOCOL.md`).
+  (cf. `modules/a2d/docs/design/G1_PROTOCOL.md`).

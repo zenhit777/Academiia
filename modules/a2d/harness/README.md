@@ -21,7 +21,7 @@ harness/
     └── .cache/        ← HF_HOME, PIP_CACHE_DIR, TMPDIR, XDG_CACHE_HOME (NON versionné)
 ```
 
-* **Une famille = un dossier.** `harness/dream/` pour Dream-7B ;
+* **Une famille = un dossier.** `modules/a2d/harness/dream/` pour Dream-7B ;
   `harness/nemotron/` pour Nemotron-Labs-Diffusion-3B (à venir, porte G1b) ;
   `harness/diffusiongemma/` pour le setup médical (porte G2).
 * **Tout ce qui n'est pas partageable vit dans le dossier de la famille**, sous
@@ -51,9 +51,9 @@ harness/
 2. Tout résultat porte son **effectif**, ses **graines** et son **protocole**
    dans les métadonnées (`results_*.json` du fork lm-eval).
 3. Une évaluation à effectif réduit est un **contrôle**, pas une mesure : le
-   rapport doit le dire (cf. `docs/design/EVAL_BUDGET.md`).
+   rapport doit le dire (cf. `modules/a2d/docs/design/EVAL_BUDGET.md`).
 4. Les dossiers dont le nom encode un chemin absolu sont **interdits** : voir
-   `scripts/restructure_eval_dirs.py` (mission J6bis C6).
+   `modules/a2d/eval/restructure_eval_dirs.py` (mission J6bis C6).
 
 ## Harnais présents
 

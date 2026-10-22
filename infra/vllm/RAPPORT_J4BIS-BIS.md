@@ -3,7 +3,7 @@
 Rapport consolidé des opérations exécutées en finalisation de **J4Bis** (prompt de
 mission : « critère de sortie : smoke PASS sur Jainius ET D_p, résultats consignés,
 docs/compose alignés, CI verte »). Sources : `_artefact/vllm_test/` (logs bruts),
-`vLLM/KNOWN_ISSUES.md` (matrice E0→E6), commits git, `eval/results_*.json`.
+`infra/vllm/KNOWN_ISSUES.md` (matrice E0→E6), commits git, `eval/results_*.json`.
 Sorties brutes complètes : `_artefact/vllm_test/` (dossier non versionné).
 
 ## 0. Cadre de la session
@@ -50,9 +50,9 @@ d'experience E0/E1/E2 prets a copier ».
   Vérification exigée par le prompt : **`docker compose config` réel, 3 cas**
   (défaut / vide / surcharge) — fichier `_artefact/vllm_test/E1.server.log` (défaut
   vide effectif pendant E1) et test dédié `test_compose_config_resolves_alloc_conf`.
-- **(b)** profils E0/E1/E2 en blocs commentés copiables dans `vLLM/.env.template`
+- **(b)** profils E0/E1/E2 en blocs commentés copiables dans `infra/vllm/.env.template`
   (section « PROFILS D'EXPERIENCE (J4Bis, 2026-10-19) »).
-- **(c)** `vLLM/scripts/tests/test_compose.py` étendu (sémantique `${V-d}` vs
+- **(c)** `infra/vllm/modules/a2d/tests/test_compose.py` étendu (sémantique `${V-d}` vs
   `${V:-d}`, valeur vide conservée, surcharge, résolution `docker compose config`).
   Résultat d'exécution : **17/17 passent sous WSL** (y compris les 2 tests qui
   appellent `docker compose config`) ; sous Windows pur, 4 tests échouent
@@ -71,7 +71,7 @@ d'experience E0/E1/E2 prets a copier ».
 | **E1** | `latest` — moteur exécuté constaté **v0.24.0** (log `core.py:114` « Initializing a V1 LLM engine (v0.24.0) »). NB : l'en-tête harnais « AVANT : image » d'E1 affiche le digest de `gemma` (9c719fc0…) — anomalie d'en-tête, non d'exécution (vérifié sur la ligne moteur) | runner V2 (défaut), `--enforce-eager`, `--cpu-offload-gb 30`, `--max-model-len 4096`, util 0.90, `PYTORCH_CUDA_ALLOC_CONF=` (vide), `CUDA_LAUNCH_BLOCKING=1` | 1 170 MiB → 763 MiB (libres : 31 018 → 31 425) ; RAM vue par vLLM : 26,79 GiB disponibles | ~362 s (16:32 → 16:38) | Chargement **RÉUSSI** (48,58 GiB, 305,4 s) puis `Available KV cache memory: -1.71 GiB` → `ValueError` → conteneur arrêté. `device not ready` **n'est PAS réapparu** : le mode de défaillance a changé. Sorties : `E1.server.log` |
 | **E2** | `latest` = `vllm/vllm-openai@sha256:251eba5cc7c12fed0b75da22a9240e582b1c9e39f6fbc064f86781b963bd814f` (vLLM 0.24.0) | runner V2, **`--cpu-offload-gb 0`**, **`--quantization fp8`** (à la volée), `--max-model-len 2048`, `--max-num-seqs 1`, util **0.92**, `PYTORCH_CUDA_ALLOC_CONF=` | boucle monitor : 762 MiB (16:39:11) → **31 996 MiB** (16:45:39) ; RAM hôte stable ~4-6 GiB | startup « complete » en ~6 min ; smoke 2,7 s | **PREMIÈRE GÉNÉRATION** (HTTP 200, texte non vide, 301 car., `finish_reason: length`) — poids FP8 : **25,85 GiB**, cache KV **2,57 GiB** (12 137 tokens). Verdict smoke : **FAIL** (vocabulaire dégénéré, 12 mots uniques/64 ; reproduit sur 3 prompts × temp {0, 0,8}) — `eval/smoke_jainius_20261019_164553.json`. **Critère d'arrêt atteint → passage à TÂCHE 3** |
 | **E2b** | `gemma` 9c719fc0… + FP8 (variante « si nécessaire » autorisée par E2) | FP8, offload 0 | 787 MiB → 787 MiB | ~50 s (16:47) | Échec à l'init : `RuntimeError: UVA is not available` (`platforms/interface.py:758` → pin_memory False inconditionnel sous WSL) → `gemma` inutilisable en V2 sur cette machine. Sorties : `E2b.server.log` |
-| **E3** | `latest` 251eba5c… | identique à E2 + quantification FP8 **par canal de sortie** (`fp8_per_channel`) | 788 MiB (16:51:42) → 17 383 MiB (16:59:38)… puis serveur ; smoke mensuel idem | ~8 min | Écart explicite vs la liste E2 **consigné avant exécution** (`vLLM/KNOWN_ISSUES.md` §E3). Verdict smoke : FAIL inchangé (`eval/smoke_jainius_20261019_170010.json`) → hypothèse « granularité de l'échelle FP8 » écartée |
+| **E3** | `latest` 251eba5c… | identique à E2 + quantification FP8 **par canal de sortie** (`fp8_per_channel`) | 788 MiB (16:51:42) → 17 383 MiB (16:59:38)… puis serveur ; smoke mensuel idem | ~8 min | Écart explicite vs la liste E2 **consigné avant exécution** (`infra/vllm/KNOWN_ISSUES.md` §E3). Verdict smoke : FAIL inchangé (`eval/smoke_jainius_20261019_170010.json`) → hypothèse « granularité de l'échelle FP8 » écartée |
 
 > Conformité au budget du prompt : 5 démarrages pour TÂCHE 2 (limite 6 non
 > atteinte). Après E2, la règle d'arrêt (« HTTP 200 + texte non vide → arrêter la
@@ -104,8 +104,8 @@ d'experience E0/E1/E2 prets a copier ».
   Jainius détecte une dégénérescence, celui de D_p pas. Distinction entre
   « problème de pile de service » et « problème de checkpoint » : **D_p sain
   sur la même pile** → la pile n'est pas en cause.
-- Mention DP8 requise (d) : reproduite dans `vLLM/KNOWN_ISSUES.md`, `vLLM/.env.template`,
-  `vLLM/docker-compose.yml`, `eval/RESULTS.md` : toute comparaison de la session est
+- Mention DP8 requise (d) : reproduite dans `infra/vllm/KNOWN_ISSUES.md`, `infra/vllm/.env.template`,
+  `infra/vllm/docker-compose.yml`, `modules/a2d/legacy/eval/RESULTS.md` : toute comparaison de la session est
   **relative et en FP8**, pas en BF16.
 
 ---
@@ -137,8 +137,8 @@ réparation ont **dépassé le périmètre du prompt J4Bis**, notamment ses règ
    - **E6** — rappel D_p (config idem) : PASS
      (`eval/smoke_diffusiongemma_it_20261019_170756.json`) → critère (1) côté D_p.
 4. **J5 exécuté en extension** (18:39-18:56, 2 sessions × 2 modèles) :
-   `scripts/eval_compare.py` + 103 prompts × 2 passes ; sorties `eval/results_Dp.json`,
-   `eval/results_jainius_a03.json`, rapport `eval/RESULTS.md`.
+   `modules/a2d/eval/eval_compare.py` + 103 prompts × 2 passes ; sorties `eval/results_Dp.json`,
+   `eval/results_jainius_a03.json`, rapport `modules/a2d/legacy/eval/RESULTS.md`.
    Faits chiffrés : D_p 100 % juste / 116,4 tok/s ; Jainius α=0.3 88,1 % / 21,1 tok/s
    (1re passe 91,0 %) ; 0 % de répétitions dégénérées des deux côtés.
    **Verdict qualité exécuté ici, hors mandat J4Bis** (le prompt l'interdisait sur
@@ -148,19 +148,19 @@ réparation ont **dépassé le périmètre du prompt J4Bis**, notamment ses règ
 
 ## 5. TÂCHE 4 — Alignement compose et docs sur la réalité
 
-- **(a)** `vLLM/docker-compose.yml` + `.env.template` : défauts = config qui marche
+- **(a)** `infra/vllm/docker-compose.yml` + `.env.template` : défauts = config qui marche
   (digest `251eba…`, FP8, offload 0, 2048, max-num-seqs 1, util 0.92, eager) ;
   aucun défaut ne pointe sur une config qui échoue.
-- **(b)** `vLLM/KNOWN_ISSUES.md` : matrice incident A (18/10) + E0→E6, image/version,
+- **(b)** `infra/vllm/KNOWN_ISSUES.md` : matrice incident A (18/10) + E0→E6, image/version,
   runner, offload, quantif, résultat, source (« observé 2026-10-18 par
   l'utilisateur » / « 2026-10-19 par l'agent »). H1 confirmée sur le mécanisme
   (E0) ; H2 requalifiée (E1) ; H3 validée en pratique (E2).
 - **(c)** distribution = **Ubuntu** (« Morpheus » = nom d'hôte) corrigé dans
-  `vLLM/KNOWN_ISSUES.md` et `GUIDE_RESTANT.md` ; AGENTS règle n°6 = VRAM/LM Studio
+  `infra/vllm/KNOWN_ISSUES.md` et `GUIDE_RESTANT.md` ; AGENTS règle n°6 = VRAM/LM Studio
   (commit `1656263`, pré-session) ; `GUIDE_RESTANT.md` : encadré « Les trois
   chiffres à ne pas confondre » (48,14 GiB poids / 29,29 GiB budget / 31,84 GiB
   VRAM physique).
-- **(d)** CI : pytest passe (17/17 vLLM sous WSL, 15/15 scripts/tests) ; syntaxe
+- **(d)** CI : pytest passe (17/17 vLLM sous WSL, 15/15 modules/a2d/tests) ; syntaxe
   `ast.parse` OK. CI GitHub non rejouée sur les 3 commits locaux (non poussés).
 
 ---
@@ -194,7 +194,7 @@ réparation ont **dépassé le périmètre du prompt J4Bis**, notamment ses règ
   statique par tenseur et par canal** ; le point « noyaux Blackwell adaptés »
   n'est pas instrumenté au-delà du résultat d'exécution.
 - Mécanisme du ralentissement ×5 (arrêt sur `confidence_threshold`) :
-  plausible, **non instrumenté** (consigné comme tel) — `eval/RESULTS.md`.
+  plausible, **non instrumenté** (consigné comme tel) — `modules/a2d/legacy/eval/RESULTS.md`.
 - **Provenance de τ_A utilisée pour la refusion** : mapping par existence des
   `.npy` (manifest τ absent, `--allow-missing-tau-manifest`), puis nettoyage
   de `_artefact/tau_a` : reproductibilité du build α=0.3 limitée sur cette
@@ -207,7 +207,7 @@ réparation ont **dépassé le périmètre du prompt J4Bis**, notamment ses règ
   checkpoint ~48 GiB et τ_A reconstitible, cf. ci-dessus ; τ_A absent de
   `_artefact/tau_a` au moment du rapport).
 - Les 2 runs smoke `D_p` annoncés au-delà du JSON conservé (§E6 « 3/3 » dans
-  `vLLM/KNOWN_ISSUES.md`) : un seul JSON matérialisé dans `eval/`.
+  `infra/vllm/KNOWN_ISSUES.md`) : un seul JSON matérialisé dans `eval/`.
 - `git push` : réservé à l'utilisateur (3 commits locaux en attente).
 - CI GitHub sur les 3 commits locaux : pas encore rejouée (push requis).
 
@@ -227,8 +227,8 @@ b909600 fix: compose — échapper en $$ les variables du SHELL (interpolation C
 a0c9d7c docs: énoncer l'incident vLLM du 2026-10-18, purger les affirmations non prouvées et fix_dtype
 
 $ git status --short
-?? vLLM/RAPPORT_J4BIS-BIS.md
-M  vLLM/KNOWN_ISSUES.md
+?? infra/vllm/RAPPORT_J4BIS-BIS.md
+M  infra/vllm/KNOWN_ISSUES.md
 ```
 
 > Conformité aux règles GIT du prompt : commits locaux atomiques, aucun push,

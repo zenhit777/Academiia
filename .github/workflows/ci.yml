@@ -9,12 +9,16 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install safetensors torch numpy pytest pyyaml peft transformers accelerate
-      - name: Syntaxe recursive de scripts/ et legacy/scripts/
+      # Paquets importables (academiia.core / academiia.a2d) : les CLI et les
+      # tests importent le projet installe, plus aucun aménagement de sys.path.
+      - run: pip install -e .
+      - name: Syntaxe recursive des modules et de l'infra
         run: |
           python - <<'EOF'
           import ast, glob, sys
-          files = (sorted(glob.glob('scripts/**/*.py', recursive=True))
-                   + sorted(glob.glob('legacy/scripts/**/*.py', recursive=True)))
+          files = (sorted(glob.glob('academiia/**/*.py', recursive=True))
+                   + sorted(glob.glob('modules/a2d/**/*.py', recursive=True))
+                   + sorted(glob.glob('infra/vllm/**/*.py', recursive=True)))
           assert files, "aucun script trouve"
           for f in files:
               ast.parse(open(f, encoding='utf-8').read(), filename=f)
@@ -43,9 +47,9 @@ jobs:
           np.save("/tmp/dummy_tau/model_language_model_layers_0_self_attn_q_proj_weight.npy",
                   np.full((8, 8), 0.05, dtype=np.float32))
           EOF
-          python legacy/scripts/merge_jainius.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --output /tmp/dummy_out --alpha 0.3 --overwrite
-          python scripts/verify_checkpoint.py --checkpoint /tmp/dummy_out
-          python legacy/scripts/measure_effect.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --alphas 0.3 --output /tmp/measure.json
+          python modules/a2d/legacy/scripts/merge_jainius.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --output /tmp/dummy_out --alpha 0.3 --overwrite
+          python modules/a2d/cli/verify_checkpoint.py --checkpoint /tmp/dummy_out
+          python modules/a2d/legacy/scripts/measure_effect.py --diffusiongemma /tmp/dummy_dg --tau-dir /tmp/dummy_tau --alphas 0.3 --output /tmp/measure.json
       - name: Merge A2D conforme (merge_a2d.py) + verification (verify_merge.py)
         run: |
           python - <<'EOF'
@@ -71,49 +75,49 @@ jobs:
               json.dump({"architectures": ["Toy"]}, open(f"{d}/config.json", "w"))
           EOF
           # A2D-Transfer : D_b + alpha*tau_A
-          python scripts/merge_a2d.py --mode transfer \
+          python modules/a2d/cli/merge_a2d.py --mode transfer \
             --diffusion-base /tmp/a2d/d_base \
             --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
             --alpha 0.9 --mapping identity --output /tmp/a2d/transfer
-          python scripts/verify_merge.py --merged /tmp/a2d/transfer --reference /tmp/a2d/d_base \
+          python modules/a2d/cli/verify_merge.py --merged /tmp/a2d/transfer --reference /tmp/a2d/d_base \
             --mode transfer --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
             --alpha 0.9 --mapping identity
           # A2D-Merge : D_p + lambda*(tau_A - tau_D)
-          python scripts/merge_a2d.py --mode merge \
+          python modules/a2d/cli/merge_a2d.py --mode merge \
             --diffusion /tmp/a2d/d_post \
             --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
             --tau-d-post /tmp/a2d/d_post --tau-d-base /tmp/a2d/d_base \
             --lambda 0.6 --mapping identity --output /tmp/a2d/merge
-          python scripts/verify_merge.py --merged /tmp/a2d/merge --reference /tmp/a2d/d_post \
+          python modules/a2d/cli/verify_merge.py --merged /tmp/a2d/merge --reference /tmp/a2d/d_post \
             --mode merge --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
             --tau-d-post /tmp/a2d/d_post --tau-d-base /tmp/a2d/d_base \
             --lambda 0.6 --mapping identity
           # un coefficient errone doit etre detecte
-          if python scripts/verify_merge.py --merged /tmp/a2d/transfer --reference /tmp/a2d/d_base \
+          if python modules/a2d/cli/verify_merge.py --merged /tmp/a2d/transfer --reference /tmp/a2d/d_base \
               --mode transfer --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
               --alpha 0.3 --mapping identity; then
             echo "ERREUR: verify_merge aurait du detecter alpha=0.3 sur un merge a 0.9"
             exit 1
           fi
-      - run: pytest scripts/tests -q
+      - run: pytest modules/a2d/tests tests -q
       - name: Tests adversariaux (mutations) de la bibliotheque A2D
         run: |
           # Chaque mutation d'un merge correct doit etre detectee par la
           # verification (BLK-01, BLK-02, MAJ-01, MAJ-02, MAJ-03).
-          python -m pytest scripts/tests/test_a2d_mutation.py -v
+          python -m pytest modules/a2d/tests/test_a2d_mutation.py -v
       - name: Modes A2D non couverts par le test unitaire (CLI)
         run: |
           # 1. ablation-dp-minus-tau-d : doit FUSIONNER tau_D (BLK-01)
-          python scripts/merge_a2d.py --mode ablation-dp-minus-tau-d \
+          python modules/a2d/cli/merge_a2d.py --mode ablation-dp-minus-tau-d \
             --diffusion /tmp/a2d/d_post \
             --tau-d-post /tmp/a2d/d_post --tau-d-base /tmp/a2d/d_base \
             --lambda 0.5 --mapping identity --output /tmp/a2d/minus
-          python scripts/verify_merge.py --merged /tmp/a2d/minus --reference /tmp/a2d/d_post \
+          python modules/a2d/cli/verify_merge.py --merged /tmp/a2d/minus --reference /tmp/a2d/d_post \
             --mode ablation-dp-minus-tau-d \
             --tau-d-post /tmp/a2d/d_post --tau-d-base /tmp/a2d/d_base \
             --lambda 0.5 --mapping identity
           # 2. verify_merge --mode merge SANS tau_D doit etre refuse (MAJ-01)
-          if python scripts/verify_merge.py --merged /tmp/a2d/transfer --reference /tmp/a2d/d_base \
+          if python modules/a2d/cli/verify_merge.py --merged /tmp/a2d/transfer --reference /tmp/a2d/d_base \
               --mode merge --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
               --lambda 0.6 --mapping identity; then
             echo "ERREUR: verify_merge aurait du refuser le mode merge sans tau_D"
@@ -135,7 +139,7 @@ jobs:
                          "weight_map": {k: "model-00001-of-00001.safetensors" for k in spec}},
                         open(f"{d}/model.safetensors.index.json", "w"))
           EOF
-          if python scripts/merge_a2d.py --mode merge \
+          if python modules/a2d/cli/merge_a2d.py --mode merge \
               --diffusion /tmp/a2d/d_post \
               --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
               --tau-d-post /tmp/a2d/partial_post --tau-d-base /tmp/a2d/partial_base \
@@ -144,7 +148,7 @@ jobs:
             exit 1
           fi
           # 4. en politique 'zero-fill', le meme cas passe et est declare
-          python scripts/merge_a2d.py --mode merge \
+          python modules/a2d/cli/merge_a2d.py --mode merge \
             --diffusion /tmp/a2d/d_post \
             --tau-a-post /tmp/a2d/ar_post --tau-a-base /tmp/a2d/ar_base \
             --tau-d-post /tmp/a2d/partial_post --tau-d-base /tmp/a2d/partial_base \
@@ -158,8 +162,8 @@ jobs:
           print("zero-fill declare :", m["coverage"]["n_zero_filled"], "modules")
           EOF
       # Test compose vLLM (docker-compose.yml, sans Docker : YAML + simulation bash)
-      - run: pytest vLLM/scripts/tests -q
-      - run: bash -n vLLM/diagnose_image.sh vLLM/smoke.sh
-      - run: python -m py_compile vLLM/smoke_chat.py
+      - run: pytest infra/vllm/scripts/tests -q
+      - run: bash -n infra/vllm/diagnose_image.sh infra/vllm/smoke.sh
+      - run: python -m py_compile infra/vllm/smoke_chat.py
 
 # Fin de la section checks.

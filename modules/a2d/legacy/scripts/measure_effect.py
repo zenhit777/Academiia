@@ -22,7 +22,7 @@ Methode (CPU seul) :
     modifie = (bits(applied) != 0)
 
 Usage :
-    python legacy/scripts/measure_effect.py \
+    python modules/a2d/legacy/scripts/measure_effect.py \
         --diffusiongemma checkpoints/diffusiongemma_it \
         --tau-dir _artefact/tau_a \
         --alphas 0.05,0.1,0.2,0.3 \
@@ -31,7 +31,7 @@ Usage :
     # defaut). Pour DiffusionGemma, l'App. A.2 dit que les embeddings, les normes
     # et la tete de sortie restent INCHANGES ; cette variante n'est donc pas la
     # configuration du papier (rectificatif J6bis : MIN-06).
-    python legacy/scripts/measure_effect.py --include-norms-embed ...
+    python modules/a2d/legacy/scripts/measure_effect.py --include-norms-embed ...
 """
 
 import argparse

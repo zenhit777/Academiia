@@ -1,6 +1,6 @@
 """Contrôles de forme des réponses générées (parties pures, sans réseau).
 
-Extraits de l'ancien `scripts/eval_compare.py` pour que les tests importent le
+Extraits de l'ancien `modules/a2d/eval/eval_compare.py` pour que les tests importent le
 paquet installé plutôt que d'ajouter un chemin à `sys.path`.
 """
 

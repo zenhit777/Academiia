@@ -7,17 +7,17 @@ generation a **epuise le budget** de tokens sans produire de reponse finale
 de 512 tokens peut masquer un gain du transfert A2D.
 
 Le sous-ensemble est ecrit au format JSONL consomme par la tache lm-eval
-`harness/dream/tasks/math_trunc_a2d.yaml` ; un manifeste porte la provenance
+`modules/a2d/harness/dream/tasks/math_trunc_a2d.yaml` ; un manifeste porte la provenance
 (modele, budget, critere, empreintes SHA-256 des fichiers d'echantillons lus).
 
 Usage :
 
-    python scripts/make_math_trunc_subset.py \
-        --samples-root eval/dream_a2d \
+    python modules/a2d/eval/make_math_trunc_subset.py \
+        --samples-root modules/a2d/eval/dream_a2d \
         --model dream_transfer_a09 \
         --tokenizer checkpoints/dream_7b_instruct \
         --budget 512 \
-        --output harness/dream/tasks/math_trunc_a2d.jsonl
+        --output modules/a2d/harness/dream/tasks/math_trunc_a2d.jsonl
 
 Le script ne lit que des fichiers de resultats deja versionnes : aucun GPU,
 aucune ecriture hors du depot.
@@ -135,12 +135,12 @@ def collect(args, tokenizer) -> tuple[list[dict], dict]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--samples-root", default="eval/dream_a2d")
+    parser.add_argument("--samples-root", default="modules/a2d/eval/dream_a2d")
     parser.add_argument("--model", default="dream_transfer_a09",
                         help="modele dont les echantillons definissent les items tronques")
     parser.add_argument("--tokenizer", default="checkpoints/dream_7b_instruct")
     parser.add_argument("--budget", type=int, default=512)
-    parser.add_argument("--output", default="harness/dream/tasks/math_trunc_a2d.jsonl")
+    parser.add_argument("--output", default="modules/a2d/harness/dream/tasks/math_trunc_a2d.jsonl")
     parser.add_argument("--manifest", default=None,
                         help="manifeste JSON (defaut : <output>.manifest.json)")
     parser.add_argument("--keep-complete", action="store_true",

@@ -19,7 +19,7 @@ calcule :
 
 Deux runs sont **comparables** si et seulement si `items_sha256`,
 `prompts_sha256` et `config` sont identiques. C'est le contrôle demandé par le
-protocole G1 (`docs/design/G1_PROTOCOL.md`).
+protocole G1 (`modules/a2d/docs/design/G1_PROTOCOL.md`).
 
 Provenance (audit N1, F8) : le champ `git_hash` des `results_*.json` est le
 commit du **fork Dream** (`DreamLM/Dream`), pas un commit d'Academiia — il est
@@ -27,8 +27,8 @@ donc publié sous le nom `fork_git_hash`, et le commit d'Academiia au moment du
 run sous `academiia_head_at_run`.
 
 Usage :
-    python scripts/eval_item_fingerprint.py --root eval/dream_a2d
-    python scripts/eval_item_fingerprint.py --run eval/dream_a2d/dream_7b_base/gsm8k_cot_a2d
+    python modules/a2d/eval/eval_item_fingerprint.py --root modules/a2d/eval/dream_a2d
+    python modules/a2d/eval/eval_item_fingerprint.py --run modules/a2d/eval/dream_a2d/dream_7b_base/gsm8k_cot_a2d
 """
 
 from __future__ import annotations
@@ -155,7 +155,7 @@ def fingerprint(run_dir: Path) -> dict:
         # samples_*.jsonl (le fork ecrit les echantillons dans l'ordre ou il
         # les a evaluates). Sans le `sorted`, ce hash mesurerait l'ordre ;
         # avec, il dupliquerait `items_sha256` (cf. valeurs de reference
-        # versionnees dans eval/dream_a2d/ITEM_FINGERPRINTS.json).
+        # versionnees dans modules/a2d/eval/dream_a2d/ITEM_FINGERPRINTS.json).
         "items_order_sha256": _sha256_list(f"{a}:{b}" for a, b in items),
         "prompts_sha256": _sha256_list(sorted(prompts)),
         "targets_sha256": _sha256_list(sorted(targets)),
@@ -168,7 +168,7 @@ def fingerprint(run_dir: Path) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", default="eval/dream_a2d",
+    parser.add_argument("--root", default="modules/a2d/eval/dream_a2d",
                         help="racine des resultats (<root>/<modele>/<tache>)")
     parser.add_argument("--run", default=None,
                         help="un seul dossier de run")

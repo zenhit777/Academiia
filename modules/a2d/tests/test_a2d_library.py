@@ -1,4 +1,4 @@
-"""Tests de la bibliotheque A2D (scripts/a2d) — modeles jouets, sans GPU.
+"""Tests de la bibliotheque A2D (modules/a2d/a2d) — modeles jouets, sans GPU.
 
 Lancer : pytest modules/a2d/tests -q
 

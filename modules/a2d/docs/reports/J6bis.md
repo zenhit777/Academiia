@@ -1,5 +1,9 @@
 # Rapport de mission J6bis — Clôture corrective de J6 : intégrité, bibliothèque, harnais, protocole d'évaluation
 
+> **Document historique (J6–J8).** Les chemins cités dans ce rapport sont
+> ceux de l'époque : la table de migration des chemins est
+> [`docs/adr/path-migration.md`](../../../docs/adr/path-migration.md).
+
 **Date** : 2026-10-20 · **Périmètre** : sections A à E de la mission J6bis
 (A1–A3, B1–B7, C1–C7, D1–D3, E1–E4) · **J7, G2, G3 : non démarrés**
 (le push est réservé à l'utilisateur : les 5 commits ci-dessous sont **locaux**).
