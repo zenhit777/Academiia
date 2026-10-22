@@ -2,7 +2,7 @@
 
 > **Document historique (J6–J8).** Les chemins cités dans ce rapport sont
 > ceux de l'époque : la table de migration des chemins est
-> [`docs/adr/path-migration.md`](../../../docs/adr/path-migration.md).
+> [`docs/adr/path-migration.md`](../../../../docs/adr/path-migration.md).
 
 **Date** : 2026-10-20 (campagne) / 2026-10-21 (versionnement) · **Auteur de l'audit** : OpenCode
 (N1) · **Vérification** : architecte (N2) · **Cible auditée** : commit `ad4c888`

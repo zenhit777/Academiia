@@ -50,9 +50,6 @@ def markdown_files() -> list:
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         if rel_dir == ".":
             rel_dir = ""
-        if any(rel_dir == tree or rel_dir.startswith(tree + os.sep)
-               for tree in SKIP_TREES):
-            continue
         for name in filenames:
             if name.endswith(".md"):
                 out.append(Path(dirpath) / name)
@@ -63,6 +60,9 @@ def check_file(path: Path) -> list:
     """Retourne la liste des liens cassés [(cible, raison)]."""
     broken = []
     text = path.read_text(encoding="utf-8", errors="replace")
+    rel = str(path.relative_to(REPO_ROOT))
+    historical = any(rel == tree or rel.startswith(tree + os.sep)
+                     for tree in SKIP_TREES)
     for raw in LINK_RE.findall(text):
         target = raw.strip()
         if target.startswith("<") and target.endswith(">"):
@@ -75,6 +75,11 @@ def check_file(path: Path) -> list:
         target = target.split("#", 1)[0].split("?", 1)[0]
         if not target:
             continue
+        if historical:
+            # Document historique : seul le bandeau de migration est contrôlé
+            # (les autres liens pointent vers les chemins de l'époque).
+            if "path-migration.md" not in target:
+                continue
         if target.startswith("/"):
             resolved = REPO_ROOT / target.lstrip("/")
         else:

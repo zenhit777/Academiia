@@ -1,5 +1,13 @@
 # État du projet Academiia — 2026-10-21 (fin de la mission J8)
 
+> **Mise à jour J9 (2026-10-22)** : réorganisation du dépôt en **pipeline
+> modulaire** (module A2D sous `modules/a2d/`, code générique sous
+> `academiia/core/`, paquets importables `academiia.core` / `academiia.a2d`).
+> **Aucun résultat, aucun seuil et aucun verdict n'ont été modifiés** ; le
+> verdict G1 recalculé est **strictement identique** à celui stocké. Voir
+> `docs/ARCHITECTURE.md`, `docs/adr/path-migration.md` et
+> `modules/a2d/docs/reports/J9.md`.
+
 Ce document est le **point d'entrée** pour savoir ce qui est démontré, ce qui ne l'est pas, et
 où se trouve chaque chose. Il remplace les statuts dispersés dans les rapports de mission ;
 les rapports eux-mêmes restent la source des chiffres.

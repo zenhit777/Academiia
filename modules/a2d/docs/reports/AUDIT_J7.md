@@ -2,7 +2,7 @@
 
 > **Document historique (J6–J8).** Les chemins cités dans ce rapport sont
 > ceux de l'époque : la table de migration des chemins est
-> [`docs/adr/path-migration.md`](../../../docs/adr/path-migration.md).
+> [`docs/adr/path-migration.md`](../../../../docs/adr/path-migration.md).
 
 **Date** : 2026-10-21 · **HEAD audité** : `027b952` · **Auditeur** : agent de codage
 (OpenCode), sur demande de l'utilisateur · **Périmètre** : mission J7, Phases 0–4 ·
