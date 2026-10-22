@@ -56,6 +56,7 @@ n'est donc plus une source unique.
 | ↳ `hub/datasets--*`, `modules/transformers_modules/dream_*` | — | | | datasets + code `trust_remote_code` des checkpoints Dream |
 | `/home/sjteb/.cache/uv/` | **40 329 711 647** (37,6 Go) | `sjteb:sjteb` | 2026-10-12 17:08 | caches `uv` (hors missions A2D) |
 | `/home/sjteb/.cache/pip/` | **8 869 011 825** (8,26 Go) | `sjteb:sjteb` | 2026-10-12 05:56 | wheels + cache HTTP pip |
+| ↳ complément **J10 (2026-10-22)** | — | — | — | quelques entrées `http-v2` ajoutées par les `pip install` de la mission J10 (venv de développement `_artefact/venv-dev`, installation editable) : **écart à la règle 9 déclaré**, aucune suppression hors dépôt |
 | `/home/sjteb/.cache/vllm/` | **3 641 214 554** (3,39 Go) | `sjteb:sjteb` | 2026-04-29 | `modelinfos/`, `torch_compile_cache/` (campagne vLLM) |
 | `/home/sjteb/.cache/electron/` | 115 050 193 | `sjteb:sjteb` | | sans rapport avec le projet |
 | `/home/sjteb/.cache/node-gyp/` | 58 885 896 | `sjteb:sjteb` | | sans rapport avec le projet |
