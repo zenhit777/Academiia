@@ -7,19 +7,27 @@ code, listes à puces). Lancer :
 """
 
 from academiia.a2d.eval import eval_compare  # noqa: E402
+from academiia.a2d.textcheck import check_format, normalize, strip_reasoning
+
+
+def test_eval_compare_uses_the_single_textcheck_source():
+    # B3 : eval_compare ne redéfinit plus ces trois fonctions, il les importe
+    # depuis academiia.a2d.textcheck (source unique).
+    assert eval_compare.normalize is normalize
+    assert eval_compare.check_format is check_format
 
 
 def test_normalize_strip_accents_case_and_spaces():
-    assert eval_compare.normalize("  Lisbonne  ") == "lisbonne"
-    assert eval_compare.normalize("Égypte") == "egypte"
-    assert eval_compare.normalize("Nouvelle\nDelhi") == "nouvelle delhi"
-    assert eval_compare.normalize("Cœur") == "coeur"
+    assert normalize("  Lisbonne  ") == "lisbonne"
+    assert normalize("Égypte") == "egypte"
+    assert normalize("Nouvelle\nDelhi") == "nouvelle delhi"
+    assert normalize("Cœur") == "coeur"
 
 
 def test_strip_reasoning_removes_diffusion_prefix():
-    assert eval_compare.strip_reasoning("thought\n7 × 8 font 56.") == "7 × 8 font 56."
-    assert eval_compare.strip_reasoning("thoughtthoughtLa photosynthèse") == "La photosynthèse"
-    assert eval_compare.strip_reasoning("Réponse normale") == "Réponse normale"
+    assert strip_reasoning("thought\n7 × 8 font 56.") == "7 × 8 font 56."
+    assert strip_reasoning("thoughtthoughtLa photosynthèse") == "La photosynthèse"
+    assert strip_reasoning("Réponse normale") == "Réponse normale"
 
 
 def test_check_format_json_plain_and_fenced():
