@@ -38,7 +38,7 @@ Les résultats de mesure restent **avec** le code qui les produit
 ### 2. Règle de dépendance
 
 ```
-core  ←  a2d  ←  (opdlm, à venir)
+core  ←  a2d  ←  (d-OPD, à venir)
 ```
 
 * `academiia.core` **n'importe aucun module** du dépôt ;
@@ -69,9 +69,8 @@ dans `modules/a2d/eval/`.
 
 * **Pas de réécriture d'historique** : les rapports J6–J8 restent intacts et
   portent un bandeau renvoyant à la table de migration.
-* **Pas de module `opdlm`** en J9 : il est *planifié* (encapsulation du code
-  officiel + checkpoints 4B, Qwen3-4B comme modèle de référence). Aucun code,
-  aucun dossier.
+* **Pas de module d-OPD** en J9 : il est *planifié* (arXiv 2609.35362 ; dev sur
+  Qwen3-0.6B). Aucun code, aucun dossier. *(renommé d-OPD en J11)*
 * **Pas de tag de release** : le tag `archive/pre-restructure-J8` fige l'état
   d'avant réorganisation ; ce n'est pas une release.
 
@@ -80,6 +79,6 @@ dans `modules/a2d/eval/`.
 * `pytest modules/a2d/tests tests infra/vllm/scripts/tests` fonctionne après
   `pip install -e .` ;
 * la CI installe le projet (`pip install -e .`) avant toute invocation de CLI ;
-* un module futur (OPDLM) s'ajoute sous `modules/opdlm/` avec un paquet
-  `academiia.opdlm` qui n'importe que `academiia.core` ;
+* un module futur (d-OPD) s'ajoute sous `modules/dopd/` avec un paquet
+  `academiia.dopd` qui n'importe que `academiia.core` ;
 * tout nouveau `sys.path.insert` est une régression (à bloquer par relecture).

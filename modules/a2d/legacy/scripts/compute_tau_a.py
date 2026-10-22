@@ -13,7 +13,7 @@ pour l'outillage existant et pour le wrapper legacy.
 Saves intermediate numpy files for later merge step.
 Lecture via safetensors.safe_open (bits exacts). ATTENTION : sur cette machine le chemin
 legacy est BLOQUE en ENOMEM — `safe_open` pre-fault la projection du shard AR de 46,5 Go,
-au-dela des 30 Go de RAM de la VM WSL2 (cf. KNOWN_ISSUES.md). L'estimation historique
+au-dela des 30 Go de RAM de la VM WSL2 (cf. docs/KNOWN_ISSUES.md). L'estimation historique
 « ~2-3 GB peak RAM » etait fausse (rectificatif J6bis : MIN-06). La bibliotheque conforme
 (`modules/a2d/a2d/`) n'est pas concernee : elle recalcule tau_A a la volee, sans le
 materialiser.

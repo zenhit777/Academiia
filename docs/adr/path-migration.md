@@ -207,8 +207,8 @@ autre module ; `academiia.core` n'importe aucun module.
    Le venv contient des chemins absolus et serait de toute façon à
    reconstruire. Suppression après reconstruction au nouveau chemin —
    **accord utilisateur requis**.
-5. **`modules/opdlm/`** : module planifié (encapsulation du code officiel +
-   checkpoints 4B, modèle de référence Qwen3-4B). **Non créé en J9.**
+5. **`modules/dopd/`** : module **d-OPD** planifié (arXiv 2609.35362 ; dev sur
+   Qwen3-0.6B). **Non créé.** *(nom OPDLM -> d-OPD en J11)*
 6. **Distribution** : `academiia` est un paquet local (`pip install -e .`),
    API non stabilisée, usage personnel — pas de publication PyPI.
 
@@ -226,7 +226,19 @@ mentions **méta** :
 | `docs/adr/ADR-001-disposition.md` | description de la disposition **antérieure** |
 | `modules/a2d/docs/AUDIT_A2D_vs_PAPIER.md` | audit daté : le document annonce lui-même que ses chemins sont ceux de l'époque |
 | `modules/a2d/docs/VP_ADAPTERS.md` | chemins du **dépôt publié** des adaptateurs médicaux (`scripts/train.py`, …) : sans rapport avec ce dépôt |
-| `KNOWN_ISSUES.md` | entrées historiques explicitement conservées (annonce en tête de section) |
+| `docs/KNOWN_ISSUES.md` | entrées historiques explicitement conservées (annonce en tête de section) — fichier **déplacé de la racine en J11** |
 
 Hors de ces exceptions, le balayage ne trouve **aucune** occurrence d'ancien
 chemin dans les fichiers versionnés.
+
+## 6. Déplacements J11 (stabilisation post-J10)
+
+| Ancien chemin | Nouveau chemin | Nature |
+|---|---|---|
+| `CHECKLIST.md` | `docs/CHECKLIST.md` | document transversal (portes G1/G2/G3) : sorti de la racine pour que la racine ne contienne que l'entrée dans le pipeline |
+| `KNOWN_ISSUES.md` | `docs/KNOWN_ISSUES.md` | idem (anomalies connues) |
+
+Les liens relatifs de tous les documents **actifs** ont été mis à jour ; les
+rapports historiques (`modules/a2d/docs/reports/**`) et les archives legacy
+(`modules/a2d/legacy/docs/**`) gardent leurs chemins d'époque (bandeau de
+migration).

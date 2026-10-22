@@ -217,7 +217,7 @@ Jainius = DiffusionGemma + 0.3 * tau_A_mapped
    (`gevaertlab/diffusiongemma-radiology-vqa`, cf. `modules/a2d/docs/VP_ADAPTERS.md`). Ce qui manque à ce
    dépôt n'est pas τ_D mais la **chaîne complète** (adapters + merge + évaluation conforme).
  - **Le routeur est fusionné** (90 tenseurs sur 355), contrairement à ce qu'indiquaient
-   `AGENTS.md`/`KNOWN_ISSUES.md` (« routeur inchangé »). C'est sans effet mesurable ici
+   `AGENTS.md`/`docs/KNOWN_ISSUES.md` (« routeur inchangé »). C'est sans effet mesurable ici
    (τ_routeur ≈ 0), mais la documentation est désormais alignée sur le code.
  - A2D n'est appliqué qu'aux projections decoder (355 tenseurs sur 1047) : embeddings,
    normalisations, `layer_scalar` et encoder vision restent ceux de D_p — conforme à

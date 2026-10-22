@@ -8,7 +8,7 @@ une ablation, sans sélection de α sur ancre, et **sans gain mesuré** vs `D_p`
 
 > **Ne pas réintroduire ces scripts dans `modules/a2d/`.** Le pipeline **conforme** est
 > `modules/a2d/cli/merge_a2d.py` + `modules/a2d/a2d/` ; ses modes et garanties sont décrits dans
-> `README.md` et `CHECKLIST.md`. Les scripts ci-dessous ne sont conservés que pour
+> `README.md` et `docs/CHECKLIST.md`. Les scripts ci-dessous ne sont conservés que pour
 > rejouer le build historique et pour la traçabilité des audits.
 
 ## Contenu

@@ -148,7 +148,7 @@ En langage du papier :
   `self_conditioning` restent inchangés — conforme au principe « unmatched
   parameters kept from the diffusion recipient ».
 - Remarque : le routeur et les experts **sont** fusionnés par défaut (contra
-  `AGENTS.md`/`KNOWN_ISSUES.md` qui les disent « inchangés »). Pour notre
+  `AGENTS.md`/`docs/KNOWN_ISSUES.md` qui les disent « inchangés »). Pour notre
   vecteur général c'est sans effet mesurable (`τ_routeur ≈ 0`, `frac_changed`
   à α=0.3 : 0,1 %) ; pour un vecteur LoRA médical, experts/routeur/vision sont
   gelés (τ=0) donc le débat est moot, mais la doc est fausse.
@@ -203,8 +203,8 @@ En langage du papier :
 | E5 | **Aucune sélection de coefficient** (α=0.3 ad hoc ; plafond [0,1]) | Majeur | Tableau 6 : α=0.7/1.0, λ=0.3/0.1 pour DG ; balayages jusqu'à 1.4/1.5. |
 | E6 | **Évaluation non conforme** (FP8, temp=0, 128 tokens, texte, sans juge) | Majeur | A.1 : BF16/natif (0.8→0.4, entropy 0.1, block 256), VQA médicales, juge Qwen3.8-27B. |
 | E7 | **Aucune reproduction des tableaux principaux** (familles Dream/DiffuCoder/Nemotron) | Majeur | §3.2 du papier ; entièrement absent au dépôt. |
-| E8 | Contrainte machine : `safe_open` pré-fault 46,5 GiB → ENOMEM (VM 30 GiB) | Mineur (contournable) | `KNOWN_ISSUES.md` §Blocage ; contournable via LoRA (B·A) ou modèle 7B (shards ≤ 5 GiB). |
-| E9 | Docs : étiquettes « Tab. 9 », « variante papier », « routeur inchangé », « τ_D inexistant » | Mineur (correction doc) | `AGENTS.md`, `KNOWN_ISSUES.md`, docstrings. |
+| E8 | Contrainte machine : `safe_open` pré-fault 46,5 GiB → ENOMEM (VM 30 GiB) | Mineur (contournable) | `docs/KNOWN_ISSUES.md` §Blocage ; contournable via LoRA (B·A) ou modèle 7B (shards ≤ 5 GiB). |
+| E9 | Docs : étiquettes « Tab. 9 », « variante papier », « routeur inchangé », « τ_D inexistant » | Mineur (correction doc) | `AGENTS.md`, `docs/KNOWN_ISSUES.md`, docstrings. |
 
 **Ce qui est correct** (à créditer) : arithmétique FP32 → cast BF16 unique,
 écriture atomique, manifest de provenance, exclusion vision/embeddings/norms/
@@ -275,7 +275,7 @@ outil de vérification strict, tests de sûreté, métrologie de l'arrondi BF16.
 - `scripts/{download_models,compute_tau_a,merge_jainius,measure_effect,eval_compare,verify_checkpoint,smoke_int8,_common}.py`,
   `modules/a2d/tests/*`.
 - `_artefact/measure_effect*.json` (4 fichiers), `modules/a2d/legacy/eval/RESULTS.md`,
-  `KNOWN_ISSUES.md`, `infra/vllm/.env.template`.
+  `docs/KNOWN_ISSUES.md`, `infra/vllm/.env.template`.
 - Index de `checkpoints/{gemma4_base,gemma4_it,diffusiongemma_it}` ;
   `checkpoints/diffusiongemma_it/generation_config.json`.
 - Van Puyvelde et al. : arXiv:2607.01436 ; HF `gevaertlab/diffusiongemma-radiology-vqa` ;

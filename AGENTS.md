@@ -1,8 +1,8 @@
 # AGENTS.md — Instructions pour les agents IA de codage
 ## ⚠️ Fichiers à lire OBLIGATOIREMENT avant toute action
 - [`.cursorrules`](.cursorrules) → règles Cursor IDE (lu automatiquement par l'IDE)
-- [`CHECKLIST.md`](CHECKLIST.md) → vérifications obligatoires avant de considérer le projet "prêt"
-- [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) → anomalies connues (blocage mmap/RAM, J4Bis, J5 non conforme)
+- [`docs/CHECKLIST.md`](docs/CHECKLIST.md) → vérifications obligatoires avant de considérer le projet "prêt"
+- [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) → anomalies connues (blocage mmap/RAM, J4Bis, J5 non conforme)
 - [`modules/a2d/docs/A2D_SPEC.md`](modules/a2d/docs/A2D_SPEC.md) → **spécification de la méthode A2D** (équations, Table 6, cibles des Tables 1/16/21)
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) → **architecture** du dépôt (modules, dépendance, pipeline) et [`docs/adr/ADR-001-disposition.md`](docs/adr/ADR-001-disposition.md) → règles de disposition et de dépendance
 
@@ -19,7 +19,7 @@ Academiia/
 ├── AGENTS.md              ← Tu es ici
 ├── README.md              # Documentation projet (pipeline)
 ├── .gitignore             # Fichiers exclus du versioning
-├── requirements.txt       # Runtime principal
+├── requirements.txt       # pointeur vers pyproject.toml (source de vérité des versions)
 ├── pyproject.toml         # Paquets importables : academiia.core, academiia.a2d
 ├── academiia/             # CODE GÉNÉRIQUE (paquet `academiia.core`)
 │   └── core/              # stats (bootstrap/Wilson), empreintes, E/S safetensors
@@ -41,6 +41,8 @@ Academiia/
 ├── docs/                  # documentation DU PROJET
 │   ├── STATUS.md          # index court des modules (créé en J9)
 │   ├── ARCHITECTURE.md    # architecture (J9)
+│   ├── CHECKLIST.md       # vérifications avant « prêt » (déplacé de la racine en J11)
+│   ├── KNOWN_ISSUES.md    # anomalies connues (déplacé de la racine en J11)
 │   └── adr/               # ADR-001..003 + table de migration des chemins
 ├── tests/                 # pytest du CORE (academiia.core)
 ├── infra/vllm/            # service vLLM (infra J4Bis)
@@ -64,7 +66,7 @@ Academiia/
 4. **`_artefact/` est un dossier temporaire agents** — tous les fichiers générés qui n'ont pas vocation à être partagés (logs, exports, résultats de tests) doivent y être placés. Ignoré par git, jamais commité.
 5. **Lecture des safetensors via `safetensors.safe_open` uniquement** — parseur maison interdit (`.cursorrules`).
 6. **GPU/VRAM (inférence vLLM et harnais Dream)** : Docker et le GPU (RTX 5090 32 Go) fonctionnent dans WSL2. Avant TOUTE opération GPU : mesurer `nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free --format=csv` ; besoin vLLM ≈ `VLLM_GPU_MEMORY_UTILIZATION × total` (0,90 → ≈ 28,8 GiB). Si un modèle LM Studio est chargé ET `memory.free < besoin + 1 GiB` : STOPPER et demander la permission (citer mémoire libre, besoin, modèle détecté). Ne JAMAIS décharger un modèle LM Studio ni tuer de processus. Après chaque série GPU : `docker compose down`, re-mesurer. Détails : `infra/vllm/README.md` (règle VRAM).
-7. **Trajectoire par portes** : **G1** mécanique validée sur Qwen2.5-7B → Dream-7B → **G2** reproduction du cas DiffusionGemma médical du papier → **G3** raisonnement (hors papier, conception d'abord). Ne pas commencer une porte avant d'avoir franchi la précédente ; consigner l'état de chaque porte dans `CHECKLIST.md`.
+7. **Trajectoire par portes** : **G1** mécanique validée sur Qwen2.5-7B → Dream-7B → **G2** reproduction du cas DiffusionGemma médical du papier → **G3** raisonnement (hors papier, conception d'abord). Ne pas commencer une porte avant d'avoir franchi la précédente ; consigner l'état de chaque porte dans `docs/CHECKLIST.md`.
 8. **Toute évaluation générative consigne** : modèle, dtype/quantification, décodeur, paramètres, graine, nombre de prompts, et l'intervalle de confiance si l'effectif est réduit.
 9. **Aucune écriture hors du dépôt.** Tout ce qui est écrit doit vivre dans l'arborescence du dépôt (`_artefact/`, `harness/<famille>/.cache/`, `eval/`, `checkpoints/`…). Les caches d'outils (`~/.cache/huggingface`, `~/.cache/pip`, `/tmp`, `~/.cache/uv`) doivent être **redirigés** vers le dépôt, pas utilisés en plus. Une écriture déjà présente hors du dépôt est **inventoriée** (`modules/a2d/docs/reports/OUT_OF_WORKSPACE.md`) et **jamais supprimée sans accord écrit de l'utilisateur**.
 10. **Harnais d'évaluation : convention `modules/a2d/harness/<famille>/`.** Un harnais (lanceur, tâches, environnement, synthèse) vit dans `modules/a2d/harness/<famille>/` : `setup.sh` (idempotent), `requirements-*.txt`, `tasks/`, `run_evals.sh`, `summarize.py`. Ce qui n'est pas partageable (`.venv/`, `.fork/`, `.cache/`) reste dans le dossier de la famille et est ignoré par git. Les résultats vont dans `modules/a2d/eval/<famille>/<modèle>/<tâche>/`, **sans chemin absolu dans les noms de dossiers**. Voir `modules/a2d/harness/README.md`.

@@ -20,7 +20,7 @@ post-training du modèle de diffusion.
 | **a2d** (méthode) | [`modules/a2d/`](modules/a2d/) | `academiia.a2d` | validé mécaniquement — transfert, merge, ablations, vérification post hoc ; porte **G1 non franchie** |
 | **a2d legacy** | [`modules/a2d/legacy/`](modules/a2d/legacy/) | — | déprécié — pipeline Jainius (hors papier), conservé pour l'historique |
 | **infra vLLM** | [`infra/vllm/`](infra/vllm/) | — | en place — service d'inférence (image FP8 épinglée) |
-| **opdlm** | *à créer* | `academiia.opdlm` | planifié — aucun code à ce jour |
+| **d-OPD** | *à créer* | `academiia.dopd` | planifié — arXiv 2609.35362 ; dev sur Qwen3-0.6B ; aucun code à ce jour |
 
 Règle de dépendance : un module importe `academiia.core`, **jamais** un autre module
 → [ADR-001](docs/adr/ADR-001-disposition.md).
@@ -96,7 +96,7 @@ bash modules/a2d/harness/dream/setup.sh     # .venv/, .fork/, .cache/ sous le ha
 | [`modules/a2d/docs/A2D_SPEC.md`](modules/a2d/docs/A2D_SPEC.md) | spécification de la méthode (source primaire) |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | architecture du dépôt, dépendances, pipeline |
 | [`docs/STATUS.md`](docs/STATUS.md) | index court des modules |
-| [`CHECKLIST.md`](CHECKLIST.md) / [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) | vérifications avant « prêt » / anomalies connues |
+| [`docs/CHECKLIST.md`](docs/CHECKLIST.md) / [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) | vérifications avant « prêt » / anomalies connues |
 | [`modules/a2d/docs/reports/`](modules/a2d/docs/reports/) | rapports de mission (J6 → J10) |
 
 ## Licence

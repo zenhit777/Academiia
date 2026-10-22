@@ -54,9 +54,9 @@ la plus plausible, mais elle n'est **pas démontrée** (`modules/a2d/docs/report
 * **G2 (bibliothèque)** : mode `merge-dg-scaled` / `adapter-scale` — `base' = D_b + λ·τ_A`,
   adaptateur τ_D **non fusionné**, `lora_B × (1−λ)`, `lora_alpha` inchangé, vérification V5/V6
   (L2 relative ≤ 1e-2 BF16 / 1e-3 FP32, cosinus ≥ 1 − 1e-4), manifeste `diffusion_adapter`.
-* **Suite de tests** : **85 tests** (`python -m pytest modules/a2d/tests -q`), dont 8 ajoutés en J8
-  (G2, chargeabilité, mutations d'adaptateur) et 4 en J9 (facteur nul, intégration PEFT).
-  Le code générique a ses propres tests : `tests/test_core.py` (14).
+* **Suite de tests** : `python -m pytest modules/a2d/tests tests infra/vllm/scripts/tests -q`
+  (la suite pytest du dépôt ; le nombre de tests n'est **pas** figé dans la prose). Le code
+  générique a ses propres tests : `tests/test_core.py`.
 
 ## 3. Ce qui n'est PAS démontré
 
@@ -103,7 +103,7 @@ la plus plausible, mais elle n'est **pas démontrée** (`modules/a2d/docs/report
 
 ```bash
 # tests (DrvFs : rediriger TMPDIR dans le depot et garder la capture par defaut)
-TMPDIR="$PWD/_artefact/tmp" python -m pytest modules/a2d/tests tests -q   # 99 verts
+TMPDIR="$PWD/_artefact/tmp" python -m pytest modules/a2d/tests tests infra/vllm/scripts/tests -q --capture=sys   # tout vert (DrvFs : --capture=sys requis)
 
 # verdict G1 (recalcule a partir des echantillons versionnes)
 python modules/a2d/eval/g1_verdict.py            # ecrit modules/a2d/eval/dream_a2d/G1_VERDICT.json

@@ -11,7 +11,7 @@ d'index des sources, commit git, versions, normes par famille de tenseurs).
 Ce manifeste décrit **une** fusion. Il ne décrit pas :
 
 * la **lignée** d'un artefact (quel checkpoint est son parent ?) ;
-* le **module producteur** (a2d, legacy, opdlm ?) ;
+* le **module producteur** (a2d, legacy, dopd ?) ;
 * la **version** du code qui l'a produit ;
 * les **hashes** des fichiers produits (les shards eux-mêmes, pas l'index).
 
@@ -40,7 +40,7 @@ l'artefact (`lineage.json`), versionné avec le **schéma** :
     "hashes": { "model.safetensors.index.json": "…" }
   },
   "producer": {
-    "module": "a2d",                            // a2d | a2d.legacy | opdlm | core
+    "module": "a2d",                            // a2d | a2d.legacy | dopd | core
     "version": "0.1.0",                          // version du paquet
     "commit": "885b143",                         // commit git du producteur
     "command": "modules/a2d/cli/merge_a2d.py --mode transfer --alpha 0.9 …"
@@ -76,6 +76,6 @@ l'artefact (`lineage.json`), versionné avec le **schéma** :
 * Non implémenté en J9 : le schéma est **figé pour la suite**, mais aucun
   code ne l'écrit encore. L'implémentation est un travail distinct (module
   `core` : écriture/lecture du manifeste, hors périmètre J9).
-* Le module `opdlm` devra produire le même format de manifeste (ADR-003).
+* Le module `dopd` devra produire le même format de manifeste (ADR-003).
 * La provenance reste, en attendant, portée par `merge_config.json` +
   l'historique git.

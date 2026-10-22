@@ -18,7 +18,7 @@ Chiffres du Technical Report (1× H100, FP8, batch 1) : ~1500 tok/s,
 - `latest` (vLLM 0.24.0) : `VLLM_WSL2_ENABLE_PIN_MEMORY` CONNUE, plus d'erreur
   UVA, mais échec à `load_model` : `CUDA driver error: device not ready`
   (reproduit 2 fois) — non résolu à ce jour.
-- Voir `KNOWN_ISSUES.md` et l'arbre de décision ci-dessous.
+- Voir `infra/vllm/KNOWN_ISSUES.md` et l'arbre de décision ci-dessous.
 
 ## Prérequis
 

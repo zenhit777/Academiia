@@ -1,7 +1,7 @@
 # STATUS — index des modules
 
 Document **court** : il pointe vers l'état détaillé de chaque module. Il ne
-remplace ni `CHECKLIST.md` (portes G1/G2/G3) ni les rapports de mission.
+remplace ni `docs/CHECKLIST.md` (portes G1/G2/G3) ni les rapports de mission.
 
 | Module | Paquet importable | État | Détail |
 |---|---|---|---|
@@ -9,7 +9,7 @@ remplace ni `CHECKLIST.md` (portes G1/G2/G3) ni les rapports de mission.
 | `modules/a2d/` | `academiia.a2d` | **validé mécaniquement** — méthode A2D (transfert, merge, ablations, vérification post hoc). G1 **non franchie** (verdict inchangé, aucun seuil rejoué). | `modules/a2d/STATUS.md` |
 | `modules/a2d/legacy/` | — | **déprécié** — pipeline Jainius (hors papier), conservé pour l'historique. | `modules/a2d/legacy/README.md` |
 | `infra/vllm/` | — | **service d'inférence** (compose FP8 épinglé, smoke, diagnostic). | `infra/vllm/README.md` |
-| `modules/opdlm/` | — | **planifié** — encapsulation du code officiel OPDLM + checkpoints 4B. Aucun code en J9. | — |
+| `modules/dopd/` | — | **planifié** — module **d-OPD** (arXiv 2609.35362), dev sur Qwen3-0.6B. Aucun code à ce jour. | — |
 
 ## Règles de navigation
 

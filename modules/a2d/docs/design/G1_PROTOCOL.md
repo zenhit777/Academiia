@@ -302,7 +302,7 @@ touche **jamais** `temperature`, `top_p`, `alg`, `diffusion_steps`,
    (**bloquant**).
 6. **Écarts appariés** : `modules/a2d/eval/paired_bootstrap.py` sur les quatre paires
    (M2−M0, M3−M1) × (GSM8K, MATH-175).
-7. **Verdict** : consigner dans `CHECKLIST.md` (table des portes) et dans
+7. **Verdict** : consigner dans `docs/CHECKLIST.md` (table des portes) et dans
    `modules/a2d/docs/reports/J7.md` : franchie / non franchie, critère par critère.
    Chaque critère est rapporté dans la **formulation amendée** de §4.1 (point
    estimate **et** borne basse de l'IC apparié ; non-régression « non

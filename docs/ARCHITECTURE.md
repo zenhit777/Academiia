@@ -41,12 +41,12 @@ ADR (`docs/adr/`), les états dans `docs/STATUS.md` et
 | `academiia.core` | code **générique** : IC bootstrap apparié, intervalle de Wilson, empreintes SHA-256, index HuggingFace, E/S safetensors, heuristiques de texte | — | `tests/test_core.py` |
 | `modules/a2d` | **méthode A2D** : mapping de noms, sources de vecteur (paire de checkpoints / LoRA), moteur de fusion, adaptateurs mis à l'échelle, CLI, scripts d'évaluation, harnais, documentation, pipeline legacy | `academiia.core` | `modules/a2d/tests/` |
 | `infra/vllm` | service d'inférence (compose, smoke, diagnostic) | — | `infra/vllm/scripts/tests/` |
-| `modules/opdlm` (**planifié**) | encapsulation du code officiel OPDLM + checkpoints 4B (Qwen3-4B comme modèle de référence) | `academiia.core` | — |
+| `modules/dopd` (**planifié**) | module **d-OPD** (arXiv 2609.35362) ; développement sur Qwen3-0.6B | `academiia.core` | — |
 
 ### Règle de dépendance (ADR-001)
 
 ```
-core  ←  a2d  ←  opdlm (à venir)
+core  ←  a2d  ←  d-OPD (à venir)
 ```
 
 * `academiia.core` n'importe **aucun** module du dépôt ;
@@ -123,7 +123,7 @@ produits) est **schématisé mais non implémenté** : ADR-002 fixe le format.
 
 ## 8. Ce qui n'existe pas encore
 
-* `modules/opdlm/` : **planifié**, aucun code (J9).
+* `modules/dopd/` : **planifié**, aucun code (J9 ; renommé d-OPD en J11).
 * Le manifeste de lignée `lineage.json` : **schéma** sans implémentation.
-* Le module OPDLM devra produire le même format de manifeste qu'A2D
-  (`producer.module = "opdlm"`) et ne **pas** dupliquer les règles A2D.
+* Le module d-OPD devra produire le même format de manifeste qu'A2D
+  (`producer.module = "dopd"`) et ne **pas** dupliquer les règles A2D.

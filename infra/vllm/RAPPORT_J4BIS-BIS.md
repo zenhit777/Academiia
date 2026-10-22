@@ -198,7 +198,7 @@ réparation ont **dépassé le périmètre du prompt J4Bis**, notamment ses règ
 - **Provenance de τ_A utilisée pour la refusion** : mapping par existence des
   `.npy` (manifest τ absent, `--allow-missing-tau-manifest`), puis nettoyage
   de `_artefact/tau_a` : reproductibilité du build α=0.3 limitée sur cette
-  machine (voir `KNOWN_ISSUES.md` racine, blocage mmap/RAM).
+  machine (voir `docs/KNOWN_ISSUES.md`, blocage mmap/RAM).
 
 ### Non exécuté
 

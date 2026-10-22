@@ -19,7 +19,7 @@ réalisées le 2026-10-19 sur vLLM (RTX 5090 32 Go, WSL2). Rien n'est calculé
 
 > Les deux `smoke_jainius_2026*.json` (16:45 et 17:00) correspondent à l'ancien
 > build **α=0.8** : c'est ce checkpoint périmé — et non la configuration de
-> service — qui produisait le texte dégénéré. Voir `../KNOWN_ISSUES.md`
+> service — qui produisait le texte dégénéré. Voir `docs/KNOWN_ISSUES.md`
 > (« Inférence GPU vLLM (2026-10-19) »).
 
 Reproductible :

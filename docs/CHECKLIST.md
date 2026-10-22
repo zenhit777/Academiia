@@ -3,7 +3,7 @@
 ## État des portes (au 2026-10-21, fin de la mission J8)
 
 > Vue d'ensemble (ce qui est démontré, ce qui ne l'est pas, contraintes machine, recommandation
-> DiffusionGemma) : [`modules/a2d/STATUS.md`](modules/a2d/STATUS.md).
+> DiffusionGemma) : [`modules/a2d/STATUS.md`](../modules/a2d/STATUS.md).
 
 | Porte | Contenu | État | Preuve |
 |---|---|---|---|
@@ -37,9 +37,8 @@
 - [ ] Un transfert à `α=0` ou un merge à `λ=0` est **refusé** (sortie 2) tant que le plan contient
       des vecteurs non nuls ; `--allow-empty-coefficient` l'assume (avertissement au manifeste)
 - [ ] `modules/a2d/legacy/scripts/merge_jainius.py --help` : défaut `--alpha 0.3`, `--on-shape-mismatch error`, manifeste `merge_config.json` écrit
-- [ ] `pytest modules/a2d/tests tests -q` → tout vert, **99 tests** au total : 39 (`test_a2d_library.py`)
-      + 24 (`test_a2d_mutation.py`) + 9 (`test_pipeline.py`) + 6 (`test_eval_compare.py`)
-      + 7 (`test_g1_verdict.py`) + 14 (`tests/test_core.py`, code generique)
+- [ ] `pytest modules/a2d/tests tests infra/vllm/scripts/tests -q` → tout vert (suite pytest du
+      dépôt ; le nombre de tests n'est pas figé dans la prose)
 - [ ] `test_a2d_library.py` : λ=0 ⇒ D_p, λ=1 ⇒ transfert α=1,
       τ_D absent refusé, linéarité en α, LoRA ≡ `peft.merge_and_unload`, `α_eff` round-trip, refus d'écraser,
       embeddings de formes différentes, nom cible fantôme ⇒ erreur, `verify_merge` détecte un α erroné ;

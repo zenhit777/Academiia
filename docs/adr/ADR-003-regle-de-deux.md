@@ -40,16 +40,16 @@ sources de vérité sur α, λ, τ et la façon de fusionner.
 | empreintes / E/S safetensors | `academiia/core/common.py` | — | source unique |
 | verdict de porte | `modules/a2d/a2d/verdict.py` | — | source unique |
 
-### Cas du module `opdlm` (planifié)
+### Cas du module d-OPD (planifié)
 
-* OPDLM **n'appellera pas** la bibliothèque A2D s'il applique une méthode
+* d-OPD **n'appellera pas** la bibliothèque A2D s'il applique une méthode
   différente : dans ce cas il ne duplique pas une *règle*, il implémente une
   *autre méthode*, et son manifeste doit le dire (`producer.module =
-  "opdlm"`, ADR-002).
-* Si OPDLM devait réimplémenter une règle A2D (même équation, même convention
+  "dopd"`, ADR-002).
+* Si d-OPD devait réimplémenter une règle A2D (même équation, même convention
   de mapping), il **appelle** `academiia.a2d` et ne duplique pas.
 * Le test d'égalité devient alors une **comparaison inter-modules** : le
-  résultat de OPDLM et celui de A2D sur les mêmes entrées doivent coïncider
+  résultat de d-OPD et celui de A2D sur les mêmes entrées doivent coïncider
   à la tolérance BF16.
 
 ## Conséquences

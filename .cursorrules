@@ -25,8 +25,8 @@ la lire avant toute modification du pipeline de fusion.
 - `_artefact/` → dossier temporaire agents (non partagé). Tous les fichiers générés par les agents sans vocation de partage doivent y être placés.
 
 ## Fichiers de référence
-- [`CHECKLIST.md`](CHECKLIST.md) → vérifications obligatoires avant "prêt" (portes G1/G2/G3)
-- [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) → anomalies connues (blocage mmap/RAM, J5 non conforme)
+- [`docs/CHECKLIST.md`](docs/CHECKLIST.md) → vérifications obligatoires avant "prêt" (portes G1/G2/G3)
+- [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) → anomalies connues (blocage mmap/RAM, J5 non conforme)
 - [`AGENTS.md`](AGENTS.md) → règles de travail complètes
 
 ## Règles

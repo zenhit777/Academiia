@@ -16,7 +16,7 @@
   sont dans **`modules/a2d/legacy/scripts/`** ; `AUDIT.md` et `GUIDE_RESTANT.md` dans **`modules/a2d/legacy/docs/`**.
   Les entrées **historiques** ci-dessous conservent les anciens chemins (`scripts/...`) : ce sont
   des traces datées, pas des commandes à rejouer. Les commandes actives sont dans `README.md`,
-  `AGENTS.md` et `CHECKLIST.md`.
+  `AGENTS.md` et `docs/CHECKLIST.md`.
 
 ## 🆕 Mission J7 (2026-10-21) — porte G1 : **NON FRANCHIE**
 
@@ -61,10 +61,8 @@
   transfert (eq. 1), merge (eq. 2), ablations `D_p + ατ_A` (Table 9) et `D_p − λτ_D` (Table 10) ;
   τ **calculé à la volée** (paire de checkpoints ou adaptateur LoRA), **jamais persisté** ;
   FP32 + un seul cast BF16 ; écriture atomique ; **vérification post-écriture obligatoire**
-  (`α_eff`/`λ_eff`, échec dur hors tolérance). 22 tests ajoutés (`modules/a2d/tests/test_a2d_library.py` —
-  29 aujourd'hui) ; 65 tests au total dans `modules/a2d/tests` (rectifié J6bis : MIN-05 — la valeur « 19 »
-  était fausse ; rectifié J6ter : la valeur « 37 » était également fausse — 29 A2D + 21 mutation
-  + 9 pipeline + 6 eval-compare).
+  (`α_eff`/`λ_eff`, échec dur hors tolérance). Ces comportements sont couverts par la suite
+  `modules/a2d/tests` (le nombre de tests n'est pas figé dans la prose).
 - **Corrections documentaires (A2)** :
   - « τ_D inexistant publiquement » est **faux** : `τ_D = D_p − D_b` est défini (§2.1) et, pour
     DiffusionGemma, c'est le delta LoRA de post-training **publié**
@@ -115,7 +113,7 @@
 - `verify_checkpoint.py` : crash `UnicodeEncodeError` Windows (emoji/cp1252) → sortie ASCII ; parse strict.
 - `download_models.py` : defaut `./checkpoints` → `checkpoints`.
  - **2026-10-17** : `merge_jainius.py` — défaut exclut norms/embeddings (`--include-norms-embed`) ; suppression index/manifest perimes au démarrage du merge ; contrôle manifest τ (exit 2) + `--allow-missing-tau-manifest` ; README.md de destination préservé. `compute_tau_a.py` — défaut `--filter decoder`. `verify_checkpoint.py` — option `--reference <source>` vérifie noms/shapes/dtypes/sidecars. `modules/a2d/tests/test_pipeline.py` : 9 tests (pytest).
-- Docs : `CHECKLIST.md` (hash de commit en dur supprime), `AUDIT.md` (chemin `checkpoints/`, `/tmp` → `_artefact/tau_a`), `.env.template` documente, `requirements.txt` ajoute, `.gitignore` (`/tmp` supprime).
+- Docs : `docs/CHECKLIST.md` (hash de commit en dur supprime), `AUDIT.md` (chemin `checkpoints/`, `/tmp` → `_artefact/tau_a`), `.env.template` documente, `requirements.txt` ajoute, `.gitignore` (`/tmp` supprime).
 
 ## ✅ Reconstruit et vérifié (2026-10-16, rebuild v2)
 
