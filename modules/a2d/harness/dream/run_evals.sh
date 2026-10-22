@@ -35,7 +35,7 @@
 set -u
 
 HARNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${HARNESS_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${HARNESS_DIR}/../../../.." && pwd)"
 cd "${REPO_ROOT}"
 
 VENV="${HARNESS_DIR}/.venv"
@@ -55,7 +55,7 @@ mkdir -p "${STAGE}" "${LOG_DIR}" "${HF_HOME}" "${TMPDIR}"
 MODEL_DIR="${MODEL_DIR:-checkpoints/dream_7b_base,checkpoints/dream_7b_instruct}"
 TASK="${TASK:-gsm8k,math,ifeval}"
 SEED="${SEED:-0,1234,1234,1234}"
-OUTDIR="${OUTDIR:-eval/dream_a2d}"
+OUTDIR="${OUTDIR:-modules/a2d/eval/dream_a2d}"
 BATCH="${BATCH:-4}"
 SKIP_EXISTING="${SKIP_EXISTING:-1}"
 FORCE="${FORCE:-0}"

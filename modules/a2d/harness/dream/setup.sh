@@ -15,7 +15,7 @@
 set -euo pipefail
 
 HARNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${HARNESS_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${HARNESS_DIR}/../../../.." && pwd)"
 
 VENV="${HARNESS_DIR}/.venv"
 FORK="${HARNESS_DIR}/.fork"
