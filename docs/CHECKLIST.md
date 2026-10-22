@@ -42,7 +42,7 @@
 - [ ] `test_a2d_library.py` : λ=0 ⇒ D_p, λ=1 ⇒ transfert α=1,
       τ_D absent refusé, linéarité en α, LoRA ≡ `peft.merge_and_unload`, `α_eff` round-trip, refus d'écraser,
       embeddings de formes différentes, nom cible fantôme ⇒ erreur, `verify_merge` détecte un α erroné ;
-      et `test_a2d_mutation.py` : **23 tests de mutation** — inversion de signe, permutation α↔λ,
+      et `test_a2d_mutation.py` : les **tests de mutation** — inversion de signe, permutation α↔λ,
       permutation τ_A↔τ_D, τ_D partiel en `strict`, τ_A absent, plan vide, tenseur non fusionné altéré,
       mode erroné, lignes d'embedding intersectées, seuils ULP BF16)
 
