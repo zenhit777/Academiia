@@ -143,5 +143,6 @@ est un **chemin legacy** (il persiste τ en `.npy`) : il n'est pas supprimé.
 - `safetensors.torch` — lecture/écriture de checkpoints
 - `peft` (0.21.2) — pour l'équivalence LoRA/merge_and_unload (tests)
 - `pytest` — tests
+- Entry-points CLI (après `pip install -e .`) : `merge-a2d`, `verify-merge`, `measure-geometry`, `verify-checkpoint`, `download-models` — équivalents aux scripts `modules/a2d/cli/*.py`
 - Python 3.12, PyTorch 2.12 (CUDA 13.0)
-- Harnais Dream : venv **dans le dépôt**, encore à l'ancien emplacement `harness/dream/.venv` (ignoré par git ; chemin absolu interne, à reconstruire sous `modules/a2d/harness/dream/.venv` — voir `docs/adr/path-migration.md` §4) : torch 2.8.0+cu128, transformers 4.46.2, fork lm-eval de Dream — voir `modules/a2d/harness/dream/requirements-dream.txt`
+- Harnais Dream : venv **dans le dépôt**, au chemin définitif `modules/a2d/harness/dream/.venv` (idem `.fork/`, `.cache/` ; ignorés par git — voir `docs/adr/path-migration.md` §4). **Reconstruit sur ce chemin en J10** ; l'ancien dossier racine `harness/` a été supprimé. torch 2.8.0+cu128, transformers 4.46.2, fork lm-eval de Dream — voir `modules/a2d/harness/dream/requirements-dream.txt`

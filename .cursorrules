@@ -17,6 +17,8 @@ la lire avant toute modification du pipeline de fusion.
 - `modules/a2d/legacy/scripts/merge_jainius.py` → **wrapper DÉPRÉCIÉ** (legacy) ; la logique est dans `modules/a2d/a2d/`
 - `modules/a2d/legacy/scripts/compute_tau_a.py` → **LEGACY** : persiste τ en `.npy` (ne pas supprimer, ne pas réintroduire)
 - `modules/a2d/legacy/docs/` → archives Jainius (`AUDIT.md`, `GUIDE_RESTANT.md`), non normatives
+- `modules/a2d/docs/QUICKSTART.md` → détail opérationnel (protocole d'évaluation, géométrie, legacy, scripts vLLM), déplacé depuis le README racine (J10)
+- Entry-points CLI (après `pip install -e .`) : `merge-a2d`, `verify-merge`, `measure-geometry`, `verify-checkpoint`, `download-models` → `modules/a2d/cli/*.py` (mêmes arguments)
 - `./checkpoints/Jainius/` → build legacy (ablation hors papier, plus une référence scientifique)
 
 ## Dossiers temporaires
