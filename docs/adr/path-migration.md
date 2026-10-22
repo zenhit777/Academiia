@@ -201,11 +201,32 @@ autre module ; `academiia.core` n'importe aucun module.
    mais pourrait devenir un outil `infra` s'il sert un jour un module non-A2D.
 3. **Preuves J5** (`modules/a2d/legacy/eval/`) : conservées pour la traçabilité.
    Décider si elles restent versionnées ou sont archivées hors dépôt.
-4. **Caches du harnais** : `harness/dream/{.venv,.fork,.cache}` (≈ 8,4 Go, ignorés)
-   restent à l'ancien emplacement ; le venv contient des chemins absolus et
-   serait de toute façon à reconstruire. Suppression après reconstruction au
-   nouveau chemin — **accord utilisateur requis**.
+4. **Caches du harnais** : `harness/dream/{.venv,.fork,.cache}` (≈ 8,4 Go, ignorés
+   par git) sont **restés à l'ancien emplacement** : seuls les fichiers
+   versionnés du harnais ont été déplacés vers `modules/a2d/harness/dream/`.
+   Le venv contient des chemins absolus et serait de toute façon à
+   reconstruire. Suppression après reconstruction au nouveau chemin —
+   **accord utilisateur requis**.
 5. **`modules/opdlm/`** : module planifié (encapsulation du code officiel +
    checkpoints 4B, modèle de référence Qwen3-4B). **Non créé en J9.**
 6. **Distribution** : `academiia` est un paquet local (`pip install -e .`),
    API non stabilisée, usage personnel — pas de publication PyPI.
+
+## 5. Exceptions au balayage des anciens chemins (critère 4c)
+
+Le critère « aucun ancien chemin dans les fichiers non historiques » admet ces
+**exceptions explicites**, toutes étant des documents **historiques** ou des
+mentions **méta** :
+
+| Emplacement | Nature de l'occurrence |
+|---|---|
+| `modules/a2d/docs/reports/**` | rapports J6–J8 : bandeau de migration en tête, chemins de l'époque conservés |
+| `modules/a2d/legacy/docs/**` | archives Jainius (AUDIT.md, GUIDE_RESTANT.md) : non réécrites |
+| `docs/adr/path-migration.md` | la table elle-même (colonne « ancien chemin ») |
+| `docs/adr/ADR-001-disposition.md` | description de la disposition **antérieure** |
+| `modules/a2d/docs/AUDIT_A2D_vs_PAPIER.md` | audit daté : le document annonce lui-même que ses chemins sont ceux de l'époque |
+| `modules/a2d/docs/VP_ADAPTERS.md` | chemins du **dépôt publié** des adaptateurs médicaux (`scripts/train.py`, …) : sans rapport avec ce dépôt |
+| `KNOWN_ISSUES.md` | entrées historiques explicitement conservées (annonce en tête de section) |
+
+Hors de ces exceptions, le balayage ne trouve **aucune** occurrence d'ancien
+chemin dans les fichiers versionnés.

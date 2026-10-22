@@ -4,6 +4,7 @@
 - [`CHECKLIST.md`](CHECKLIST.md) → vérifications obligatoires avant de considérer le projet "prêt"
 - [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) → anomalies connues (blocage mmap/RAM, J4Bis, J5 non conforme)
 - [`modules/a2d/docs/A2D_SPEC.md`](modules/a2d/docs/A2D_SPEC.md) → **spécification de la méthode A2D** (équations, Table 6, cibles des Tables 1/16/21)
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) → **architecture** du dépôt (modules, dépendance, pipeline) et [`docs/adr/ADR-001-disposition.md`](docs/adr/ADR-001-disposition.md) → règles de disposition et de dépendance
 
 **Ces fichiers contiennent des informations invisibles par un simple `ls`. Ne jamais push/upload sans les avoir lus.**
 
@@ -143,4 +144,4 @@ est un **chemin legacy** (il persiste τ en `.npy`) : il n'est pas supprimé.
 - `peft` (0.21.2) — pour l'équivalence LoRA/merge_and_unload (tests)
 - `pytest` — tests
 - Python 3.12, PyTorch 2.12 (CUDA 13.0)
-- Harnais Dream : venv séparé `~/dream-harness/venv` (torch 2.8.0+cu128, transformers 4.46.2, fork lm-eval de Dream) — voir `requirements-dream.txt`
+- Harnais Dream : venv **dans le dépôt**, encore à l'ancien emplacement `harness/dream/.venv` (ignoré par git ; chemin absolu interne, à reconstruire sous `modules/a2d/harness/dream/.venv` — voir `docs/adr/path-migration.md` §4) : torch 2.8.0+cu128, transformers 4.46.2, fork lm-eval de Dream — voir `modules/a2d/harness/dream/requirements-dream.txt`

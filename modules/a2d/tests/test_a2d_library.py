@@ -387,6 +387,8 @@ def test_scaled_adapter_factor_zero_is_valid(tmp_path):
 
 def test_merged_checkpoint_is_loadable_by_from_pretrained(tmp_path):
     """Le checkpoint fusionne doit etre chargeable par `from_pretrained`."""
+    pytest.importorskip("transformers",
+                        reason="transformers est une dependance optionnelle (extra 'eval')")
     from transformers import AutoModelForCausalLM, Qwen2Config, Qwen2ForCausalLM
 
     qwen_config = Qwen2Config(
