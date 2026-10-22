@@ -37,8 +37,9 @@ import urllib.request
 # Le test de degeneracy vit dans vLLM/smoke_chat.py (client stdlib du
 # sous-projet vLLM) : on le reutilise tel quel plutot que d'en ecrire une
 # seconde version divergente.
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(REPO_ROOT, "vLLM"))
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))))
+sys.path.insert(0, os.path.join(REPO_ROOT, "infra", "vllm"))
 from smoke_chat import degenerate  # noqa: E402
 
 

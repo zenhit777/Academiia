@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(SCRIPTS))
+sys.path.insert(0, str(SCRIPTS / "eval"))
 
 import eval_compare  # noqa: E402
 

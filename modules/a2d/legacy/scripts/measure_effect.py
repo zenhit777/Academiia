@@ -44,9 +44,9 @@ import numpy as np
 import torch
 from safetensors import safe_open
 
-# Script deplace dans legacy/ (J8) : les helpers vivent dans <repo>/scripts/.
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))), "scripts"))
+# Script deplace dans legacy/ (J9) : les helpers vivent dans <repo>/modules/a2d/.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))))
 from _common import (diffusiongemma_to_gemma4 as g4_name_for, family_of,
                      is_norm_or_embed, tau_filename)
 

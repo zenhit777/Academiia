@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(SCRIPTS))
+sys.path.insert(0, str(SCRIPTS / "eval"))
 
 from g1_verdict import verdict_gain, verdict_non_regression  # noqa: E402
 

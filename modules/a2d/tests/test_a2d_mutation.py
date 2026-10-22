@@ -26,6 +26,7 @@ import torch
 from safetensors.torch import load_file, save_file
 
 SCRIPTS = Path(__file__).resolve().parents[1]
+CLI = SCRIPTS / "cli"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
@@ -211,7 +212,7 @@ def test_verify_merge_cli_mode_merge_without_tau_d_is_refused(tmp_path):
     tau_a = CheckpointPairSource(ar_post, ar_base)
     out = tmp_path / "out"
     merge_checkpoint(config("transfer", diff_base, out, alpha=0.6, tau_a=tau_a))
-    cmd = [sys.executable, str(SCRIPTS / "verify_merge.py"), "--merged", str(out),
+    cmd = [sys.executable, str(CLI / "verify_merge.py"), "--merged", str(out),
            "--reference", str(diff_base), "--mode", "merge",
            "--tau-a-post", str(ar_post), "--tau-a-base", str(ar_base),
            "--lambda", "0.6"]
@@ -487,7 +488,7 @@ def test_zero_fill_family_with_single_source_is_still_checked(tmp_path):
 def test_cli_merge_declares_coverage(tmp_path):
     """Le manifeste declare la politique et les effectifs de couverture."""
     ar_base, ar_post, diff_base, diff_post = ar_and_diffusion(tmp_path)
-    cmd = [sys.executable, str(SCRIPTS / "merge_a2d.py"), "--mode", "merge",
+    cmd = [sys.executable, str(CLI / "merge_a2d.py"), "--mode", "merge",
            "--diffusion", str(diff_post),
            "--tau-a-post", str(ar_post), "--tau-a-base", str(ar_base),
            "--tau-d-post", str(diff_post), "--tau-d-base", str(diff_base),

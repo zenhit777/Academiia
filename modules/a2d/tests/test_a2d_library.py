@@ -30,6 +30,7 @@ from safetensors import safe_open
 from safetensors.torch import load_file, save_file
 
 SCRIPTS = Path(__file__).resolve().parents[1]
+CLI = SCRIPTS / "cli"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
@@ -734,12 +735,12 @@ def test_verify_merge_detects_wrong_alpha(tmp_path):
 def test_verify_merge_cli_ok_and_ko(tmp_path):
     base, post = pair(tmp_path, base_name="db", post_name="dp")
     out = tmp_path / "out"
-    merge_cmd = [sys.executable, str(SCRIPTS / "merge_a2d.py"), "--mode", "ablation-dp-plus-tau-a",
+    merge_cmd = [sys.executable, str(CLI / "merge_a2d.py"), "--mode", "ablation-dp-plus-tau-a",
                  "--diffusion", str(post), "--tau-a-post", str(post), "--tau-a-base", str(base),
                  "--alpha", "0.3", "--output", str(out), "--mapping", "identity"]
     done = subprocess.run(merge_cmd, capture_output=True, text=True)
     assert done.returncode == 0, done.stdout + done.stderr
-    verify_cmd = [sys.executable, str(SCRIPTS / "verify_merge.py"), "--merged", str(out),
+    verify_cmd = [sys.executable, str(CLI / "verify_merge.py"), "--merged", str(out),
                   "--reference", str(post), "--mode", "ablation-dp-plus-tau-a",
                   "--tau-a-post", str(post), "--tau-a-base", str(base), "--alpha", "0.3"]
     ok = subprocess.run(verify_cmd, capture_output=True, text=True)
@@ -802,7 +803,7 @@ def test_cli_merge_without_tau_d_is_refused(tmp_path):
     """Un merge sans tau_D est une ERREUR DURE (plus de degradation implicite)."""
     ar_base, ar_post, diff_base, diff_post = ar_and_diffusion(tmp_path)
     out = tmp_path / "out"
-    cmd = [sys.executable, str(SCRIPTS / "merge_a2d.py"), "--mode", "merge",
+    cmd = [sys.executable, str(CLI / "merge_a2d.py"), "--mode", "merge",
            "--diffusion", str(diff_post), "--diffusion-base", str(diff_base),
            "--tau-a-post", str(ar_post), "--tau-a-base", str(ar_base),
            "--alpha", "0.4", "--output", str(out)]
@@ -814,7 +815,7 @@ def test_cli_merge_without_tau_d_is_refused(tmp_path):
 
 def test_cli_merge_without_tau_d_and_without_alpha_is_refused(tmp_path):
     ar_base, ar_post, diff_base, diff_post = ar_and_diffusion(tmp_path)
-    cmd = [sys.executable, str(SCRIPTS / "merge_a2d.py"), "--mode", "merge",
+    cmd = [sys.executable, str(CLI / "merge_a2d.py"), "--mode", "merge",
            "--diffusion", str(diff_post), "--diffusion-base", str(diff_base),
            "--tau-a-post", str(ar_post), "--tau-a-base", str(ar_base),
            "--lambda", "0.6", "--output", str(tmp_path / "out")]
@@ -825,7 +826,7 @@ def test_cli_merge_without_tau_d_and_without_alpha_is_refused(tmp_path):
 
 def test_cli_warns_above_coefficient_threshold(tmp_path):
     ar_base, ar_post, diff_base, diff_post = ar_and_diffusion(tmp_path)
-    cmd = [sys.executable, str(SCRIPTS / "merge_a2d.py"), "--mode", "transfer",
+    cmd = [sys.executable, str(CLI / "merge_a2d.py"), "--mode", "transfer",
            "--diffusion-base", str(diff_base),
            "--tau-a-post", str(ar_post), "--tau-a-base", str(ar_base),
            "--alpha", "2.0", "--output", str(tmp_path / "out")]
@@ -837,7 +838,7 @@ def test_cli_warns_above_coefficient_threshold(tmp_path):
 def test_cli_transfer_without_alpha_is_refused(tmp_path):
     """F2 (CLI) : un transfert sans coefficient explicite est refuse (exit 2)."""
     base, post = pair(tmp_path)
-    cmd = [sys.executable, str(SCRIPTS / "merge_a2d.py"), "--mode", "transfer",
+    cmd = [sys.executable, str(CLI / "merge_a2d.py"), "--mode", "transfer",
            "--diffusion-base", str(base),
            "--tau-a-post", str(post), "--tau-a-base", str(base),
            "--output", str(tmp_path / "out")]
@@ -851,7 +852,7 @@ def test_cli_allow_empty_coefficient_is_accepted_and_declared(tmp_path):
     """F2 (CLI) : --allow-empty-coefficient assume le no-op et le declare."""
     base, post = pair(tmp_path)
     out = tmp_path / "out"
-    cmd = [sys.executable, str(SCRIPTS / "merge_a2d.py"), "--mode", "transfer",
+    cmd = [sys.executable, str(CLI / "merge_a2d.py"), "--mode", "transfer",
            "--diffusion-base", str(base),
            "--tau-a-post", str(post), "--tau-a-base", str(base),
            "--allow-empty-coefficient", "--output", str(out)]
@@ -867,7 +868,7 @@ def test_cli_no_verify_is_traced_in_the_manifest(tmp_path):
     """F3 : --no-verify laisse une trace explicite dans le manifeste."""
     base, post = pair(tmp_path)
     out = tmp_path / "out"
-    cmd = [sys.executable, str(SCRIPTS / "merge_a2d.py"), "--mode", "transfer",
+    cmd = [sys.executable, str(CLI / "merge_a2d.py"), "--mode", "transfer",
            "--diffusion-base", str(base),
            "--tau-a-post", str(post), "--tau-a-base", str(base),
            "--alpha", "0.5", "--no-verify", "--output", str(out)]

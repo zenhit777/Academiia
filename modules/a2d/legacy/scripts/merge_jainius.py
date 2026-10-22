@@ -26,9 +26,9 @@ import json
 import os
 import sys
 
-# Script deplace dans legacy/ (J8) : la bibliotheque A2D vit dans <repo>/scripts/.
-SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))), "scripts")
+# Script deplace dans legacy/ (J9) : la bibliotheque A2D vit dans <repo>/modules/a2d/.
+SCRIPTS_DIR = os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))))
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
