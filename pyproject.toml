@@ -37,7 +37,17 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/academiia/academiia"
+Homepage = "https://github.com/zenhit777/Academiia"
+Repository = "https://github.com/zenhit777/Academiia"
+
+# Points d'entree en ligne de commande (J10). Les scripts restent utilisables
+# tels quels : `python modules/a2d/cli/merge_a2d.py ...`.
+[project.scripts]
+merge-a2d = "academiia.a2d.cli.merge_a2d:main"
+verify-merge = "academiia.a2d.cli.verify_merge:main"
+measure-geometry = "academiia.a2d.cli.measure_geometry:main"
+verify-checkpoint = "academiia.a2d.cli.verify_checkpoint:main"
+download-models = "academiia.a2d.cli.download_models:main"
 
 # Paquets importables :
 #   academiia.core -> code generique (stats, empreintes, E/S safetensors)
@@ -49,6 +59,7 @@ packages = [
   "academiia",
   "academiia.core",
   "academiia.a2d",
+  "academiia.a2d.cli",
   "academiia.a2d.eval",
 ]
 zip-safe = false
@@ -58,6 +69,7 @@ license-files = ["LICENSE"]
 academiia = "academiia"
 "academiia.core" = "academiia/core"
 "academiia.a2d" = "modules/a2d/a2d"
+"academiia.a2d.cli" = "modules/a2d/cli"
 "academiia.a2d.eval" = "modules/a2d/eval"
 
 [tool.pytest.ini_options]
