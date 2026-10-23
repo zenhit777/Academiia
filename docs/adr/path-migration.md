@@ -257,3 +257,19 @@ Aucun chemin existant n'est déplacé. J12 **crée** :
 
 Le paquet est exposé par `pyproject.toml` (`academiia.dopd` →
 `modules/dopd/dopd`). Il n'importe pas `academiia.a2d` (ADR-001).
+
+## 8. Ajouts J13 (interfaces d-OPD + harness)
+
+Aucun chemin existant n'est déplacé. J13 **crée** :
+
+| Nouveau chemin | Nature |
+|---|---|
+| `modules/dopd/dopd/interfaces.py` | contrats ABC : `TeacherScorer`, `RolloutRecorder`, `TaskVerifier`, `LineageWriter` |
+| `modules/dopd/harness/smoke_qwen3.py` | script de smoke **hors paquet** (torch/transformers autorisés ici) |
+| `modules/dopd/tests/test_dopd_interfaces.py` | tests CPU des contrats |
+| `modules/dopd/docs/reports/J13.md` | rapport de mission J13 |
+
+`modules/dopd/harness/` est **hors** du paquet importable `academiia.dopd` :
+il n'est pas déclaré dans `pyproject.toml` et ne peut donc pas être importé
+comme `academiia.dopd.harness`. C'est ce qui autorise `torch` dans les scripts
+sans violer ADR-001.

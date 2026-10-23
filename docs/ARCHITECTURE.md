@@ -1,7 +1,7 @@
 # Architecture
 
 Document de référence de l'architecture **matérielle** du dépôt (J9, 2026-10-22 ;
-mis à jour J12, 2026-10-23). Il décrit *ce qui est*, pas ce qui devrait être :
+mis à jour J13, 2026-10-23). Il décrit *ce qui est*, pas ce qui devrait être :
 les décisions sont dans les ADR (`docs/adr/`), les états dans `docs/STATUS.md`
 et `modules/a2d/STATUS.md`.
 
@@ -35,7 +35,9 @@ et `modules/a2d/STATUS.md`.
                       │  modules/dopd (paquet          │
                       │  academiia.dopd)               │
                       │  • dopd/ cible future-aware    │
+                      │         + contrats d'interface │
                       │  • docs/ brief + rapports      │
+                      │  • harness/ (hors paquet)      │
                       │  • tests/ CPU                  │
                       └───────────────────────────────┘
 
@@ -111,7 +113,7 @@ sources ──▶ vecteur τ (recalculé à la volée, FP32, jamais persisté)
 | verdict de porte | `modules/a2d/eval/g1_verdict.py` | `G1_VERDICT.json` |
 | IC appariés | `academiia.core.stats` + `modules/a2d/eval/paired_bootstrap.py` | IC 95 % |
 
-## 5. Le module d-OPD (squelette J12)
+## 5. Le module d-OPD (cibles + contrats, J12 + J13)
 
 d-OPD n'est **pas** une fusion de poids : c'est une distillation on-policy qui
 corrige la cible du professeur AR avec le futur visible du bloc. Le module ne
@@ -126,11 +128,27 @@ rollout élève ──▶ état de débruitage X_t + bloc complété x̂
              ──▶ KL avant D_KL(p̃_T,i ‖ p_θ,i)
 ```
 
-**État J12** : seule la brique de cible est implémentée, en NumPy pur et sans
-torch (`academiia.dopd.compute_future_aware_target`). Le scoring professeur, le
-rollout, le vérificateur et l'entraînement sont **spécifiés** dans
-`modules/dopd/docs/DOPD_SPEC.md` mais non implémentés. Aucun checkpoint n'est
-téléchargé, aucun GPU n'est requis.
+**État J12** : la brique de cible est implémentée, en NumPy pur et sans torch
+(`academiia.dopd.compute_future_aware_target`).
+
+**État J13** : les **contrats** de la chaîne ci-dessus sont formalisés en code
+(`modules/dopd/dopd/interfaces.py`) :
+
+| Contrat | Rôle dans la chaîne |
+|---|---|
+| `TeacherScorer` | prior causal `r_i(v)` (eq. 11) + score de suffixe `s_i(v)` (eq. 14), en un lot de branches |
+| `RolloutRecorder` | états de débruitage `X_t` (eq. 2) + bloc complété `x̂` (eq. 4) |
+| `TaskVerifier` | étiquette de correction `R(x̂)` qui ouvre la porte |
+| `LineageWriter` | manifeste ADR-002, `producer.module = "dopd"` |
+
+Ce sont des **classes abstraites mockables** : le scoring réel, le rollout réel
+et l'entraînement restent **non implémentés**. Le harnais
+(`modules/dopd/harness/`) est hors du paquet importable : c'est le seul endroit
+où `torch` et `transformers` sont autorisés pour d-OPD.
+
+Un **smoke de chargement Qwen3-0.6B** a été exécuté avec succès (CPU et GPU,
+forward + génération triviaux, prior causal échantillonné, aucun
+entraînement) — voir `modules/dopd/docs/reports/J13.md`.
 
 ## 6. Règle de deux (ADR-003)
 
@@ -175,9 +193,14 @@ concurrent.
 
 ## 9. Ce qui n'existe pas encore
 
-* **d-OPD entraînement** : scoring professeur, rollout, vérificateur, boucle
-  on-policy et évaluation ne sont pas implémentés (J12 ne livre que la cible et
-  la configuration).
-* Le manifeste de lignée `lineage.json` : **schéma** sans implémentation.
+* **d-OPD entraînement** : le scoring professeur réel, le rollout réel et la
+  boucle on-policy ne sont pas implémentés. J12 livre la cible et la
+  configuration ; J13 livre les **contrats** qui les séparent
+  (`TeacherScorer`, `RolloutRecorder`, `TaskVerifier`, `LineageWriter`), pas
+  leurs implémentations.
+* L'**écriture sur disque** du manifeste de lignée `lineage.json` : ADR-002
+  assigne l'écriture/lecture générique au module `core`, qui ne l'implémente
+  pas. J13 fournit la **construction** du manifeste dans d-OPD
+  (`LineageWriter.build_manifest`), sans créer de format concurrent.
 * Le module d-OPD devra produire le même format de manifeste qu'A2D
   (`producer.module = "dopd"`) et ne **pas** dupliquer les règles A2D.

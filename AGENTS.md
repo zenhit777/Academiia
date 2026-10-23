@@ -38,10 +38,11 @@ Academiia/
 │   │   │   ├── docs/      # AUDIT.md, GUIDE_RESTANT.md (archives)
 │   │   │   └── eval/      # résultats legacy (RESULTS.md, prompts.jsonl)
 │   │   └── STATUS.md      # état du module A2D
-│   └── dopd/              # MODULE d-OPD (paquet `academiia.dopd`, squelette J12)
-│       ├── dopd/          # cible future-aware (NumPy), configuration
-│       ├── docs/          # DOPD_SPEC.md + reports/
-│       └── tests/         # pytest CPU (paquet, règle de dépendance, cible)
+    └── dopd/              # MODULE d-OPD (paquet `academiia.dopd`, J12 + J13)
+        ├── dopd/          # cible future-aware (NumPy), configuration, contrats
+        ├── harness/       # scripts HORS paquet (torch autorisé) : smoke_qwen3.py
+        ├── docs/          # DOPD_SPEC.md + reports/
+        └── tests/         # pytest CPU (paquet, règle de dépendance, cible, interfaces)
 ├── docs/                  # documentation DU PROJET
 │   ├── STATUS.md          # index court des modules (créé en J9)
 │   ├── ARCHITECTURE.md    # architecture (J9)
@@ -142,12 +143,14 @@ est un **chemin legacy** (il persiste τ en `.npy`) : il n'est pas supprimé.
 - **Aucun gain vs `D_p`** (mesuré) : Jainius α=0.3 → 88,1 % de justesse / 21,1 tok/s ; `D_p` → 100 % / 116,4 tok/s. `D_p` reste le témoin.
 - **Le chemin legacy `compute_tau_a.py`** (déplacé dans `modules/a2d/legacy/scripts/`) **est bloqué en ENOMEM** sur cette VM (30 GiB) : `safetensors.safe_open` pré-fault la projection du shard AR de 46,5 GiB. **La bibliothèque conforme n'est pas concernée** (τ recalculé à la volée, sans matérialisation). Ne pas contourner par un parseur safetensors maison.
 
-### Contexte d-OPD (squelette J12)
+### Contexte d-OPD (cibles + contrats, J12 + J13)
 
 - **Source** : Liu, Hu, Han, « *d-OPD: Future-Aware On-Policy Distillation for Block Diffusion Language Models* », arXiv:2609.35362, 2026. Spécification : `modules/dopd/docs/DOPD_SPEC.md`.
 - **Ce que c'est** : une distillation on-policy qui corrige la cible du professeur AR avec le futur visible du bloc (pas une fusion de poids, pas de τ, pas de α/λ). Les deux méthodes sont indépendantes : `modules/dopd/` n'importe **jamais** `academiia.a2d`.
 - **État J12** : squelette (`academiia.dopd`) avec la cible future-aware en NumPy pur et la configuration ; **aucun entraînement**, aucun checkpoint, aucun GPU. Modèle de développement prévu : **Qwen3-0.6B**.
-- **Hors scope J12** : reproduction des benchmarks, création de `modules/opdlm/`, modification des résultats/verdicts A2D.
+- **État J13** : **contrats d'interface** formalisés dans `modules/dopd/dopd/interfaces.py` — `TeacherScorer` (prior causal `r_i(v)` + score de suffixe `s_i(v)`), `RolloutRecorder` (états `X_t` + bloc `x̂`), `TaskVerifier` (porte `R(x̂)`), `LineageWriter` (manifeste ADR-002, `producer.module = "dopd"`). Ce sont des **ABC mockables**, sans scoring ni rollout réels. Smoke de chargement **Qwen3-0.6B** réussi (CPU et GPU, forward + génération triviaux, aucun entraînement) via `modules/dopd/harness/smoke_qwen3.py`.
+- **Règle torch pour d-OPD** : `torch` / `transformers` sont interdits dans `modules/dopd/dopd/` (ADR-001) mais **autorisés** dans `modules/dopd/harness/` (scripts hors paquet importable).
+- **Hors scope J13** : entraînement, rollout réel, scoring professeur réel, reproduction des benchmarks, création de `modules/opdlm/`, modification des résultats/verdicts A2D.
 
 ### Outils disponibles
 
@@ -157,6 +160,6 @@ est un **chemin legacy** (il persiste τ en `.npy`) : il n'est pas supprimé.
 - `peft` (0.21.2) — pour l'équivalence LoRA/merge_and_unload (tests)
 - `pytest` — tests
 - Entry-points CLI (après `pip install -e .`) : `merge-a2d`, `verify-merge`, `measure-geometry`, `verify-checkpoint`, `download-models` — équivalents aux scripts `modules/a2d/cli/*.py`
-- Paquet d-OPD (après `pip install -e .`) : `import academiia.dopd` — cible future-aware NumPy/CPU, aucun CLI ; tests `pytest modules/dopd/tests -q`
+- Paquet d-OPD (après `pip install -e .`) : `import academiia.dopd` — cible future-aware NumPy/CPU + contrats d'interface, aucun CLI ; tests `pytest modules/dopd/tests -q` ; smoke de chargement `python modules/dopd/harness/smoke_qwen3.py --model Qwen/Qwen3-0.6B --device cpu`
 - Python 3.12, PyTorch 2.12 (CUDA 13.0)
 - Harnais Dream : venv **dans le dépôt**, au chemin définitif `modules/a2d/harness/dream/.venv` (idem `.fork/`, `.cache/` ; ignorés par git — voir `docs/adr/path-migration.md` §4). **Reconstruit sur ce chemin en J10** ; l'ancien dossier racine `harness/` a été supprimé. torch 2.8.0+cu128, transformers 4.46.2, fork lm-eval de Dream — voir `modules/a2d/harness/dream/requirements-dream.txt`

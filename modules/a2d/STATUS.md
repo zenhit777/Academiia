@@ -20,6 +20,13 @@
 > cible future-aware NumPy/CPU, tests). Il n'importe pas A2D et **ne touche à
 > aucun résultat, seuil ou verdict G1** ; voir `modules/dopd/docs/DOPD_SPEC.md`
 > et `modules/dopd/docs/reports/J12.md`.
+>
+> **Mise à jour J13 (2026-10-23)** : les **contrats d'interface** de d-OPD sont
+> formalisés (professeur, rollout, vérificateur, lignée ADR-002) et un **smoke
+> de chargement Qwen3-0.6B** a réussi (CPU et GPU, **aucun entraînement**).
+> d-OPD reste **indépendant** d'A2D : il n'importe pas `academiia.a2d` et
+> **aucun résultat, seuil ou verdict G1 n'a été modifié**. Voir
+> `modules/dopd/docs/reports/J13.md`.
 
 Ce document est le **point d'entrée** pour savoir ce qui est démontré, ce qui ne l'est pas, et
 où se trouve chaque chose. Il remplace les statuts dispersés dans les rapports de mission ;
