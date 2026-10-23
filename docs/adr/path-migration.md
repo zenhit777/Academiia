@@ -207,8 +207,9 @@ autre module ; `academiia.core` n'importe aucun module.
    Le venv contient des chemins absolus et serait de toute façon à
    reconstruire. Suppression après reconstruction au nouveau chemin —
    **accord utilisateur requis**.
-5. **`modules/dopd/`** : module **d-OPD** planifié (arXiv 2609.35362 ; dev sur
-   Qwen3-0.6B). **Non créé.** *(nom OPDLM -> d-OPD en J11)*
+5. **`modules/dopd/`** : module **d-OPD** (arXiv 2609.35362 ; dev sur
+   Qwen3-0.6B). **Créé en J12** (squelette : paquet `academiia.dopd`, cible
+   future-aware NumPy/CPU, aucun entraînement). *(nom OPDLM -> d-OPD en J11)*
 6. **Distribution** : `academiia` est un paquet local (`pip install -e .`),
    API non stabilisée, usage personnel — pas de publication PyPI.
 
@@ -242,3 +243,17 @@ Les liens relatifs de tous les documents **actifs** ont été mis à jour ; les
 rapports historiques (`modules/a2d/docs/reports/**`) et les archives legacy
 (`modules/a2d/legacy/docs/**`) gardent leurs chemins d'époque (bandeau de
 migration).
+
+## 7. Création J12 (module d-OPD)
+
+Aucun chemin existant n'est déplacé. J12 **crée** :
+
+| Nouveau chemin | Nature |
+|---|---|
+| `modules/dopd/dopd/` | paquet `academiia.dopd` (cible future-aware, configuration) |
+| `modules/dopd/docs/DOPD_SPEC.md` | brief de conception d-OPD |
+| `modules/dopd/docs/reports/J12.md` | rapport de mission J12 |
+| `modules/dopd/tests/` | tests CPU du squelette |
+
+Le paquet est exposé par `pyproject.toml` (`academiia.dopd` →
+`modules/dopd/dopd`). Il n'importe pas `academiia.a2d` (ADR-001).

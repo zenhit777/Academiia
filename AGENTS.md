@@ -20,24 +20,28 @@ Academiia/
 ├── README.md              # Documentation projet (pipeline)
 ├── .gitignore             # Fichiers exclus du versioning
 ├── requirements.txt       # pointeur vers pyproject.toml (source de vérité des versions)
-├── pyproject.toml         # Paquets importables : academiia.core, academiia.a2d
+├── pyproject.toml         # Paquets importables : academiia.core, academiia.a2d, academiia.dopd
 ├── academiia/             # CODE GÉNÉRIQUE (paquet `academiia.core`)
 │   └── core/              # stats (bootstrap/Wilson), empreintes, E/S safetensors
 ├── modules/
-│   └── a2d/               # MODULE A2D (paquet `academiia.a2d`)
-│       ├── a2d/           # BIBLIOTHÈQUE A2D (naming, sources, moteur de fusion)
-│       ├── cli/           # CLI : merge_a2d.py, verify_merge.py, measure_geometry.py…
-│       ├── eval/          # scripts d'évaluation (verdict G1, bootstrap, empreintes)
-│       ├── harness/       # Harnais d'évaluation (convention <famille>/)
-│       │   ├── README.md  # la convention
-│       │   └── dream/     # harnais Dream-7B (setup.sh, run_evals.sh, tasks/, summarize.py)
-│       ├── tests/         # pytest (test_a2d_library.py, test_a2d_mutation.py…)
-│       ├── docs/          # SPEC (A2D_SPEC, VP_ADAPTERS), design/, reports/
-│       ├── legacy/        # pipeline Jainius, DÉPRÉCIÉ (hors papier)
-│       │   ├── scripts/   # compute_tau_a.py, merge_jainius.py, measure_effect.py
-│       │   ├── docs/      # AUDIT.md, GUIDE_RESTANT.md (archives)
-│       │   └── eval/      # résultats legacy (RESULTS.md, prompts.jsonl)
-│       └── STATUS.md      # état du module A2D
+│   ├── a2d/               # MODULE A2D (paquet `academiia.a2d`)
+│   │   ├── a2d/           # BIBLIOTHÈQUE A2D (naming, sources, moteur de fusion)
+│   │   ├── cli/           # CLI : merge_a2d.py, verify_merge.py, measure_geometry.py…
+│   │   ├── eval/          # scripts d'évaluation (verdict G1, bootstrap, empreintes)
+│   │   ├── harness/       # Harnais d'évaluation (convention <famille>/)
+│   │   │   ├── README.md  # la convention
+│   │   │   └── dream/     # harnais Dream-7B (setup.sh, run_evals.sh, tasks/, summarize.py)
+│   │   ├── tests/         # pytest (test_a2d_library.py, test_a2d_mutation.py…)
+│   │   ├── docs/          # SPEC (A2D_SPEC, VP_ADAPTERS), design/, reports/
+│   │   ├── legacy/        # pipeline Jainius, DÉPRÉCIÉ (hors papier)
+│   │   │   ├── scripts/   # compute_tau_a.py, merge_jainius.py, measure_effect.py
+│   │   │   ├── docs/      # AUDIT.md, GUIDE_RESTANT.md (archives)
+│   │   │   └── eval/      # résultats legacy (RESULTS.md, prompts.jsonl)
+│   │   └── STATUS.md      # état du module A2D
+│   └── dopd/              # MODULE d-OPD (paquet `academiia.dopd`, squelette J12)
+│       ├── dopd/          # cible future-aware (NumPy), configuration
+│       ├── docs/          # DOPD_SPEC.md + reports/
+│       └── tests/         # pytest CPU (paquet, règle de dépendance, cible)
 ├── docs/                  # documentation DU PROJET
 │   ├── STATUS.md          # index court des modules (créé en J9)
 │   ├── ARCHITECTURE.md    # architecture (J9)
@@ -60,7 +64,7 @@ Academiia/
 
 ### Règles de travail
 
-1. **Toujours lire le code dans `modules/a2d/` avant d'agir** — il contient la logique exacte du pipeline ; le code générique est dans `academiia/core/`.
+1. **Toujours lire le code dans `modules/a2d/` (et `modules/dopd/` pour d-OPD) avant d'agir** — il contient la logique exacte du pipeline ; le code générique est dans `academiia/core/`.
 2. **Les checkpoints sont dans `checkpoints/`** — ne jamais les modifier directement ; recréer via les scripts.
 3. **`checkpoints/` est à la racine** — ignoré par git, contient les modèles binaires. Ne jamais le modifier directement.
 4. **`_artefact/` est un dossier temporaire agents** — tous les fichiers générés qui n'ont pas vocation à être partagés (logs, exports, résultats de tests) doivent y être placés. Ignoré par git, jamais commité.
@@ -138,6 +142,13 @@ est un **chemin legacy** (il persiste τ en `.npy`) : il n'est pas supprimé.
 - **Aucun gain vs `D_p`** (mesuré) : Jainius α=0.3 → 88,1 % de justesse / 21,1 tok/s ; `D_p` → 100 % / 116,4 tok/s. `D_p` reste le témoin.
 - **Le chemin legacy `compute_tau_a.py`** (déplacé dans `modules/a2d/legacy/scripts/`) **est bloqué en ENOMEM** sur cette VM (30 GiB) : `safetensors.safe_open` pré-fault la projection du shard AR de 46,5 GiB. **La bibliothèque conforme n'est pas concernée** (τ recalculé à la volée, sans matérialisation). Ne pas contourner par un parseur safetensors maison.
 
+### Contexte d-OPD (squelette J12)
+
+- **Source** : Liu, Hu, Han, « *d-OPD: Future-Aware On-Policy Distillation for Block Diffusion Language Models* », arXiv:2609.35362, 2026. Spécification : `modules/dopd/docs/DOPD_SPEC.md`.
+- **Ce que c'est** : une distillation on-policy qui corrige la cible du professeur AR avec le futur visible du bloc (pas une fusion de poids, pas de τ, pas de α/λ). Les deux méthodes sont indépendantes : `modules/dopd/` n'importe **jamais** `academiia.a2d`.
+- **État J12** : squelette (`academiia.dopd`) avec la cible future-aware en NumPy pur et la configuration ; **aucun entraînement**, aucun checkpoint, aucun GPU. Modèle de développement prévu : **Qwen3-0.6B**.
+- **Hors scope J12** : reproduction des benchmarks, création de `modules/opdlm/`, modification des résultats/verdicts A2D.
+
 ### Outils disponibles
 
 - `huggingface_hub` (1.18.0) — téléchargement de modèles
@@ -146,5 +157,6 @@ est un **chemin legacy** (il persiste τ en `.npy`) : il n'est pas supprimé.
 - `peft` (0.21.2) — pour l'équivalence LoRA/merge_and_unload (tests)
 - `pytest` — tests
 - Entry-points CLI (après `pip install -e .`) : `merge-a2d`, `verify-merge`, `measure-geometry`, `verify-checkpoint`, `download-models` — équivalents aux scripts `modules/a2d/cli/*.py`
+- Paquet d-OPD (après `pip install -e .`) : `import academiia.dopd` — cible future-aware NumPy/CPU, aucun CLI ; tests `pytest modules/dopd/tests -q`
 - Python 3.12, PyTorch 2.12 (CUDA 13.0)
 - Harnais Dream : venv **dans le dépôt**, au chemin définitif `modules/a2d/harness/dream/.venv` (idem `.fork/`, `.cache/` ; ignorés par git — voir `docs/adr/path-migration.md` §4). **Reconstruit sur ce chemin en J10** ; l'ancien dossier racine `harness/` a été supprimé. torch 2.8.0+cu128, transformers 4.46.2, fork lm-eval de Dream — voir `modules/a2d/harness/dream/requirements-dream.txt`

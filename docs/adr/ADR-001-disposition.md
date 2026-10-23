@@ -26,6 +26,8 @@ Jainius vivaient dans des dossiers « à plat » (`scripts/`, `eval/`, `harness/
 academiia/core/      code générique          → paquet `academiia.core`
 modules/a2d/         module A2D              → paquet `academiia.a2d`
   ├── a2d/  cli/  eval/  harness/  tests/  docs/  legacy/  STATUS.md
+modules/dopd/        module d-OPD (J12)      → paquet `academiia.dopd`
+  ├── dopd/  docs/  tests/
 infra/vllm/          service d'inférence
 tests/               tests du core
 docs/                documentation du projet (STATUS.md, ARCHITECTURE.md, adr/)
@@ -38,7 +40,8 @@ Les résultats de mesure restent **avec** le code qui les produit
 ### 2. Règle de dépendance
 
 ```
-core  ←  a2d  ←  (d-OPD, à venir)
+core  ←  a2d
+core  ←  dopd
 ```
 
 * `academiia.core` **n'importe aucun module** du dépôt ;
@@ -50,7 +53,7 @@ core  ←  a2d  ←  (d-OPD, à venir)
 
 ### 3. Empaquetage
 
-`pyproject.toml` (setuptools) déclare deux paquets installables avec
+`pyproject.toml` (setuptools) déclare les paquets installables avec
 `pip install -e .` :
 
 | Paquet | Répertoire source | Remarque |
@@ -58,6 +61,7 @@ core  ←  a2d  ←  (d-OPD, à venir)
 | `academiia.core` | `academiia/core` | chemin standard |
 | `academiia.a2d` | `modules/a2d/a2d` | `package-dir` : le paquet est dispersé dans l'arborescence du module |
 | `academiia.a2d.eval` | `modules/a2d/eval` | scripts d'évaluation importables (verdict G1, bootstrap) |
+| `academiia.dopd` | `modules/dopd/dopd` | squelette d-OPD (J12), même mécanisme de `package-dir` |
 
 `academiia.a2d.eval` a été retenu plutôt qu'un repli `import a2d` : les
 scripts d'évaluation contiennent de la logique **pure** testable
@@ -71,14 +75,17 @@ dans `modules/a2d/eval/`.
   portent un bandeau renvoyant à la table de migration.
 * **Pas de module d-OPD** en J9 : il est *planifié* (arXiv 2609.35362 ; dev sur
   Qwen3-0.6B). Aucun code, aucun dossier. *(renommé d-OPD en J11)*
+  **Mise à jour J12** : le module est créé sous `modules/dopd/` (squelette
+  `academiia.dopd`, cible NumPy/CPU, aucun entraînement) ; la règle de
+  dépendance ci-dessus s'applique sans exception.
 * **Pas de tag de release** : le tag `archive/pre-restructure-J8` fige l'état
   d'avant réorganisation ; ce n'est pas une release.
 
 ## Conséquences
 
-* `pytest modules/a2d/tests tests infra/vllm/scripts/tests` fonctionne après
-  `pip install -e .` ;
+* `pytest modules/a2d/tests modules/dopd/tests tests infra/vllm/scripts/tests`
+  fonctionne après `pip install -e .` ;
 * la CI installe le projet (`pip install -e .`) avant toute invocation de CLI ;
-* un module futur (d-OPD) s'ajoute sous `modules/dopd/` avec un paquet
-  `academiia.dopd` qui n'importe que `academiia.core` ;
+* le module d-OPD est sous `modules/dopd/` avec un paquet `academiia.dopd` qui
+  n'importe que `academiia.core` (J12) ;
 * tout nouveau `sys.path.insert` est une régression (à bloquer par relecture).

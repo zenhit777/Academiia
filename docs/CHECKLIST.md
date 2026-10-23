@@ -28,7 +28,7 @@
 - [ ] Aucun fichier `.safetensors` ne renvoie de JSONDecodeError au parsing
 
 ### 2. Cohérence des scripts
-- [ ] `python -c "import ast,glob; [ast.parse(open(f,encoding='utf-8').read()) for f in sorted(glob.glob('academiia/**/*.py', recursive=True))+sorted(glob.glob('modules/a2d/**/*.py', recursive=True))+sorted(glob.glob('infra/vllm/**/*.py', recursive=True))]"` → OK
+- [ ] `python -c "import ast,glob; [ast.parse(open(f,encoding='utf-8').read()) for f in sorted(glob.glob('academiia/**/*.py', recursive=True))+sorted(glob.glob('modules/a2d/**/*.py', recursive=True))+sorted(glob.glob('modules/dopd/**/*.py', recursive=True))+sorted(glob.glob('infra/vllm/**/*.py', recursive=True))]"` → OK
 - [ ] Les chemins par défaut pointent vers `checkpoints/` et `_artefact/tau_a` (pas `/tmp/`)
 - [ ] `modules/a2d/cli/merge_a2d.py --help` : modes `transfer|merge|merge-dg-scaled (adapter-scale)|ablation-dp-plus-tau-a|ablation-dp-minus-tau-d`,
       `--coverage {strict,zero-fill}`, `--allow-empty`, `--allow-empty-coefficient`, `--adapter-dtype`,
@@ -37,8 +37,11 @@
 - [ ] Un transfert à `α=0` ou un merge à `λ=0` est **refusé** (sortie 2) tant que le plan contient
       des vecteurs non nuls ; `--allow-empty-coefficient` l'assume (avertissement au manifeste)
 - [ ] `modules/a2d/legacy/scripts/merge_jainius.py --help` : défaut `--alpha 0.3`, `--on-shape-mismatch error`, manifeste `merge_config.json` écrit
-- [ ] `pytest modules/a2d/tests tests infra/vllm/scripts/tests -q` → tout vert (suite pytest du
+- [ ] `pytest modules/a2d/tests modules/dopd/tests tests infra/vllm/scripts/tests -q` → tout vert (suite pytest du
       dépôt ; le nombre de tests n'est pas figé dans la prose)
+- [ ] `python -c "import academiia.core, academiia.a2d, academiia.dopd; print('OK')"` → OK
+- [ ] `modules/dopd/dopd/` n'importe **pas** `academiia.a2d` ni torch (test
+      `modules/dopd/tests/test_dopd_package.py`) ; le squelette d-OPD reste CPU
 - [ ] `test_a2d_library.py` : λ=0 ⇒ D_p, λ=1 ⇒ transfert α=1,
       τ_D absent refusé, linéarité en α, LoRA ≡ `peft.merge_and_unload`, `α_eff` round-trip, refus d'écraser,
       embeddings de formes différentes, nom cible fantôme ⇒ erreur, `verify_merge` détecte un α erroné ;

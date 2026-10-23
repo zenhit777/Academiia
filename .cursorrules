@@ -3,9 +3,12 @@
 ## Contexte
 
 Projet de recherche sur l'application de la méthode A2D (AR-to-Diffusion Transfer,
-arXiv:2610.08108) à DiffusionGemma et Dream-7B. **La spécification de référence est
+arXiv:2610.08108) à DiffusionGemma et Dream-7B, et sur la préparation de **d-OPD**
+(future-aware on-policy distillation, arXiv:2609.35362, squelette J12).
+**La spécification de référence est
 [`modules/a2d/docs/A2D_SPEC.md`](modules/a2d/docs/A2D_SPEC.md)** (équations, Table 6, cibles des Tables 1/16/21) :
-la lire avant toute modification du pipeline de fusion.
+la lire avant toute modification du pipeline de fusion. Pour d-OPD, lire
+[`modules/dopd/docs/DOPD_SPEC.md`](modules/dopd/docs/DOPD_SPEC.md).
 
 ## Fichiers clés
 - `modules/a2d/docs/A2D_SPEC.md` → spécification de la méthode (source primaire : le PDF)
@@ -18,6 +21,9 @@ la lire avant toute modification du pipeline de fusion.
 - `modules/a2d/legacy/scripts/compute_tau_a.py` → **LEGACY** : persiste τ en `.npy` (ne pas supprimer, ne pas réintroduire)
 - `modules/a2d/legacy/docs/` → archives Jainius (`AUDIT.md`, `GUIDE_RESTANT.md`), non normatives
 - `modules/a2d/docs/QUICKSTART.md` → détail opérationnel (protocole d'évaluation, géométrie, legacy, scripts vLLM), déplacé depuis le README racine (J10)
+- `modules/dopd/docs/DOPD_SPEC.md` → **brief d-OPD** (mismatch, cible future-aware, interfaces, périmètre)
+- `modules/dopd/dopd/` → **squelette d-OPD** : `config.py`, `target.py` (cible NumPy/CPU, aucun torch)
+- `modules/dopd/tests/` → tests CPU du squelette (import, règle ADR-001, cible)
 - Entry-points CLI (après `pip install -e .`) : `merge-a2d`, `verify-merge`, `measure-geometry`, `verify-checkpoint`, `download-models` → `modules/a2d/cli/*.py` (mêmes arguments)
 - `./checkpoints/Jainius/` → build legacy (ablation hors papier, plus une référence scientifique)
 
@@ -30,6 +36,7 @@ la lire avant toute modification du pipeline de fusion.
 - [`AGENTS.md`](AGENTS.md) → règles de travail complètes
 
 ## Règles
+- **d-OPD n'importe jamais `academiia.a2d`** (ADR-001) : les deux méthodes sont indépendantes. Le squelette d-OPD reste NumPy/CPU, sans torch ni entraînement.
 - Ne jamais modifier directement les fichiers `.safetensors` dans `checkpoints/`. Le merge écrit en BF16 canonique.
 - Lire les safetensors via `safetensors.safe_open` (bits exacts). Parseur maison `SafetensorsMmapLoader` interdit pour tout nouveau code.
 - Les checkpoints sont volumineux (~247 Gio / ~264 Go total, mesuré `du -sb`). Ne pas les lister ou scanner en masse.

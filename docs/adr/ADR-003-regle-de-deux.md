@@ -40,12 +40,15 @@ sources de vérité sur α, λ, τ et la façon de fusionner.
 | empreintes / E/S safetensors | `academiia/core/common.py` | — | source unique |
 | verdict de porte | `modules/a2d/a2d/verdict.py` | — | source unique |
 
-### Cas du module d-OPD (planifié)
+### Cas du module d-OPD (squelette J12)
 
-* d-OPD **n'appellera pas** la bibliothèque A2D s'il applique une méthode
+* d-OPD **n'appelle pas** la bibliothèque A2D s'il applique une méthode
   différente : dans ce cas il ne duplique pas une *règle*, il implémente une
   *autre méthode*, et son manifeste doit le dire (`producer.module =
   "dopd"`, ADR-002).
+* C'est le cas actuel : d-OPD est une distillation on-policy (cible
+  future-aware), pas une fusion de poids. Le squelette `modules/dopd/`
+  n'importe pas `academiia.a2d` et ne duplique aucune équation A2D.
 * Si d-OPD devait réimplémenter une règle A2D (même équation, même convention
   de mapping), il **appelle** `academiia.a2d` et ne duplique pas.
 * Le test d'égalité devient alors une **comparaison inter-modules** : le

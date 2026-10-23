@@ -3,7 +3,9 @@
 Espace de recherche qui applique la méthode **A2D** (Qin et al., EPFL, 2026,
 [arXiv:2610.08108](https://arxiv.org/abs/2610.08108)) : transférer un vecteur de tâche
 autoregressif vers un modèle de diffusion, puis composer ce transfert avec le vecteur de
-post-training du modèle de diffusion.
+post-training du modèle de diffusion. Le dépôt prépare également **d-OPD**
+([arXiv:2609.35362](https://arxiv.org/abs/2609.35362)), une distillation on-policy
+future-aware pour les modèles de diffusion par blocs (squelette J12, sans entraînement).
 
 **Spécification de référence** : [`modules/a2d/docs/A2D_SPEC.md`](modules/a2d/docs/A2D_SPEC.md)
 (équations, Table 6, cibles des Tables 1/16/21).
@@ -20,7 +22,7 @@ post-training du modèle de diffusion.
 | **a2d** (méthode) | [`modules/a2d/`](modules/a2d/) | `academiia.a2d` | validé mécaniquement — transfert, merge, ablations, vérification post hoc ; porte **G1 non franchie** |
 | **a2d legacy** | [`modules/a2d/legacy/`](modules/a2d/legacy/) | — | déprécié — pipeline Jainius (hors papier), conservé pour l'historique |
 | **infra vLLM** | [`infra/vllm/`](infra/vllm/) | — | en place — service d'inférence (image FP8 épinglée) |
-| **d-OPD** | *à créer* | `academiia.dopd` | planifié — arXiv 2609.35362 ; dev sur Qwen3-0.6B ; aucun code à ce jour |
+| **d-OPD** | [`modules/dopd/`](modules/dopd/) | `academiia.dopd` | **squelette J12** — cible future-aware (NumPy/CPU), configuration ; aucun entraînement, aucun checkpoint |
 
 Règle de dépendance : un module importe `academiia.core`, **jamais** un autre module
 → [ADR-001](docs/adr/ADR-001-disposition.md).
@@ -101,10 +103,12 @@ bash modules/a2d/harness/dream/setup.sh     # .venv/, .fork/, .cache/ sous le ha
 | [`modules/a2d/STATUS.md`](modules/a2d/STATUS.md) | état des portes, ce qui est démontré ou non, contraintes machine, décisions ouvertes |
 | [`modules/a2d/docs/QUICKSTART.md`](modules/a2d/docs/QUICKSTART.md) | détail de la bibliothèque, protocole d'évaluation App. A.1, géométrie, workflow legacy, scripts vLLM |
 | [`modules/a2d/docs/A2D_SPEC.md`](modules/a2d/docs/A2D_SPEC.md) | spécification de la méthode (source primaire) |
+| [`modules/dopd/docs/DOPD_SPEC.md`](modules/dopd/docs/DOPD_SPEC.md) | brief d-OPD : mismatch, correction future-aware, interfaces, périmètre |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | architecture du dépôt, dépendances, pipeline |
 | [`docs/STATUS.md`](docs/STATUS.md) | index court des modules |
 | [`docs/CHECKLIST.md`](docs/CHECKLIST.md) / [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) | vérifications avant « prêt » / anomalies connues |
-| [`modules/a2d/docs/reports/`](modules/a2d/docs/reports/) | rapports de mission (J6 → J10) |
+| [`modules/a2d/docs/reports/`](modules/a2d/docs/reports/) | rapports de mission A2D (J6 → J11bis) |
+| [`modules/dopd/docs/reports/`](modules/dopd/docs/reports/) | rapports du module d-OPD (J12 →) |
 
 ## Licence
 

@@ -14,6 +14,12 @@
 > entry-points CLI (`merge-a2d`, `verify-merge`, `measure-geometry`,
 > `verify-checkpoint`, `download-models`). **Aucun résultat, aucun seuil et aucun
 > verdict n'ont été modifiés.** Voir `modules/a2d/docs/reports/J10.md`.
+>
+> **Mise à jour J12 (2026-10-23)** : le module **d-OPD** (arXiv 2609.35362) a
+> désormais un **squelette** sous `modules/dopd/` (paquet `academiia.dopd`,
+> cible future-aware NumPy/CPU, tests). Il n'importe pas A2D et **ne touche à
+> aucun résultat, seuil ou verdict G1** ; voir `modules/dopd/docs/DOPD_SPEC.md`
+> et `modules/dopd/docs/reports/J12.md`.
 
 Ce document est le **point d'entrée** pour savoir ce qui est démontré, ce qui ne l'est pas, et
 où se trouve chaque chose. Il remplace les statuts dispersés dans les rapports de mission ;

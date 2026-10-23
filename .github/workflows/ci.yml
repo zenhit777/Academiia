@@ -28,7 +28,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev,eval,peft]"
       - name: Imports des paquets installes
-        run: python -c "import academiia.core, academiia.a2d; print('OK')"
+        run: python -c "import academiia.core, academiia.a2d, academiia.dopd; print('OK')"
       - name: Entry-points CLI (--help)
         run: |
           set -e
@@ -38,13 +38,14 @@ jobs:
           done
           echo "5/5 entry-points OK"
       - name: Lint (ruff, regles E/F)
-        run: ruff check academiia/ modules/a2d/
+        run: ruff check academiia/ modules/a2d/ modules/dopd/
       - name: Syntaxe recursive des modules et de l'infra
         run: |
           python - <<'EOF'
           import ast, glob
           files = (sorted(glob.glob('academiia/**/*.py', recursive=True))
                    + sorted(glob.glob('modules/a2d/**/*.py', recursive=True))
+                   + sorted(glob.glob('modules/dopd/**/*.py', recursive=True))
                    + sorted(glob.glob('infra/vllm/**/*.py', recursive=True)))
           assert files, "aucun script trouve"
           for f in files:
@@ -132,7 +133,7 @@ jobs:
       # J11 : la suite de mutations n'est plus executee deux fois — la passe
       # generale l'exclut, la passe ci-dessous la detaille (sortie verbose).
       - name: Suite de tests (hors mutations)
-        run: pytest modules/a2d/tests tests infra/vllm/scripts/tests -q --ignore=modules/a2d/tests/test_a2d_mutation.py
+        run: pytest modules/a2d/tests modules/dopd/tests tests infra/vllm/scripts/tests -q --ignore=modules/a2d/tests/test_a2d_mutation.py
       - name: Tests adversariaux (mutations) de la bibliotheque A2D
         run: |
           # Chaque mutation d'un merge correct doit etre detectee par la
