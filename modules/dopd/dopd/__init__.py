@@ -6,6 +6,8 @@ Paquet ``academiia.dopd``. Il contient :
 * :func:`compute_future_aware_target` — cible future-aware ``p̃_T,i`` (eq. 15-18),
   en NumPy pur, sans torch ni GPU ;
 * :func:`candidate_union` — union des top-k professeur/élève ;
+* le **noyau du diagnostic Annexe D** (:func:`exact_token_posteriors`,
+  :func:`evaluate_gate`, ...) — énumération exacte, KL et décision de porte ;
 * les **contrats** :class:`TeacherScorer`, :class:`RolloutRecorder`,
   :class:`TaskVerifier`, :class:`LineageWriter` (J13) — abstractions mockables,
   sans scoring ni rollout réels.
@@ -22,6 +24,18 @@ from .config import (
     PACKAGE_VERSION,
     SUPPORTED_ARITHMETIC_DTYPES,
     DOPDConfig,
+)
+from .diagnostic import (
+    GateDecision,
+    RestrictedSupport,
+    bootstrap_delta_ci,
+    evaluate_gate,
+    exact_token_posteriors,
+    exact_token_posteriors_reference,
+    kl_exact_to_target,
+    sample_compatible_index,
+    summarize_marginals,
+    verify_enumeration_agreement,
 )
 from .interfaces import (
     ARTIFACT_KINDS,
@@ -59,6 +73,7 @@ __all__ = [
     "DEFAULT_ARITHMETIC_DTYPE",
     "DEVELOPMENT_MODEL_ID",
     "DOPDConfig",
+    "GateDecision",
     "LINEAGE_SCHEMA",
     "PACKAGE_VERSION",
     "PRODUCER_MODULE",
@@ -74,13 +89,22 @@ __all__ = [
     "DenoisingState",
     "LineageManifest",
     "LineageWriter",
+    "RestrictedSupport",
     "RolloutRecorder",
     "ScoringRequest",
     "ScoringResult",
     "TargetResult",
     "TaskVerifier",
     "TeacherScorer",
+    "bootstrap_delta_ci",
     "candidate_union",
     "compute_future_aware_target",
+    "evaluate_gate",
+    "exact_token_posteriors",
+    "exact_token_posteriors_reference",
+    "kl_exact_to_target",
     "relative_future_deltas",
+    "sample_compatible_index",
+    "summarize_marginals",
+    "verify_enumeration_agreement",
 ]
