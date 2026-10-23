@@ -600,6 +600,110 @@ une mission et, pour J15+, un budget GPU mesuré.
 - **Manifeste** : ADR-002 n'est pas implémenté ; J12 ne doit pas inventer un format
   concurrent. Le schéma est cité, pas dupliqué.
 
+### 6.9 Porte scientifique J14 — diagnostic Annexe D (critères pré-enregistrés)
+
+> **Statut** : critères figés le 2026-10-23, **avant** toute implémentation du
+> diagnostic et tout premier run GPU J14. Une modification de cette section
+> après un résultat rend la porte invalide et doit être traitée comme un
+> nouveau protocole, pas comme une correction de rapport.
+
+#### 6.9.1 Question et hypothèse
+
+La porte J14 ne mesure pas une performance aval. Elle mesure si, dans un
+cadre teacher AR fini où le posterior exactement conditionné est calculable,
+la cible **future-aware à un seul futur échantillonné** réduit la divergence
+KL de la cible causale par rapport à ce posterior.
+
+La grandeur principale est la réduction appariée
+
+```
+ΔKL = KL(π_exact || r_causal) − KL(π_exact || r_future-aware)
+```
+
+Une valeur positive signifie que la cible future-aware est plus proche du
+posterior exact. La KL est toujours `KL(π_exact || cible)`, conformément à
+l'équation 28 de l'Annexe D.
+
+#### 6.9.2 Protocole local réduit, figé avant exécution
+
+Le diagnostic reproduit la construction de l'Annexe D, avec les écarts
+suivants, tous déclarés :
+
+* **Professeur** : `Qwen/Qwen3-0.6B`, gelé, en BF16, avec le même contexte
+  causal fixe pour toutes les positions : `Question: What is the capital of
+  France?\nAnswer:` ;
+* **support énumérable** : construction séquentielle de l'Annexe D.1, avec
+ restriction à `V` tokens par position et renormalisation du support fini ;
+* **configurations** : `(N,V) ∈ {(4,6), (4,12), (6,6)}`. Le sous-ensemble est
+  explicitement justifié : il couvre les deux valeurs `N` principales et deux
+  restrictions `V` du papier, tout en gardant l'énumération et l'estimation
+  exploitables sur un seul GPU. Les sept autres configurations du papier
+  (`V=24/48`, `N=6,V=8/12/16`, `N=8`) sont hors budget local ; elles ne
+  seront ni interpolées ni présentées comme reproduites ;
+* **blocs** : 100 blocs complets par configuration ;
+* **états masqués** : rétention indépendante de chaque position avec
+  probabilité 0,45 ; si toutes les positions sont retenues, une position est
+  masquée uniformément ;
+* **perturbations** : les quatre niveaux `σ ∈ {0, 0,5, 1,0, 1,5}` de
+  l'équation 30. Les mêmes états de base sont réutilisés pour les quatre
+  niveaux ;
+* **futur** : un seul bloc compatible est échantillonné par état et par
+  niveau de bruit, puis utilisé pour construire les deux cibles ;
+* **correction** : appliquée à **tout le support restreint** à la position,
+  sans l'approximation top-k de l'entraînement ;
+* **graine** : `20261023` pour le diagnostic ; `20261024` pour le bootstrap ;
+* **bootstrap** : 10 000 rééchantillonnages, IC percentile 95 %. L'unité de
+  rééchantillonnage est le **bloc de base**, afin de préserver la dépendance
+  entre ses marginaux et ses quatre niveaux de bruit ; les blocs sont
+  rééchantillonnés dans chaque configuration.
+
+Le budget GPU maximal est de 2 heures pour un run complet. Un dépassement
+interrompt le protocole plutôt que de réduire silencieusement le nombre de
+blocs ou de configurations.
+
+#### 6.9.3 Critères d'acceptation
+
+La porte est **FRANCHIE** si et seulement si toutes les conditions suivantes
+sont satisfaites :
+
+1. **Critère primaire** : la réduction agrégée appariée `ΔKL` est strictement
+   positive et son IC bootstrap 95 % **exclut zéro** (borne inférieure
+   `> 0`). Ce critère est évalué sur tous les marginaux admissibles du
+   sous-ensemble figé, avec IC calculé par bootstrap de blocs comme décrit
+   ci-dessus.
+2. **Complétude** : les résultats sont publiés pour chacune des trois
+   configurations, pour chacun des quatre niveaux `σ`, puis agrégés. Aucun
+   résultat négatif ou configuration n'est supprimé a posteriori.
+3. **Effectif** : au moins 100 blocs de base par configuration et au moins
+   2 000 marginaux token admissibles au total. Un effectif inférieur rend la
+   porte **NON CONCLUANTE**, même si le critère primaire est favorable.
+4. **Intégrité numérique** : aucun NaN/Inf dans les cibles, KL ou
+   probabilités ; la somme de chaque distribution vaut 1 à `1e-5` près ; le
+   support exact est vérifié par une énumération indépendante sur un petit
+   cas de test. Un écart viole l'intégrité numérique et invalide le run.
+5. **Traçabilité** : commande exacte, commit, version de PyTorch/Transformers,
+   type de modèle, seed, mémoire GPU, temps mural et manifeste ADR-002 sont
+   consignés dans le rapport et le résultat versionné.
+
+La porte **n'est pas** un test d'égalité avec les chiffres `0,4444` et
+`0,1249` du papier : le papier utilise Qwen3-8B, dix configurations et
+49 948 marginaux. Ces valeurs restent des références de lecture, non des
+seuils locaux.
+
+#### 6.9.4 Décision en cas d'échec
+
+* IC primaire contenant zéro, effectif insuffisant ou violation numérique :
+  porte **NON FRANCHIE**. J14 s'arrête à la documentation ; aucune implémentation
+  de `TeacherScorer` de production ni de `StudentPolicy`, et aucun début de
+  boucle d'entraînement n'est autorisé avant une nouvelle mission.
+* Critère primaire rempli mais une configuration ou un niveau `σ` présente
+  une augmentation de KL : porte **FRANCHIE AVEC RÉSERVE** uniquement si
+  l'agrégat reste positif avec IC excluant zéro ; la configuration en défaut
+  et la réserve doivent être nommées avant J15.
+* Porte franchie : J15 peut proposer un protocole réduit, après chiffrage du
+  budget RTX 5090 et validation de la gouvernance. Le franchissement J14
+  n'autorise ni entraînement ni modification de G1.
+
 ---
 
 ## 7. Hors scope explicite de J12
