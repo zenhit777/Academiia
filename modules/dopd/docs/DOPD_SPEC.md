@@ -429,17 +429,46 @@ pourra pas être présentée comme une reproduction du papier.
 
 ### 6.2 Interfaces minimales attendues
 
-| Interface | Rôle | Statut J12 |
-|---|---|---|
-| `DOPDConfig` | hyperparamètres et valeurs par défaut du papier (`N`, `k`, porte, dtype) | **implémenté** (`dopd/config.py`) |
-| `compute_future_aware_target` | correction `p̃_T,i` sur un vecteur de probabilités déjà calculé | **implémenté** (`dopd/target.py`) |
-| `candidate_union` | union des top-k professeur/élève, sans doublon | **implémenté** |
-| `TeacherScorer` | `causal_prior(...)` et `suffix_loglikelihood(...)`, batché et caché | spécifié, non implémenté |
-| `RolloutRecorder` | états visités, premier temps de démasquage, états échantillonnés | spécifié, non implémenté |
-| `Verifier` | étiquette de correction `R(x̂)` par tâche | spécifié, non implémenté |
-| `StudentPolicy` | log-probabilités de l'élève aux positions masquées | spécifié, non implémenté |
-| `DOPDTrainer` | boucle on-policy, échantillonnage d'état, KL, optimiseur | hors J12 |
-| `LineageWriter` | `lineage.json` au schéma ADR-002, `producer.module = "dopd"` | hors J12 |
+| Interface | Rôle | Statut | Code |
+|---|---|---|---|
+| `DOPDConfig` | hyperparamètres et valeurs par défaut du papier (`N`, `k`, porte, dtype) | **implémenté** (J12) | `dopd/config.py` |
+| `compute_future_aware_target` | correction `p̃_T,i` sur un vecteur de probabilités déjà calculé | **implémenté** (J12) | `dopd/target.py` |
+| `candidate_union` | union des top-k professeur/élève, sans doublon | **implémenté** (J12) | `dopd/target.py` |
+| `TeacherScorer` | `causal_prior(...)` et `suffix_loglikelihood(...)`, batché et caché | **contrat implémenté** (J13) | `dopd/interfaces.py` |
+| `RolloutRecorder` | états visités, premier temps de démasquage, états échantillonnés | **contrat implémenté** (J13) | `dopd/interfaces.py` |
+| `TaskVerifier` | étiquette de correction `R(x̂)` par tâche | **contrat implémenté** (J13) | `dopd/interfaces.py` |
+| `LineageWriter` | `lineage.json` au schéma ADR-002, `producer.module = "dopd"` | **contrat implémenté** (J13) | `dopd/interfaces.py` |
+| `StudentPolicy` | log-probabilités de l'élève aux positions masquées | spécifié, non implémenté | — |
+| `DOPDTrainer` | boucle on-policy, échantillonnage d'état, KL, optimiseur | hors J13 | — |
+
+**Portée de J13.** Les quatre contrats de la colonne « contrat implémenté »
+sont des **classes abstraites** (`abc.ABC`) assorties de types de données
+figés et de quelques helpers déterministes :
+
+- `TeacherScorer.score(request)` fait **un** appel de prior et **un** lot de
+  branches (les candidats `V_i` plus la branche de référence `x̂_i`, soit au
+  plus `2k + 1 = 33` branches à `k = 16`, App. B) ;
+- `RolloutRecorder.sample_state(block_index, rng)` tire **un** état de
+  débruitage parmi ceux qui ont au moins une position masquée (App. C.2) ;
+- `TaskVerifier.gate_open(completion, config=…)` applique la porte : ouverte
+  si `correctness_gate` est actif **et** que le vérificateur accepte ;
+- `LineageWriter.build_manifest(...)` construit un manifeste ADR-002 avec
+  `producer.module = "dopd"`, `producer.version`, le commit git
+  (`academiia.core.git_commit`) et la commande exacte.
+
+Aucun scoring réel, aucun rollout réel, aucun entraînement : les
+implémentations concrètes vivent **hors** du paquet pur (règle ADR-001 : ni
+`torch`, ni `transformers` dans `academiia.dopd`).
+
+**Types de données associés** (`dopd/interfaces.py`) : `ScoringRequest`
+(préfixe causal partagé, suffixe `Ĉ_i`, candidats `V_i`, token de référence
+`x̂_i`), `ScoringResult` (prior `r_i(v)` plein vocabulaire + scores `s_i(v)`),
+`DenoisingState` (état `X_t` et positions masquées), `CompletedBlock` (bloc
+complété `x̂`), `ArtifactRef` et `LineageManifest`.
+
+**Note de nommage.** Le brief désignait le vérificateur `Verifier` ; le code
+retient `TaskVerifier`, plus explicite et sans collision avec le module
+`academiia.core.text.degenerate`. Le rôle est inchangé.
 
 **Contrat de la fonction de cible.** Elle reçoit une distribution causale **déjà calculée**
 (vecteur de probabilités), les indices des candidats, leurs log-vraisemblances de suffixe et

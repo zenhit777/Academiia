@@ -16,6 +16,10 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
+#: Version du paquet ``academiia.dopd``. Source de vérité unique : elle est
+#: reprise dans le bloc ``producer.version`` du manifeste de lignée ADR-002.
+PACKAGE_VERSION = "0.1.0"
+
 #: dtype d'arithmétique par défaut (App. B du papier) : scores relatifs,
 #: facteurs de correction et normaliseur plein vocabulaire sont calculés en
 #: float32. C'est la seule source de vérité du module pour ce réglage :

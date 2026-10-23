@@ -41,6 +41,21 @@ def test_package_importable_and_exports():
         "candidate_union",
         "compute_future_aware_target",
         "relative_future_deltas",
+        # Contrats d'interface (J13).
+        "TeacherScorer",
+        "RolloutRecorder",
+        "TaskVerifier",
+        "LineageWriter",
+        "ScoringRequest",
+        "ScoringResult",
+        "DenoisingState",
+        "CompletedBlock",
+        "ArtifactRef",
+        "LineageManifest",
+        "LINEAGE_SCHEMA",
+        "PRODUCER_MODULE",
+        "ARTIFACT_KINDS",
+        "DEVELOPMENT_MODEL_ID",
     ):
         assert name in dopd.__all__
         assert hasattr(dopd, name)
