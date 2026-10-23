@@ -37,8 +37,8 @@ jobs:
             "${cli}" --help > /dev/null
           done
           echo "5/5 entry-points OK"
-      - name: Lint (ruff, regles E/F)
-        run: ruff check academiia/ modules/a2d/ modules/dopd/
+      - name: Lint (ruff, regles E/F, perimetre complet)
+        run: ruff check academiia/ modules/ tests/ tools/ infra/
       - name: Syntaxe recursive des modules et de l'infra
         run: |
           python - <<'EOF'

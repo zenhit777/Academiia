@@ -89,6 +89,9 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
+# J14 : le lint couvre tout le depot (academiia, modules, tests, tools, infra).
+# B/SIM restent hors selection : leur inventaire est trace dans ADR-005 et leur
+# activation exige une mission de correction dediee.
 select = ["E", "F"]
 # E501 (longueur de ligne) est non bloquant : le code existant n'est pas
 # reformate en masse ; le reste (F401, F811, F841, E402...) est bloquant.

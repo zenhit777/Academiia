@@ -27,6 +27,15 @@
 > d-OPD reste **indépendant** d'A2D : il n'importe pas `academiia.a2d` et
 > **aucun résultat, seuil ou verdict G1 n'a été modifié**. Voir
 > `modules/dopd/docs/reports/J13.md`.
+>
+> **Mise à jour J14 (2026-10-23)** : la **porte scientifique Annexe D** de
+> d-OPD est **franchie** sur Qwen3-0.6B : la cible future-aware à un seul futur
+> échantillonné réduit la KL appariée de **0,1623** (IC 95 % bootstrap
+> `[0,0742 ; 0,2252]`), sur 3 056 marginaux et 3 configurations. Run GPU
+> **déclaré**, inférence seule : **aucun entraînement, aucun backward, aucun
+> poids modifié**, et **aucun résultat, seuil ou verdict G1 touché**. La voie
+> d-'entraînement locale reste **non budgétée à l'échelle du papier** : voir
+> `modules/dopd/docs/BUDGET_RTX5090.md`, `modules/dopd/docs/reports/J14.md`.
 
 Ce document est le **point d'entrée** pour savoir ce qui est démontré, ce qui ne l'est pas, et
 où se trouve chaque chose. Il remplace les statuts dispersés dans les rapports de mission ;

@@ -9,7 +9,7 @@ remplace ni `docs/CHECKLIST.md` (portes G1/G2/G3) ni les rapports de mission.
 | `modules/a2d/` | `academiia.a2d` | **validé mécaniquement** — méthode A2D (transfert, merge, ablations, vérification post hoc). G1 **non franchie** (verdict inchangé, aucun seuil rejoué). | `modules/a2d/STATUS.md` |
 | `modules/a2d/legacy/` | — | **déprécié** — pipeline Jainius (hors papier), conservé pour l'historique. | `modules/a2d/legacy/README.md` |
 | `infra/vllm/` | — | **service d'inférence** (compose FP8 épinglé, smoke, diagnostic). | `infra/vllm/README.md` |
-| `modules/dopd/` | `academiia.dopd` | **cibles + contrats (J12 + J13)** — module **d-OPD** (arXiv 2609.35362) : cible future-aware (NumPy/CPU), configuration, **contrats d'interface** (professeur, rollout, vérificateur, lignée ADR-002) ; **smoke de chargement Qwen3-0.6B** réussi (CPU et GPU, aucun entraînement). Aucun entraînement, aucun rollout réel. | `modules/dopd/docs/DOPD_SPEC.md` |
+| `modules/dopd/` | `academiia.dopd` | **porte Annexe D franchie (J14)** — module **d-OPD** (arXiv 2609.35362) : cible future-aware (NumPy/CPU), configuration, **contrats d'interface** (professeur, rollout, vérificateur, lignée ADR-002), **noyau du diagnostic Annexe D** (énumération exacte, KL, bootstrap, décision de porte). Le diagnostic GPU sur Qwen3-0.6B est **exécuté et versionné** : `ΔKL = +0,1623`, IC 95 % `[+0,0742 ; +0,2252]`, **aucune réserve**. Aucun entraînement, aucun rollout réel, aucun `TeacherScorer` de production. | `modules/dopd/docs/DOPD_SPEC.md` |
 
 ## Règles de navigation
 

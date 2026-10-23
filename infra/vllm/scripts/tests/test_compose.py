@@ -93,7 +93,7 @@ def run_script(env_compose: dict[str, str], env_shell: dict[str, str] | None = N
     assert proc.returncode == 0, f"bash a échoué : {proc.stderr}"
     lines = proc.stdout.splitlines()
     runner = lines[0].removeprefix("RUNNER=")
-    args = [l[4:] for l in lines[1:] if l.startswith("ARG:")]
+    args = [line[4:] for line in lines[1:] if line.startswith("ARG:")]
     return runner, args
 
 
