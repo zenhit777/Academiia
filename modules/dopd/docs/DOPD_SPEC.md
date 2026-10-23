@@ -42,7 +42,9 @@ seulement si le rollout passe le vérificateur de la tâche (§4.2).
 
 **Résultats annoncés.** Sur Qwen3 de 0,6B à 8B, d-OPD dépasse OPDLM de **2,6 à 4,0 points**
 de moyenne sur six benchmarks et atteint la performance d'OPDLM **1,35 à 1,58× plus vite**
-en temps mural (§5). Ces chiffres sont des **cibles de lecture**, pas des résultats locaux.
+en temps mural (§5). À taille de modèle fixée (`N = 4`), la plage est **2,6–3,9 pts** ; le
+maximum de 4,0 pts est atteint par Qwen3-8B à `N = 8` (§5.1). Ces chiffres sont des
+**cibles de lecture**, pas des résultats locaux.
 
 **Ce que fait Academiia en J12.** Un module `modules/dopd/` (paquet `academiia.dopd`) qui
 contient : ce brief, une configuration conforme aux valeurs par défaut du papier, et une
@@ -105,7 +107,9 @@ n'est **pas** jeté de l'entraînement. Le reste de la procédure (rollout, éch
 
 Sur Qwen3-0.6B, 1,7B, 4B et 8B, avec des blocs de 4 tokens (et 8/16 pour le 8B), d-OPD
 améliore la moyenne de six benchmarks de **2,6 à 4,0 points** par rapport à OPDLM, et réduit
-le temps mural pour atteindre la performance d'OPDLM de **1,35 à 1,58×**. Dans un diagnostic
+le temps mural pour atteindre la performance d'OPDLM de **1,35 à 1,58×**. À `N = 4`, la
+plage par échelle est **2,6–3,9 pts** ; les **4,0 pts** correspondent à Qwen3-8B à `N = 8`,
+et le gain n'est pas monotone en `N` (3,8 pts à `N = 16`). Dans un diagnostic
 contrôlé où la cible exacte est énumérable (49 948 marginaux), la KL moyenne au posterior
 exact passe de **0,4444** (cible causale) à **0,1249** (cible future-aware), soit **−71,9 %**
 (§3.3, App. D). Ces chiffres sont ceux du papier ; voir §5 pour les tableaux et §7 pour ce
@@ -245,9 +249,10 @@ repondérés par `exp(Δs_i(v))`, les autres gardent un facteur 1, puis on renor
 ### 3.4 Ensemble de candidats et vérificateur
 
 - **Candidats** : union des top-`k` du professeur et des top-`k` de l'élève. Le papier prend
-  `k = 16` par défaut. À `k = 16`, l'union couvre **99,45 %** de la masse du professeur et
-  **99,44 %** de celle de l'élève, pour un surcoût d'entraînement mesuré de **2,63 %**
-  (Table 3, colonne « overhead »). À `k = 4`, la couverture est déjà de 97,87 % / 95,43 %.
+  `k = 16` par défaut. La Table 3 mesure la masse couverte **sous chaque distribution**
+  pour un ensemble de `k` candidats : 99,45 % (professeur) et 99,44 % (élève) à `k = 16`,
+  97,87 % / 95,43 % à `k = 4`. Le surcoût d'entraînement mesuré est de **2,63 %** à
+  `k = 16` (Table 3, App. E).
 - **Vérificateur** : la correction n'est appliquée que si le rollout complété passe le
   vérificateur de la tâche. Un rollout incorrect reçoit la cible causale standard ; il reste
   dans l'entraînement. Le papier rapporte 58,8 → 59,8 de moyenne (8B, N = 4) en activant la
@@ -280,6 +285,12 @@ repondérés par `exp(Δs_i(v))`, les autres gardent un facteur 1, puis on renor
 - La correction n'est **validée** que si le normaliseur plein vocabulaire est fini et
   strictement positif ; sinon on conserve `r_i`. Les écarts finis ne sont pas écrêtés ; les
   zéros exacts restent nuls (représentés `-∞` en log-probabilité).
+  Conséquence directe : un delta fini assez grand pour que `exp(Δs)` déborde, ou
+  assez négatif pour que **tous** les poids sous-débitent à zéro, rend le normaliseur
+  invalide et déclenche le **fallback causal**. Un delta `-∞` isolé (suffixe de
+  probabilité nulle) est légitime : il annule le poids de ce seul candidat.
+- Un score candidat ou une référence non fini rend le normaliseur non fini : le
+  fallback causal s'applique également (pas d'exception).
 - Si le cache de préfixe étendu dépasse **16 GiB**, le lot de branches est réduit.
 
 ### 3.7 Entraînement (App. C.2)
@@ -318,8 +329,8 @@ six benchmarks, sans sélection par benchmark.
 | Porte de correction | — | vérificateur de tâche ; fallback causal si rollout incorrect |
 | Objectif | KL avant `D_KL(r_i ‖ p_θ,i)` | KL avant `D_KL(p̃_T,i ‖ p_θ,i)` |
 | Architecture / données / optimiseur | référence | **inchangés** |
-| Coût supplémentaire | — | scoring du suffixe pour les candidats ; **2,63 %** de surcoût par itération à `k = 16` (Table 3) |
-| Effet du bloc | — | le gain croît avec `N` : jusqu'à **4,0 pts** à `N = 8` sur 8B (Table 1) |
+| Coût supplémentaire | — | scoring du suffixe pour les candidats ; **2,63 %** de surcoût à `k = 16`, moyenne **non pondérée sur les 4 échelles** de l'augmentation du temps moyen par itération (Table 3, App. E) |
+| Effet du bloc | — | le gain **persiste** quand `N` augmente : +3,9 / +4,0 / +3,8 pts sur 8B pour `N = 4 / 8 / 16` ; maximum **4,0 pts** à `N = 8` (Table 1) |
 
 **Ce que d-OPD n'est pas.** Ce n'est pas une méthode d'arithmétique de poids, ni un
 transfert de vecteur de tâche, ni un merge. Il n'y a ni `τ_A`, ni `τ_D`, ni coefficient
@@ -346,7 +357,10 @@ GPQA-D, GSM8K, MATH500, AIME25 ; seule la moyenne est recopiée ici.
 | Qwen3-8B, N = 16 | 43,1 | **46,9** | **+3,8** |
 
 Lecture : la plage annoncée dans l'abstract et l'introduction est **2,6–4,0 points**. Le
-gain n'est pas limité à une taille de modèle, et il persiste quand `N` augmente.
+gain n'est pas limité à une taille de modèle, et il persiste quand `N` augmente. Il
+n'est **pas monotone** en `N` : 3,9 pts à `N = 4`, 4,0 pts à `N = 8`, 3,8 pts à
+`N = 16`. À taille de modèle fixée (`N = 4`), la plage est **2,6–3,9 pts** ; le
+maximum de 4,0 pts n'est atteint que par Qwen3-8B à `N = 8` (§5.1).
 
 ### 5.2 Table 2 — temps mural jusqu'à la performance d'OPDLM
 
@@ -365,6 +379,13 @@ un débit d'inférence.
 - **Taille des candidats** : couverture professeur/élève 97,87/95,43 % à `k = 4` ;
   99,45/99,44 % à `k = 16` ; surcoût 2,44 % à `k = 4`, **2,63 %** à `k = 16`, 6,02 % à
   `k = 64`. `k = 16` est le compromis retenu.
+  *Portée* : ces pourcentages de couverture sont mesurés **sous chaque
+  distribution** (professeur et élève séparément) pour un ensemble de `k`
+  candidats ; la Table 3 ne rapporte pas la masse couverte par l'**union**
+  elle-même, qui est au moins celle des deux (§4.2 : l'ensemble de candidats
+  est l'union des top-k). Le surcoût 2,63 % est la moyenne **non pondérée sur
+  les 4 échelles** de l'augmentation relative du temps moyen par itération
+  (App. E), et non un surcoût uniforme par échelle.
 - **Porte de correction** (8B, N = 4) : OPDLM 55,9 ; d-OPD sans porte 58,8 ; d-OPD avec
   porte **59,8**.
 
@@ -426,6 +447,18 @@ la log-vraisemblance de référence. Elle ne fait **aucun** forward, ne connaît
 tokenizer, et ne persiste rien. C'est ce qui permet de la tester sur CPU avec des
 distributions jouets.
 
+Deux paramètres de contrat explicites :
+
+- le **dtype d'arithmétique** (`arithmetic_dtype`, défaut `float32` = App. B) est
+  celui dans lequel sont calculés les deltas, les facteurs `exp(Δs)`, les poids
+  plein vocabulaire et le normaliseur. Il est partagé avec `DOPDConfig.arithmetic_dtype`,
+  qui n'est donc pas une valeur descriptive mais le **défaut effectif** de la
+  fonction ;
+- le **fallback** est un résultat, pas une exception : tout état numérique qui
+  invalide le normaliseur plein vocabulaire (débordement, sous-débitement total,
+  score ou référence non fini) rend la cible causale renormalisée, avec le motif
+  correspondant (`REASON_FALLBACK` ou `REASON_NON_FINITE_SCORES`).
+
 ### 6.3 Modèle de développement : Qwen3-0.6B
 
 Le plus petit modèle du papier est **Qwen3-0.6B** : même famille que les autres échelles,
@@ -457,7 +490,8 @@ dopd  ↛  a2d         (interdit)
   aujourd'hui NumPy).
 - Aucun `sys.path.insert`, aucun import par chemin de fichier.
 - Un test statique (`modules/dopd/tests/test_dopd_package.py`) vérifie qu'aucun fichier du
-  paquet n'importe `academiia.a2d` ni un autre module du dépôt.
+  paquet n'importe un module du dépôt autre que `academiia.core` — et qu'aucun n'aménage
+  `sys.path`.
 - Le paquet est exposé par `pyproject.toml` (`package-dir` + `packages`), pas par un
   aménagement de `PYTHONPATH`.
 
@@ -482,18 +516,26 @@ Le schéma est **figé mais non implémenté** (ADR-002) ; J12 ne fait que le ci
 Les tests du squelette vérifient :
 
 1. `import academiia.dopd` fonctionne après `pip install -e .` ;
-2. aucun import de `academiia.a2d` ni de `torch` dans le paquet ;
+2. aucun import d'un module du dépôt autre que `academiia.core`, aucun aménagement de
+   `sys.path`, aucun import de `torch` dans le paquet ;
 3. les valeurs par défaut de `DOPDConfig` sont celles du papier (N = 4, k = 16, porte
-   active) ;
+   active, scorer BF16, arithmétique float32) et `arithmetic_dtype` est bien le
+   **défaut effectif** de la fonction de cible ;
 4. la cible future-aware :
    - sans futur visible ou porte fermée, la cible est **exactement** le prior causal ;
    - le token de référence a un delta nul ;
    - les tokens hors candidats gardent un facteur 1 (vérifié par calcul manuel) ;
    - la cible est invariante à un décalage constant de tous les scores ;
    - les zéros exacts restent nuls ;
-   - un normaliseur non fini déclenche le **fallback** causal ;
+   - un candidat de score `-∞` a un poids nul, sans annuler la correction ;
+   - un **débordement** du facteur de correction (delta fini assez grand) et un
+     **sous-débitement total** (tous les poids nuls) déclenchent le fallback causal ;
+   - un score candidat ou une référence non fini déclenche le fallback causal, sans
+     lever d'exception ;
+   - un prior accepté mais non exactement normalisé est renormalisé (la cible somme 1) ;
+   - le chemin `float64` est vérifié séparément à haute précision ;
 5. les entrées invalides (prior négatif, candidat hors vocabulaire, doublon, longueurs
-   incohérentes) échouent explicitement.
+   incohérentes, dtype d'arithmétique inconnu) échouent explicitement.
 
 Ces tests ne prouvent **pas** que d-OPD améliore un modèle ; ils prouvent que la brique de
 cible est mathématiquement cohérente et que le squelette respecte les règles du dépôt.

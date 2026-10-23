@@ -15,6 +15,12 @@ pas `academiia.a2d`.
 | `docs/reports/J12.md` | rapport de mission J12 |
 | `tests/` | tests CPU (import, ADR-001, cible) |
 
+La cible applique le contrat numérique du papier (App. B) : deltas, facteurs
+`exp(Δs)`, poids et normaliseur **plein vocabulaire** sont calculés en
+`float32` ; la correction n'est validée que si ce normaliseur est fini et
+strictement positif. Tout débordement, sous-débitement total ou score non fini
+retombe donc sur la **cible causale** (fallback), sans lever d'exception.
+
 ## Vérifier le squelette
 
 ```bash
@@ -45,6 +51,10 @@ print(result.target, result.reason)
   interfaces spécifiées.
 - **Dehors (J12)** : entraînement, rollout, scoring professeur réel, benchmarks,
   GPU, modification des résultats/verdicts A2D.
+
+Le dtype d'arithmétique est explicite : `float32` par défaut (App. B du
+papier), surchargeable par `arithmetic_dtype="float64"` ou par
+`DOPDConfig(arithmetic_dtype=...)`.
 
 Voir [`docs/DOPD_SPEC.md`](docs/DOPD_SPEC.md) pour la spécification complète et
 [`../a2d/docs/A2D_SPEC.md`](../a2d/docs/A2D_SPEC.md) pour la méthode A2D, qui est
