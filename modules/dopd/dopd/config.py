@@ -16,6 +16,15 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
+#: dtype d'arithmétique par défaut (App. B du papier) : scores relatifs,
+#: facteurs de correction et normaliseur plein vocabulaire sont calculés en
+#: float32. C'est la seule source de vérité du module pour ce réglage :
+#: :func:`academiia.dopd.compute_future_aware_target` l'utilise comme défaut.
+DEFAULT_ARITHMETIC_DTYPE = "float32"
+
+#: dtypes d'arithmétique acceptés par la brique de cible.
+SUPPORTED_ARITHMETIC_DTYPES = ("float32", "float64")
+
 
 @dataclass(frozen=True)
 class DOPDConfig:
@@ -35,6 +44,8 @@ class DOPDConfig:
         max_response_length: longueur maximale d'une réponse générée.
         scorer_dtype: dtype natif du checkpoint du professeur.
         arithmetic_dtype: dtype des calculs de scores et de normalisation.
+            **Consommé** par :func:`academiia.dopd.compute_future_aware_target`,
+            qui l'utilise comme valeur par défaut.
     """
 
     block_size: int = 4
@@ -43,7 +54,7 @@ class DOPDConfig:
     denoising_steps: int = 4
     max_response_length: int = 4_000
     scorer_dtype: str = "bfloat16"
-    arithmetic_dtype: str = "float32"
+    arithmetic_dtype: str = DEFAULT_ARITHMETIC_DTYPE
 
     def __post_init__(self) -> None:
         for name in ("block_size", "candidate_k", "denoising_steps", "max_response_length"):
@@ -58,6 +69,11 @@ class DOPDConfig:
             value = getattr(self, name)
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{name} doit être une chaîne non vide")
+        if self.arithmetic_dtype not in SUPPORTED_ARITHMETIC_DTYPES:
+            raise ValueError(
+                "arithmetic_dtype doit être l'un de "
+                f"{SUPPORTED_ARITHMETIC_DTYPES}, reçu {self.arithmetic_dtype!r}"
+            )
 
     @property
     def candidate_union_bound(self) -> int:

@@ -14,12 +14,17 @@ nécessaire pour l'utiliser ou le tester.
 Spécification complète : ``modules/dopd/docs/DOPD_SPEC.md``.
 """
 
-from .config import DOPDConfig
+from .config import (
+    DEFAULT_ARITHMETIC_DTYPE,
+    SUPPORTED_ARITHMETIC_DTYPES,
+    DOPDConfig,
+)
 from .target import (
     REASON_APPLIED,
     REASON_DISABLED,
     REASON_EMPTY_CANDIDATES,
     REASON_FALLBACK,
+    REASON_NON_FINITE_SCORES,
     REASON_NO_VISIBLE_FUTURE,
     TargetResult,
     candidate_union,
@@ -30,12 +35,15 @@ from .target import (
 __version__ = "0.1.0"
 
 __all__ = [
+    "DEFAULT_ARITHMETIC_DTYPE",
     "DOPDConfig",
     "REASON_APPLIED",
     "REASON_DISABLED",
     "REASON_EMPTY_CANDIDATES",
     "REASON_FALLBACK",
+    "REASON_NON_FINITE_SCORES",
     "REASON_NO_VISIBLE_FUTURE",
+    "SUPPORTED_ARITHMETIC_DTYPES",
     "TargetResult",
     "candidate_union",
     "compute_future_aware_target",

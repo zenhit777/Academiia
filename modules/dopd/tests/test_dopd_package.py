@@ -16,7 +16,8 @@ import academiia.dopd as dopd
 from academiia.dopd import DOPDConfig
 
 PACKAGE_DIR = Path(__file__).resolve().parents[1] / "dopd"
-FORBIDDEN_REPO_IMPORTS = ("academiia.a2d",)
+# ADR-001 : un module importe academiia.core, jamais un autre module du dépôt.
+ALLOWED_REPO_IMPORTS = ("academiia.core",)
 FORBIDDEN_HEAVY_IMPORTS = ("torch", "transformers", "deepspeed")
 
 
@@ -45,17 +46,36 @@ def test_package_importable_and_exports():
         assert hasattr(dopd, name)
 
 
-def test_package_never_imports_a2d():
-    """ADR-001 : un module importe academiia.core, jamais un autre module."""
+def test_package_never_imports_other_repo_modules():
+    """ADR-001 : seul ``academiia.core`` est autorisé, tout autre module du
+    dépôt est interdit — y compris les modules qui n'existent pas encore."""
     files = sorted(PACKAGE_DIR.glob("*.py"))
     assert files, "aucun fichier Python dans le paquet"
     violations = []
     for path in files:
         for module in _imported_modules(path):
-            if any(module == forbidden or module.startswith(forbidden + ".")
-                   for forbidden in FORBIDDEN_REPO_IMPORTS):
+            if not module.startswith("academiia."):
+                continue
+            if not any(module == allowed or module.startswith(allowed + ".")
+                       for allowed in ALLOWED_REPO_IMPORTS):
                 violations.append(f"{path.name}: {module}")
     assert not violations, f"import(s) interdit(s) : {violations}"
+
+
+def test_package_never_manipulates_sys_path():
+    """ADR-001 : aucun aménagement de ``sys.path`` dans le paquet."""
+    violations = []
+    for path in sorted(PACKAGE_DIR.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Attribute):
+                continue
+            if node.attr not in {"insert", "append", "extend", "remove"}:
+                continue
+            target = node.value
+            if isinstance(target, ast.Attribute) and target.attr == "path":
+                violations.append(f"{path.name}: sys.path.{node.attr}")
+    assert not violations, f"manipulation de sys.path : {violations}"
 
 
 def test_package_never_imports_heavy_training_stack():
@@ -82,6 +102,19 @@ def test_config_defaults_match_paper():
     assert cfg.max_scorer_branches == 33  # union (<= 2k) + reference
 
 
+def test_config_arithmetic_dtype_is_the_target_default():
+    """Le dtype de la config n'est pas descriptif : c'est le défaut de la cible."""
+    import inspect
+
+    from academiia.dopd import DEFAULT_ARITHMETIC_DTYPE, compute_future_aware_target
+
+    assert DEFAULT_ARITHMETIC_DTYPE == DOPDConfig().arithmetic_dtype
+    default = inspect.signature(compute_future_aware_target).parameters[
+        "arithmetic_dtype"
+    ].default
+    assert default == DEFAULT_ARITHMETIC_DTYPE
+
+
 def test_config_to_dict_is_serialisable():
     cfg = DOPDConfig(block_size=8, candidate_k=4)
     data = cfg.to_dict()
@@ -105,6 +138,8 @@ def test_config_to_dict_is_serialisable():
         ({"block_size": 4.0}, TypeError),
         ({"correctness_gate": 1}, TypeError),
         ({"scorer_dtype": ""}, ValueError),
+        ({"arithmetic_dtype": ""}, ValueError),
+        ({"arithmetic_dtype": "float16"}, ValueError),
     ],
 )
 def test_config_rejects_invalid_values(kwargs, exc):
