@@ -704,6 +704,62 @@ seuils locaux.
   budget RTX 5090 et validation de la gouvernance. Le franchissement J14
   n'autorise ni entraînement ni modification de G1.
 
+#### 6.9.5 Résultats J14 (exécution, après le gel des critères)
+
+> **Les critères de §6.9.1 à §6.9.4 n'ont pas été modifiés après le run.**
+> Le commit `66e9d55` fige les critères ; le commit `6a8a461` porte le code
+> producteur ; le commit `0a7ebc9` porte le résultat versionné. La commande
+> exacte, les empreintes des sources et le manifeste ADR-002 sont dans
+> `modules/dopd/eval/annexe_d_qwen3_0.6b/results.json` ; le rapport est
+> `modules/dopd/docs/reports/J14.md`.
+
+**Décision : porte FRANCHIE** (`gate.status = "passed"`), sans réserve.
+
+| Critère pré-enregistré | Seuil | Mesuré | Verdict |
+|---|---|---|---|
+| 6.9.3-1 critère primaire | `ΔKL` agrégé > 0 et IC 95 % excluant 0 | `ΔKL = +0,16234`, IC 95 % `[+0,07424 ; +0,22522]` | **atteint** |
+| 6.9.3-2 complétude | 3 configurations × 4 niveaux `σ` + agrégat | publiés, aucune configuration supprimée | **atteint** |
+| 6.9.3-3 effectif | ≥ 100 blocs/config. et ≥ 2 000 marginaux | 100 blocs pour chacune des 3 configurations, **3 056** marginaux | **atteint** |
+| 6.9.3-4 intégrité numérique | aucun NaN/Inf, sommes à `1e-5`, énumération de contrôle | écart d'énumération `1,11e-16`, écart de somme `6,66e-16`, toutes valeurs finies | **atteint** |
+| 6.9.3-5 traçabilité | commande, commit, versions, seed, mémoire, temps, manifeste | tous présents dans le JSON versionné ; commit `6a8a461` contenant le code producteur | **atteint** |
+
+Aucune configuration ni aucun niveau `σ` ne dégrade la KL : **aucune réserve
+n'est requise** au sens de §6.9.4.
+
+Réduction de KL par configuration (IC 95 % bootstrap de blocs de base) :
+
+| Configuration | Marginaux | KL causale | KL future-aware | `ΔKL` | IC 95 % |
+|---|---|---|---|---|---|
+| `N4_V6` | 860 | 1,1173 | 0,9404 | **+0,1769** | `[+0,1155 ; +0,2512]` |
+| `N4_V12` | 880 | 1,3814 | 1,1889 | **+0,1924** | `[+0,1294 ; +0,2662]` |
+| `N6_V6` | 1 316 | 0,6853 | 0,5526 | **+0,1327** | `[-0,0535 ; +0,2566]` |
+| **Agrégat** | **3 056** | **1,0073** | **0,8450** | **+0,1623** | **`[+0,0742 ; +0,2252]`** |
+
+Réduction de KL par niveau de bruit (toutes configurations) :
+
+| `σ` | Marginaux | `ΔKL` | IC 95 % |
+|---|---|---|---|
+| 0,0 | 764 | +0,1749 | `[+0,1164 ; +0,2250]` |
+| 0,5 | 764 | +0,1502 | `[+0,0319 ; +0,2269]` |
+| 1,0 | 764 | +0,1729 | `[+0,1143 ; +0,2233]` |
+| 1,5 | 764 | +0,1514 | `[+0,0325 ; +0,2288]` |
+
+**Limites déclarées de la lecture.**
+
+1. La configuration `N6_V6` a une IC 95 % qui **contient zéro** (`[-0,0535 ;
+   +0,2566]`) : l'effet y est positif en moyenne mais **non concluant
+   individuellement**. Le critère primaire porte sur l'agrégat, conformément à
+   §6.9.3-1 ; ce résultat est une réserve de lecture, pas une réserve de porte.
+2. L'échelle est réduite : `Qwen3-0.6B` au lieu de 8B, 3 configurations au
+   lieu de 10, 100 blocs au lieu de 400, un seul prompt. Les chiffres du
+   papier (KL `0,4444` → `0,1249`, −71,9 %) ne sont **pas** un seuil local et
+   ne sont pas reproduits.
+3. La cible future-aware est ici celle de l'**Annexe D** (correction sur tout
+   le support restreint, sans top-k de la boucle d'entraînement) ; elle n'est
+   pas la cible `k = 16` de l'entraînement d-OPD.
+4. Le run est une **inférence seule** : 83,1 s mural, 1 374 MiB alloués CUDA
+   au pic, 21 580 MiB RSS. Aucun poids modifié, aucun backward.
+
 ---
 
 ## 7. Hors scope explicite de J12
