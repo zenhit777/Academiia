@@ -5,13 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "academiia"
 version = "0.1.0"
-description = "Academiia — espace de recherche A2D (AR-to-Diffusion Transfer)"
+description = "Academiia — espace de recherche A2D et d-OPD (diffusion language models)"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
   { name = "Academiia contributors" },
 ]
-keywords = ["diffusion", "language-model", "a2d", "lora", "ar-to-diffusion"]
+keywords = ["diffusion", "language-model", "a2d", "d-opd", "lora", "ar-to-diffusion"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "License :: OSI Approved :: Apache Software License",
@@ -54,6 +54,7 @@ download-models = "academiia.a2d.cli.download_models:main"
 #   academiia.core -> code generique (stats, empreintes, E/S safetensors)
 #   academiia.a2d  -> la methode A2D (mapping, sources, fusion, adaptateurs)
 #   academiia.a2d.eval -> scripts d'evaluation (verdict G1, bootstrap, ...)
+#   academiia.dopd -> d-OPD (cible future-aware, configuration ; squelette J12)
 # Regle de dependance : modules -> core, jamais module -> module (ADR-001).
 [tool.setuptools]
 packages = [
@@ -62,6 +63,7 @@ packages = [
   "academiia.a2d",
   "academiia.a2d.cli",
   "academiia.a2d.eval",
+  "academiia.dopd",
 ]
 zip-safe = false
 license-files = ["LICENSE"]
@@ -75,9 +77,10 @@ academiia = "academiia"
 "academiia.a2d" = "modules/a2d/a2d"
 "academiia.a2d.cli" = "modules/a2d/cli"
 "academiia.a2d.eval" = "modules/a2d/eval"
+"academiia.dopd" = "modules/dopd/dopd"
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "modules/a2d/tests", "infra/vllm/scripts/tests"]
+testpaths = ["tests", "modules/a2d/tests", "modules/dopd/tests", "infra/vllm/scripts/tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
 
 # Lint (J11, B1) : regles minimales E/F, alignees sur le plancher Python 3.12.
