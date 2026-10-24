@@ -15,6 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import product
 
+import math
 import numpy as np
 
 __all__ = [
@@ -28,6 +29,11 @@ __all__ = [
     "sample_compatible_index",
     "summarize_marginals",
     "verify_enumeration_agreement",
+    "bootstrap_prompt_ci",
+    "evaluate_multiprompt",
+    "per_prompt_marginals",
+    "sign_test",
+    "truncate_causal_gap",
 ]
 
 
@@ -513,3 +519,186 @@ def evaluate_gate(
         reserve_configurations=reserve_configurations,
         reserve_noise_levels=reserve_noise_levels,
     )
+
+# ---------------------------------------------------------------------------
+# Synthèse multi-prompt, test non paramétrique et écart cible tronquée (J15)
+# ---------------------------------------------------------------------------
+
+
+def _normal_cdf(value: float) -> float:
+    """Fonction de répartition de la loi normale centrée réduite (stdlib seul)."""
+    return 0.5 * (1.0 + math.erf(value / math.sqrt(2.0)))
+
+
+def per_prompt_marginals(records: list[dict]) -> dict[str, dict]:
+    """Moyenne et médiane de ``ΔKL`` par prompt.
+
+    La médiane complète la moyenne arithmétique du critère primaire : elle est
+    robuste à la queue (règle de lecture R4 de J14) et permet de confirmer que
+    l'effet n'est pas porté par une poignée de marginaux favorables.
+    """
+    by_prompt: dict[str, list[dict]] = {}
+    for record in records:
+        by_prompt.setdefault(str(record["prompt"]), []).append(record)
+    result: dict[str, dict] = {}
+    for prompt, group in by_prompt.items():
+        deltas = np.asarray([record["delta_kl"] for record in group], dtype=np.float64)
+        result[prompt] = {
+            "n": len(group),
+            "mean_delta_kl": float(np.mean(deltas)),
+            "median_delta_kl": float(np.median(deltas)),
+        }
+    return result
+
+
+def bootstrap_prompt_ci(
+    records: list[dict],
+    *,
+    seed: int,
+    iterations: int,
+) -> dict[str, tuple[float, float]]:
+    """IC 95 % de la ``ΔKL`` moyenne par prompt, par bootstrap de blocs.
+
+    L'unité de rééchantillonnage est le bloc de base (identifié par
+    ``(config_index, block_index)``) dans chaque prompt : la variabilité
+    inter-prompt est ainsi mesurée sans mélanger les prompts entre eux. Un IC
+    qui exclut zéro pour un prompt indique un effet significatif sur ce seul
+    prompt.
+    """
+    if iterations <= 0:
+        raise ValueError("iterations doit être strictement positif")
+    blocks_by_prompt: dict[str, dict[tuple, list[float]]] = {}
+    for record in records:
+        block_key = (str(record["config_index"]), str(record["block_index"]))
+        delta = record["causal_kl"] - record["future_kl"]
+        blocks_by_prompt.setdefault(str(record["prompt"]), {}).setdefault(block_key, []).append(delta)
+    prompts = sorted(blocks_by_prompt)
+    rng = np.random.default_rng(seed)
+    result: dict[str, tuple[float, float]] = {}
+    for prompt in prompts:
+        block_lists = list(blocks_by_prompt[prompt].values())
+        samples = np.empty(iterations, dtype=np.float64)
+        for index in range(iterations):
+            count = len(block_lists)
+            selected = rng.integers(0, count, size=count)
+            pooled: list[float] = []
+            for block_index in selected:
+                pooled.extend(block_lists[block_index])
+            samples[index] = float(np.mean(pooled))
+        result[prompt] = (
+            float(np.percentile(samples, 2.5)),
+            float(np.percentile(samples, 97.5)),
+        )
+    return result
+
+
+def sign_test(deltas: np.ndarray) -> dict[str, object]:
+    """Test des signes (non paramétrique), approximation normale à deux queues.
+
+    Sous l'hithèse nulle (médiane de ``ΔKL`` nulle), le nombre de signes
+    positifs une binomiale ``(n, 0,5)``. L'approximation normale avec
+    correction de continuité donne une valeur en p sans hypothèse sur la forme
+    de la distribution : complément non paramétrique au critère primaire fondé
+    sur la moyenne.
+    """
+    values = np.asarray(deltas, dtype=np.float64)
+    positive = int(np.sum(values > 0.0))
+    negative = int(np.sum(values < 0.0))
+    effective = positive + negative
+    if effective == 0:
+        return {"n": 0, "positive": 0, "negative": 0, "p_value": float("nan")}
+    expected = effective / 2.0
+    std = math.sqrt(effective / 4.0)
+    z = (abs(positive - expected) - 0.5) / std
+    p_value = 2.0 * (1.0 - _normal_cdf(z))
+    return {
+        "n": int(effective),
+        "positive": positive,
+        "negative": negative,
+        "p_value": float(max(0.0, min(1.0, p_value))),
+    }
+
+
+def truncate_causal_gap(
+    full_causal: np.ndarray,
+    k: int,
+) -> dict[str, float]:
+    """Écart entre la cible causale complète et sa troncade aux ``k`` meilleurs tokens.
+
+    Deux scalaires finis, décisionnels avant toute implémentation d'un
+    ``TeacherScorer`` :
+
+    - ``discarded_mass`` : masse de probabilité que la troncature met hors du
+      support (1 − somme des ``k`` plus grandes probabilités) ;
+    - ``tv_distance`` : distance L1 normalisée (distance de variation totale)
+      entre la distribution complète et la version tronquée renormalisée.
+
+    Une troncature à ``k`` grande échelle ne doit ni perdre de masse notable,
+    ni éloigner la cible de la distribution complète. La KL par rapport au
+    posterior exact n'est pas calculée ici (infinie quand le support exact
+    dépasse le top-`k`) : la distance de variation totale l'englobe et reste
+    finie.
+    """
+    probs = np.asarray(full_causal, dtype=np.float64)
+    total = float(np.sum(probs))
+    if total <= 0.0 or not np.isfinite(total):
+        return {"discarded_mass": float("nan"), "tv_distance": float("nan")}
+    normalized = probs / total
+    k = min(k, normalized.size)
+    if k >= normalized.size:
+        return {"discarded_mass": 0.0, "tv_distance": 0.0}
+    top_indices = np.argpartition(-normalized, k - 1)[:k]
+    truncated = np.zeros_like(normalized)
+    truncated[top_indices] = normalized[top_indices]
+    discarded_mass = float(1.0 - np.sum(truncated))
+    tv_distance = float(np.sum(np.abs(normalized - truncated))) / 2.0
+    return {"discarded_mass": discarded_mass, "tv_distance": tv_distance}
+
+
+def evaluate_multiprompt(
+    records: list[dict],
+    *,
+    seed: int,
+    iterations: int,
+) -> dict:
+    """Statistiques du diagnostic multi-prompt (§6.9.7).
+
+    Agrégat (critère primaire sur tous les marginaux, IC par bootstrap de blocs
+    distincts), statistiques per-prompt (moyenne/médiane + IC 95 %), et test
+    non paramétrique (médiane + test des signes). C'est l'agrégateur qui alimente
+    la décision GO / GO conditionnel / NO-GO de J15.
+    """
+    summary = summarize_marginals(records)
+    deltas = np.asarray([record["delta_kl"] for record in records], dtype=np.float64)
+    # Blocs distincts across prompts : la clé d'agrégation inclut ``prompt`` pour
+    # ne pas confondre les block_index d'après prompts différents.
+    aggregate_ci = bootstrap_delta_ci(
+        records,
+        seed,
+        iterations,
+        group_fields=("prompt", "config_index", "block_index"),
+    )
+    per_prompt = per_prompt_marginals(records)
+    prompt_ci = bootstrap_prompt_ci(records, seed=seed, iterations=iterations)
+    if deltas.size:
+        sig = sign_test(deltas)
+    else:
+        sig = {"n": 0, "positive": 0, "negative": 0, "p_value": float("nan")}
+    prompts_excluding_zero = sum(
+        1
+        for lower, upper in prompt_ci.values()
+        if (np.isfinite(lower) and lower > 0.0) or (np.isfinite(upper) and upper < 0.0)
+    )
+    n_prompts = len(prompt_ci)
+    return {
+        "n": int(summary["n"]),
+        "mean_delta_kl": summary["mean_delta_kl"],
+        "median_delta_kl": float(np.median(deltas)) if deltas.size else float("nan"),
+        "aggregate_ci95_delta_kl": list(aggregate_ci),
+        "per_prompt": per_prompt,
+        "prompt_ci95": {prompt: list(ci) for prompt, ci in prompt_ci.items()},
+        "sign_test": sig,
+        "n_prompts": n_prompts,
+        "n_prompts_ci_excludes_zero": prompts_excluding_zero,
+        "proportion_prompts_significant": (prompts_excluding_zero / n_prompts) if n_prompts else float("nan"),
+    }

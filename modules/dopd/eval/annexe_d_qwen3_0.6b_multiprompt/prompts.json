@@ -1,0 +1,128 @@
+{
+  "kind": "dopd_multiprompt_prompt_set",
+  "schema": "dopd.prompts/1",
+  "teacher": "Qwen/Qwen3-0.6B",
+  "prompt_template": "Question: {question}\nAnswer:",
+  "prompts": [
+    {
+      "id": "p01",
+      "category": "factual",
+      "question": "Which planet is closest to the Sun?",
+      "text": "Question: Which planet is closest to the Sun?\nAnswer:"
+    },
+    {
+      "id": "p02",
+      "category": "factual",
+      "question": "What is the chemical symbol for gold?",
+      "text": "Question: What is the chemical symbol for gold?\nAnswer:"
+    },
+    {
+      "id": "p03",
+      "category": "multihop",
+      "question": "Which river flows through the capital city of the country that contains the Eiffel Tower?",
+      "text": "Question: Which river flows through the capital city of the country that contains the Eiffel Tower?\nAnswer:"
+    },
+    {
+      "id": "p04",
+      "category": "multihop",
+      "question": "Which river flows through the capital city of the country that contains the Colosseum?",
+      "text": "Question: Which river flows through the capital city of the country that contains the Colosseum?\nAnswer:"
+    },
+    {
+      "id": "p05",
+      "category": "arithmetic",
+      "question": "What is 17 plus 26?",
+      "text": "Question: What is 17 plus 26?\nAnswer:"
+    },
+    {
+      "id": "p06",
+      "category": "arithmetic",
+      "question": "A shelf holds 5 boxes, and each box contains 12 pens. How many pens are on the shelf?",
+      "text": "Question: A shelf holds 5 boxes, and each box contains 12 pens. How many pens are on the shelf?\nAnswer:"
+    },
+    {
+      "id": "p07",
+      "category": "code",
+      "question": "What does the Python expression [1, 2, 3][-1] evaluate to?",
+      "text": "Question: What does the Python expression [1, 2, 3][-1] evaluate to?\nAnswer:"
+    },
+    {
+      "id": "p08",
+      "category": "code",
+      "question": "Which Python keyword is used to define a function?",
+      "text": "Question: Which Python keyword is used to define a function?\nAnswer:"
+    },
+    {
+      "id": "p09",
+      "category": "translation",
+      "question": "Translate the English word \"library\" into French.",
+      "text": "Question: Translate the English word \"library\" into French.\nAnswer:"
+    },
+    {
+      "id": "p10",
+      "category": "translation",
+      "question": "Translate the English word \"mountain\" into Spanish.",
+      "text": "Question: Translate the English word \"mountain\" into Spanish.\nAnswer:"
+    },
+    {
+      "id": "p11",
+      "category": "negation",
+      "question": "Is the Pacific Ocean the smallest ocean on Earth? Answer yes or no.",
+      "text": "Question: Is the Pacific Ocean the smallest ocean on Earth? Answer yes or no.\nAnswer:"
+    },
+    {
+      "id": "p12",
+      "category": "negation",
+      "question": "Do all mammals give birth to live young? Answer yes or no.",
+      "text": "Question: Do all mammals give birth to live young? Answer yes or no.\nAnswer:"
+    },
+    {
+      "id": "p13",
+      "category": "commonsense",
+      "question": "What household object is used for cutting paper?",
+      "text": "Question: What household object is used for cutting paper?\nAnswer:"
+    },
+    {
+      "id": "p14",
+      "category": "commonsense",
+      "question": "What object is worn on a wrist to tell the time?",
+      "text": "Question: What object is worn on a wrist to tell the time?\nAnswer:"
+    },
+    {
+      "id": "p15",
+      "category": "definition",
+      "question": "What does the term \"photosynthesis\" mean?",
+      "text": "Question: What does the term \"photosynthesis\" mean?\nAnswer:"
+    },
+    {
+      "id": "p16",
+      "category": "definition",
+      "question": "In geometry, what is a polygon?",
+      "text": "Question: In geometry, what is a polygon?\nAnswer:"
+    },
+    {
+      "id": "p17",
+      "category": "instruction",
+      "question": "Answer with a single word only: name the largest planet in the Solar System.",
+      "text": "Question: Answer with a single word only: name the largest planet in the Solar System.\nAnswer:"
+    },
+    {
+      "id": "p18",
+      "category": "instruction",
+      "question": "Reply with exactly two words: name the currency used in Japan.",
+      "text": "Question: Reply with exactly two words: name the currency used in Japan.\nAnswer:"
+    },
+    {
+      "id": "p19",
+      "category": "longcontext",
+      "question": "Given the list 12, 7, 19, which number is the largest?",
+      "text": "Question: Given the list 12, 7, 19, which number is the largest?\nAnswer:"
+    },
+    {
+      "id": "p20",
+      "category": "longcontext",
+      "question": "A box contains 4 red balls and 6 blue balls. If two red balls are removed, how many balls remain?",
+      "text": "Question: A box contains 4 red balls and 6 blue balls. If two red balls are removed, how many balls remain?\nAnswer:"
+    }
+  ]
+}
