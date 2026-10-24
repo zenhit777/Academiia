@@ -713,7 +713,7 @@ seuils locaux.
 > `modules/dopd/eval/annexe_d_qwen3_0.6b/results.json` ; le rapport est
 > `modules/dopd/docs/reports/J14.md`.
 
-**Décision : porte FRANCHIE** (`gate.status = "passed"`), sans réserve.
+**Décision : porte FRANCHIE, avec réserves de lecture** (`gate.status = "passed"`). La porte est franchie au sens des critères pré-enregistrés ; les réserves ci-dessous sont des réserves de **lecture** (échelle, variabilité inter-prompt, queue statistique), pas des réserves de porte. Elles sont assumées en J15 par un diagnostic multi-prompt et une mesure de l'écart top-k.
 
 | Critère pré-enregistré | Seuil | Mesuré | Verdict |
 |---|---|---|---|
@@ -781,6 +781,71 @@ harnais est `modules/dopd/harness/bench_budget_rtx5090.py`, et la note est
 Le chiffrage **n'autorise aucun entraînement** : la porte J14 reste une
 porte scientifique, et le protocole d'entraînement relève de J15, après
 pré-enregistrement.
+
+#### 6.9.7 Diagnostic multi-prompt (J15) — critères pré-enregistrés
+
+> **Pré-enregistrement** : cette section est figée **avant** tout run GPU
+> multi-prompt. Sa modification après un résultat vaut nouveau protocole, pas
+> correction de rapport (même principe que §6.9.5). Le commit des critères est
+> ancêtre du commit du code producteur (`diagnostic_annexe_d.py` /
+> `diagnostic.py`).
+
+**Protocole.** Reproduction du §6.9.2 sur un jeu de prompts variés (≈ 20) au
+lieu d'un seul prompt trivial : chaque prompt construit son propre support
+restreint (mêmes configurations `(N,V) ∈ {(4,6),(4,12),(6,6)}`, 100 blocs,
+niveaux `σ ∈ {0,0.5,1,1.5}`, rétention 0,45, graines `20261023` / `20261024`).
+Les marginaux portent le label du prompt. L'agrégat primaire reste la moyenne
+arithmétique de `ΔKL` (équation 28), mais quatre statistiques complémentaires
+complètent le critère primaire pour caractéiser la variabilité inter-prompt et
+la sensibilité à la queue :
+
+1. **Critère primaire agrégé** : `ΔKL` agrégé > 0 et IC 95 % (bootstrap de
+   blocs, clé `(prompt, config_index, block_index)`) exclutant zéro.
+2. **Médiane de `ΔKL`** (per-marginal) > 0 : robuste à la queue, contre-preuve
+   du critère fondé sur la moyenne (règle de lecture R4 de J14).
+3. **Proportion de prompts significatifs** : fraction des prompts dont l'IC 95 %
+   per-prompt exclut zéro — **≥ 0,5** (au moins la moitié des prompts montre un
+   effet positif significatif).
+4. **Test des signes** non paramétrique (approximation normale à deux queues)
+   sur les `ΔKL` : valeur en p < 0,05 confirme l'effet directionnel sans
+   hypothèse sur la forme de la distribution.
+5. **Effectif** : ≥ 100 blocs/configuration et ≥ 2 000 marginaux (identique à
+   §6.9.3-3).
+
+**Décision pour J16** (enseignant le passage à un `TeacherScorer` réel) :
+
+- **GO** si les critères 1 à 5 sont tenus ;
+- **GO conditionnel** si le critère primaire (1) est tenu mais que la proportion
+  de prompts significatifs (3) ou la médiane (2) est fragile — un professeur
+  réel doit confirmer sur plus de prompts/échelles avant implémentation ;
+- **NO-GO** si le critère primaire (1) n'est pas tenu.
+
+Cette porte reste une **porte de lecture** : elle renforce la confiance dans la
+cible future-aware, elle n'autorise aucun entraînement ni aucune implémentation
+de `TeacherScorer`/`StudentPolicy`.
+
+#### 6.9.8 Écart cible exacte vs cible top-k = 16 (J15)
+
+**Question.** L'entraînement d-OPD tronque la cible à `k = 16` tokens ; le
+diagnostic §6.9.7 corrige en revanche tout le support restreint, sans
+approximation top-`k`. Avant d'investir dans un `TeacherScorer` de production,
+on quantifie l'écart entre la cible complète et sa troncade à `k = 16`.
+
+**Mesure.** Pour les `N` premiers marginaux vus (borne `2 048`), on compare par
+position la distribution causale complète à sa troncade aux `k = 16` plus grandes
+probabilités, renormalisée. Deux scalaires finis :
+
+- `discarded_mass` : masse de probabilité perdue par la troncature
+  (`1 − Σ des k plus grandes probabilités`) ;
+- `tv_distance` : distance de variation totale entre la distribution complète et
+  la version tronquée (0 = identique, 1 = disjoint).
+
+**Interprétation.** Une truncation fidèle (`discarded_mass` et `tv_distance`
+faibles) fait de `k = 16` une approximation raisonnable de l'objectif à support
+complet : un `TeacherScorer` tronqué reste justifié. Un écart notable invalide
+cette hypothèse et rend la décision conditionnelle. La KL par rapport au
+posterior exact n'est pas calculée (infinie quand le support exact dépasse le
+top-`k`) ; la distance de variation totale l'englobe et reste finie.
 
 ---
 
