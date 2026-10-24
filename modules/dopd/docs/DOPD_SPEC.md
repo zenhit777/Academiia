@@ -760,6 +760,28 @@ Réduction de KL par niveau de bruit (toutes configurations) :
 4. Le run est une **inférence seule** : 83,1 s mural, 1 374 MiB alloués CUDA
    au pic, 21 580 MiB RSS. Aucun poids modifié, aucun backward.
 
+#### 6.9.6 Chiffrage du budget local (J14)
+
+Le chiffrage est une **note de décision**, pas un protocole d'entraînement.
+Les mesures (forwards sans gradient, Qwen3-0.6B, BF16, RTX 5090 32 Go) sont
+versionnées dans `modules/dopd/eval/budget_rtx5090/bench_rtx5090.json`, le
+harnais est `modules/dopd/harness/bench_budget_rtx5090.py`, et la note est
+`modules/dopd/docs/BUDGET_RTX5090.md`.
+
+| Poste | Résultat |
+|---|---|
+| Élève réaliste | **0,6B** (poids + gradients + AdamW ≈ 6,9 GiB) ; 4B–8B **impossible** sur 32 GiB (états d'optimiseur) |
+| Longueur de rollout | **256 à 512** tokens, plafond de contexte 1 024 (le rollout de 4 000 tokens du papier est hors de portée : cache KV et scoring) |
+| Lot | **32 rollouts** simultanés (1 399 tok/s mesurés ; le lot 64 ne rapporte que +69 % de débit pour 2× le cache) |
+| Coût du scoring professeur | **mesuré** à géométrie égale (job réel : prior causal + score de suffixe) : **51,2 ms** par job avec cache de préfixe (`k=16`, contexte 1 024), **65,6 ms** à 33 branches, contre **167,9 ms** sans cache (gain **3,3×–5,6×**) |
+| Contrôle numérique | Le même job rejoué en **FP32** : écart cache/rejeu de `3,1e-5` (score de suffixe) et `9e-6` (prior) — l'écart BF16 est un artefact de précision |
+| Run significatif réduit | 8 000 prompts, rollouts 256 tokens → **16–21 h** sur une RTX 5090 |
+| Verdict | **0,6B faisable en local** avec un protocole réduit ; l'échelle du papier (4B–8B) demande **8 × H100** ou une location |
+
+Le chiffrage **n'autorise aucun entraînement** : la porte J14 reste une
+porte scientifique, et le protocole d'entraînement relève de J15, après
+pré-enregistrement.
+
 ---
 
 ## 7. Hors scope explicite de J12

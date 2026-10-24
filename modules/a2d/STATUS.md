@@ -34,7 +34,10 @@
 > `[0,0742 ; 0,2252]`), sur 3 056 marginaux et 3 configurations. Run GPU
 > **déclaré**, inférence seule : **aucun entraînement, aucun backward, aucun
 > poids modifié**, et **aucun résultat, seuil ou verdict G1 touché**. La voie
-> d-'entraînement locale reste **non budgétée à l'échelle du papier** : voir
+> d-'entraînement locale est **chiffrée sur mesures** : échelle **0,6B**
+> faisable en **16–21 h** sur une RTX 5090 (scoring professeur mesuré à
+> 51,2 ms par job avec cache de préfixe) ; l'échelle du papier (4B–8B) reste
+> **hors de portée** d'une carte unique. Voir
 > `modules/dopd/docs/BUDGET_RTX5090.md`, `modules/dopd/docs/reports/J14.md`.
 
 Ce document est le **point d'entrée** pour savoir ce qui est démontré, ce qui ne l'est pas, et

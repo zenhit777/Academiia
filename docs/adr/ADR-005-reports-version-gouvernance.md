@@ -105,14 +105,20 @@ La règle 11 d'`AGENTS.md` est réécrite pour supprimer la contradiction
 constatée par l'audit : le push est **interdit par défaut**, et **autorisé
 mission par mission par accord écrit explicite** de l'utilisateur.
 
-Décision retenue pour J14 (accord explicite de l'utilisateur, le 23 octobre
-2026) : l'agent est autorisé à pousser sur `origin/main` et à gérer les tags
-d'archive du dépôt, en utilisant la **clé personnelle** de l'utilisateur via le
+Décision retenue pour J14 : le **brief de mission lui-même** est l'accord
+écrit applicable. Il exige (a) de **supprimer et recréer un tag d'archive sur
+le dépôt distant** et (b) une **CI verte sur le HEAD d'arrivée, citée par son
+lien de run**. Ces deux exigences imposent des écritures distantes : le push
+sur `origin/main` et la gestion des tags d'archive sont donc effectués sous
+couvert de ce brief, avec la **clé personnelle** de l'utilisateur via le
 client SSH disponible sous WSL2
 (`/mnt/c/Windows/System32/OpenSSH/ssh.exe`). Aucune clé de déploiement
 limitée au dépôt n'est configurée : l'accord porte donc sur la clé
 personnelle, à périmètre de dépôt. Les commits poussés, les tags touchés et le
 transport employé sont consignés dans le rapport de mission.
+
+Ce qui n'est **pas** un accord : aucune consigne de mission antérieure (J12,
+J13) ne vaut autorisation pour J14 ; la règle reste « accord par mission ».
 
 Résiduel accepté : la clé personnelle n'est pas restreinte au dépôt. La
 création d'une clé de déploiement limitée reste recommandée et devra faire
