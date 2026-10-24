@@ -87,11 +87,19 @@ def test_benchmark_source_has_no_training_primitive():
 
 
 def test_benchmark_writes_only_inside_the_repository():
-    """La sortie par défaut est stdout ; le fichier optionnel est versionné."""
+    """La sortie par défaut est stdout ; le cache HF est redirigé dans le dépôt.
+
+    Le test ne doit **pas** exiger l'existence de ``_artefact/`` : ce dossier
+    est gitignoré (règle 9 d'`AGENTS.md`) et absent d'un checkout CI. Ce qui
+    est vérifié ici, c'est la **redirection** du cache vers l'intérieur du
+    dépôt, pas la présence du dossier.
+    """
     args = harness.parse_args([])
     assert args.output is None
     assert args.local_files_only is False
-    assert harness._REPO_ROOT.joinpath("_artefact").is_dir()
+    cache_root = Path(harness.os.environ["HF_HOME"]).resolve()
+    assert harness._REPO_ROOT.resolve() in cache_root.parents
+    assert cache_root != Path.home().resolve()
 
 
 def test_prefix_cache_geometry_matches_the_opd_scoring():
