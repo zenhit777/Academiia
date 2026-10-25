@@ -91,7 +91,8 @@
 > revue indépendante** a confirmé 6/7 constats corrigés et signalé un écart
 > résiduel sur F3 (le fake enregistrait le masque sans l'utiliser) : corrigé —
 > les tokens masqués sont exclus de l'agrégat du fake, propriété **verrouillée
-> par un test** (écart de logits masque plein vs nul : 0,0 → 0,377). Décision J18 : **GO conditionnel** — réserve
+> par un test** (écart des **scores** de suffixe, masque plein vs nul :
+> 0,0 → 0,377). Décision J18 : **GO conditionnel** — réserve
 > explicite : §6.10.7 subordonne ce GO à « C1–C14 tenues », clause non
 > littéralement remplie ; la décision est une **interprétation** (un seul
 > critère échoué, hors liste NO-GO) et **J18 doit la trancher
