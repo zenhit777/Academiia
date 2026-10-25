@@ -70,8 +70,8 @@
 > de référence), **6,1989e-05** (état réel, GPU) et **2,7e-05** (run CPU FP32),
 > contre **0,395069** en BF16 — écart imputé à la précision BF16 du protocole
 > de comparaison, **pas** à la mécanique du cache. Latence cache : médiane
-> **52,03 ms** sur les 12 jobs à futur visible (géométrie homogène, seule
-> comparable au rejeu), **53,6 ms** à 16 branches et **67,8 ms** à 33 en
+> **52,75 ms** sur les 12 jobs à futur visible (géométrie homogène, seule
+> comparable au rejeu), **53,905 ms** à 16 branches et **68,187 ms** à 33 en
 > cellule de référence (J14 : 51,2 / 65,6 ms) ; le passage en FP32 coûte
 > **+0,68 ms** de latence (**+1,3 %**) et **+1 161 MiB** de pic mémoire
 > (mesure complémentaire non versionnée). Sur les 14 critères pré-enregistrés,
@@ -79,19 +79,27 @@
 > max 0,395069), sans atteindre les conditions de NO-GO ; C7 est tenu avec une
 > **réserve de géométrie** (16 branches réelles, 17 au protocole). Runs GPU
 > **déclarés**, inférence seule : **aucun entraînement, aucun backward, aucun
-> poids modifié**, et **aucun résultat, seuil ou verdict G1 touché**. Décision
-> J18 : **GO conditionnel** — réserve explicite : §6.10.7 subordonne ce GO à
-> « C1–C14 tenues », clause non littéralement remplie ; la décision est une
-> **interprétation** (un seul critère échoué, hors liste NO-GO) et **J18 doit
-> la trancher explicitement**. Conditions : professeur en FP32, protocole
-> d'entraînement pré-enregistré distinct, référence de comparaison en rejeu
-> intégral FP32, prise en compte du coût du cache aux préfixes courts.
+> poids modifié**, et **aucun résultat, seuil ou verdict G1 touché**. Une
+> **revue N2 indépendante** a rendu le verdict « Incorrect » (3 majeurs,
+> 4 mineurs) : **les 7 constats ont été vérifiés puis corrigés** — contrainte
+> `transformers>=4.56.2` avec garde-fou explicite, empreintes **de fichier**
+> du checkpoint dans `parent.hashes` (ADR-002), tests rendus sensibles au
+> préfixe/aux positions/masque avec **contrôle sur un vrai Qwen3**, échec dur
+> hors dépôt, révision du snapshot et positions effectives consignées. La
+> sensibilité de la suite a été prouvée par **injection de fautes** (4 et 3
+> tests échouent selon la faute). Décision J18 : **GO conditionnel** — réserve
+> explicite : §6.10.7 subordonne ce GO à « C1–C14 tenues », clause non
+> littéralement remplie ; la décision est une **interprétation** (un seul
+> critère échoué, hors liste NO-GO) et **J18 doit la trancher
+> explicitement**. Conditions : professeur en FP32, protocole d'entraînement
+> pré-enregistré distinct, référence de comparaison en rejeu intégral FP32,
+> prise en compte du coût du cache aux préfixes courts.
 > **Réserve de gouvernance** : un push non autorisé a porté `origin/main` de
 > `08d62bd` à `50464eb` (2026-10-25 14:10:29 +0100) ; l'attribution est
 > indéterminée (aucun appel `git push` dans les transcripts OMP, aucun hook),
 > le contenu poussé est sans secret, et les 8 commits suivants sont **locaux**.
 > Mise à jour du distant : **accord écrit requis**. Voir
-> `modules/dopd/docs/reports/J17.md` §8.1.
+> `modules/dopd/docs/reports/J17.md` §6.3 et §8.1.
 
 Ce document est le **point d'entrée** pour savoir ce qui est démontré, ce qui ne l'est pas, et
 où se trouve chaque chose. Il remplace les statuts dispersés dans les rapports de mission ;
