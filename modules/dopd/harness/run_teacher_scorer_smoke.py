@@ -57,6 +57,7 @@ if not _HF_HOME_AT_IMPORT:
 
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
+import transformers  # noqa: E402
 from transformers import AutoTokenizer  # noqa: E402
 
 from academiia.core.common import sha256_file  # noqa: E402
@@ -72,6 +73,7 @@ from academiia.dopd import (  # noqa: E402
 from teacher_scorer_qwen3 import (  # noqa: E402
     DEFAULT_TEACHER_MODEL,
     MAX_PREFIX_CACHE_BYTES,
+    MIN_TRANSFORMERS_VERSION,
     Qwen3TeacherScorer,
     load_teacher,
     resolve_model_source,
@@ -171,20 +173,78 @@ def _cache_environment(model_source: str) -> dict:
         "huggingface_hub_cache": os.environ.get("HUGGINGFACE_HUB_CACHE"),
         "model_source": model_source,
         "model_source_in_repo": bool(in_repo),
+        "model_revision": _model_revision(model_source),
     }
 
 
+def _model_revision(model_source: str) -> str | None:
+    """Révision du snapshot lu, si elle est identifiable.
+
+    Le snapshot d'un cache Hugging Face porte la révision (commit Hub) dans
+    son nom de répertoire. C'est cette révision — et non le chemin absolu,
+    propre à une machine — qui identifie les **octets** consommés.
+    """
+    path = Path(model_source)
+    if not path.is_dir():
+        return None
+    parent = path.parent.name
+    prefix = "snapshots"
+    if parent == prefix:
+        return path.name
+    # Snapshot dans un cache personnalisé : le nom du répertoire est le
+    # meilleur identifiant disponible.
+    return path.name
+
+
+def _checkpoint_hashes(model_source: str) -> dict[str, str]:
+    """Empreintes SHA-256 **de fichier** des poids du checkpoint (ADR-002).
+
+    ADR-002 impose des empreintes de **fichier**, recalculables par un tiers,
+    et interdit d'y substituer une empreinte de contenu en mémoire. Le
+    `parent` du manifeste porte donc le sha256 des shards effectivement lus.
+
+    Les fichiers sont només par leur chemin **relatif au snapshot**, ce qui
+    évite d'y faire figurer un chemin absolu propre à la machine.
+    """
+    root = Path(model_source)
+    if not root.is_dir():
+        raise ValueError(
+            f"checkpoint illisible : {model_source!r} n'est pas un répertoire ; "
+            "impossible de calculer les empreintes de fichier exigées par "
+            "ADR-002."
+        )
+    hashes: dict[str, str] = {}
+    for pattern in ("*.safetensors", "*.safetensors.index.json", "*.bin", "*.bin.index.json"):
+        for path in sorted(root.glob(pattern)):
+            if path.is_file():
+                hashes[path.name] = sha256_file(str(path))
+    if not hashes:
+        raise ValueError(
+            f"checkpoint sans fichier de poids hashable : {model_source!r}. "
+            "ADR-002 exige les sha256 de fichier des poids lus ; le run est "
+            "refusé plutôt que de produire un manifeste sans empreintes."
+        )
+    return hashes
+
+
 def _warn_if_cache_is_outside_repo(environment: dict) -> None:
-    """Avertit si le snapshot lu est hors du dépôt (règle 9)."""
+    """**Refuse** un snapshot lu hors du dépôt (règle 9).
+
+    Un cache externe n'est pas seulement une lecture hors dépôt : `from_pretrained`
+    y **écrit** (téléchargement, index, blobs). La règle 9 n'autorise aucune
+    écriture hors du dépôt ; la seule conduite correcte est donc l'échec
+    dur, avant tout chargement. L'inventaire `OUT_OF_WORKSPACE.md` ne couvre
+    que les écritures déjà présentes, pas les futures.
+    """
     if environment["model_source_in_repo"]:
         return
-    print(
-        "ATTENTION (regle 9) : le modele est lu hors du depot : "
-        f"{environment['model_source']} ; HF_HOME={environment['hf_home']} "
-        f"({environment['hf_home_source']}). Ecriture hors depot inventoriee dans "
-        "modules/a2d/docs/reports/OUT_OF_WORKSPACE.md ; pour un prochain run, "
-        "poser HF_HOME=$PWD/_artefact/hf-cache et y placer le snapshot.",
-        file=sys.stderr,
+    raise RuntimeError(
+        "regle 9 : le modele serait lu (et potentiellement ecrit) hors du "
+        f"depot : {environment['model_source']} ; "
+        f"HF_HOME={environment['hf_home']} "
+        f"({environment['hf_home_source']}). "
+        "Poser HF_HOME=$PWD/_artefact/hf-cache et y placer le snapshot, puis "
+        "relancer. Le run est refuse avant tout chargement."
     )
 
 
@@ -769,6 +829,10 @@ def main(argv: list[str] | None = None) -> int:
     source = resolve_model_source(args.model)
     cache = _cache_environment(source)
     _warn_if_cache_is_outside_repo(cache)
+    # ADR-002 : le `parent` doit porter les sha256 **de fichier** des poids
+    # lus. Le calcul précède le chargement : un checkpoint non hashable
+    # arrête le run au lieu de produire un manifeste sans empreintes.
+    checkpoint_hashes = _checkpoint_hashes(source)
 
     print(f"[1/5] chargement {args.model} ({args.dtype}, {args.device})", flush=True)
     tokenizer = AutoTokenizer.from_pretrained(
@@ -861,6 +925,7 @@ def main(argv: list[str] | None = None) -> int:
             else None
         ),
         "torch_version": torch.__version__,
+        "transformers_version": transformers.__version__,
         "python_version": platform.python_version(),
         "seed": args.seed,
         "producer_commit": producer_commit,
@@ -901,7 +966,11 @@ def main(argv: list[str] | None = None) -> int:
         "lineage": _ManifestBuilder(producer_commit)
         .build_manifest(
             artifact=ArtifactRef(path=str(args.output), kind="eval", hashes={}),
-            parent=ArtifactRef(path=args.model, kind="checkpoint", hashes={}),
+            parent=ArtifactRef(
+                path=args.model,
+                kind="checkpoint",
+                hashes=checkpoint_hashes,
+            ),
             config=LineageWriter.config_block(
                 config,
                 teacher_seed=args.seed,
@@ -912,7 +981,8 @@ def main(argv: list[str] | None = None) -> int:
                 block_size=BLOCK_SIZE,
                 prompt_file=str(args.prompt_file),
                 prompt_ids=prompt_ids,
-                positions_per_block=args.positions,
+                positions_per_block=min(args.positions, BLOCK_SIZE),
+                positions_per_block_requested=args.positions,
                 latency_repeats=LATENCY_REPEATS,
                 warmup_repeats=WARMUP_REPEATS,
                 generation="greedy_argmax",
@@ -922,6 +992,7 @@ def main(argv: list[str] | None = None) -> int:
             ),
             data={
                 "teacher": args.model,
+                "teacher_revision": cache.get("model_revision"),
                 "prompt_file": str(args.prompt_file),
                 "prompt_ids": prompt_ids,
                 "scoring_geometry": "prefix_cache_shared_suffix_per_branch",
@@ -931,6 +1002,13 @@ def main(argv: list[str] | None = None) -> int:
                     "branches": list(REFERENCE_BRANCH_COUNTS),
                 },
                 "cache": cache,
+                "environment": {
+                    "python_version": platform.python_version(),
+                    "torch_version": torch.__version__,
+                    "transformers_version": transformers.__version__,
+                    "min_transformers_version": MIN_TRANSFORMERS_VERSION,
+                },
+                "checkpoint_hashes": checkpoint_hashes,
                 "source_sha256": {
                     relative: sha256_file(str(_REPO_ROOT / relative))
                     for relative in PRODUCER_SOURCES

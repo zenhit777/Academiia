@@ -56,6 +56,7 @@ if not _HF_HOME_AT_IMPORT:
 
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
+import transformers  # noqa: E402
 from transformers import AutoModelForCausalLM  # noqa: E402
 from transformers.cache_utils import DynamicCache  # noqa: E402
 
@@ -64,7 +65,9 @@ from academiia.dopd.interfaces import ScoringRequest, ScoringResult, TeacherScor
 __all__ = [
     "DEFAULT_TEACHER_MODEL",
     "MAX_PREFIX_CACHE_BYTES",
+    "MIN_TRANSFORMERS_VERSION",
     "Qwen3TeacherScorer",
+    "assert_supported_transformers",
     "freeze_teacher",
     "load_teacher",
     "resolve_model_source",
@@ -73,6 +76,46 @@ __all__ = [
 
 #: Checkpoint professeur gelé de J17 (DOPD_SPEC §6.3, §6.10.3).
 DEFAULT_TEACHER_MODEL = "Qwen/Qwen3-0.6B"
+
+#: Version minimale de `transformers` compatible avec le harnais J17.
+#:
+#: Le cache de préfixe reconstruit le `DynamicCache` via le mot-clé
+#: `ddp_cache_data` et lit l'attribut `.layers` — deux members de l'API cache
+#: **5.x / 4.56+**. Vérifié :
+#:
+#: * 4.46.2 (épinglé par le harnais Dream) : `TypeError` sur
+#:   `ddp_cache_data`, et pas d'attribut `.layers` ;
+#: * 4.51.0 : API cache encore lisible (`key_cache` / `value_cache`) ;
+#: * 4.56.2, 4.57.6, 5.0.0 et 5.10.2 : `ddp_cache_data` **et** `.layers`
+#:   présents.
+#:
+#: La borne est donc `4.56.2` : en dessous, le harnais échoue à l'import du
+#: cache. Le harnais Dream garde son propre environnement 4.46.2 — il ne
+#: dépend pas de ce module.
+MIN_TRANSFORMERS_VERSION = "4.56.2"
+
+
+def assert_supported_transformers() -> str:
+    """Vérifie que `transformers` expose l'API cacheused par le harnais.
+
+    Sans ce garde-fou, une version trop ancienne échoue au milieu du scoring
+    avec une erreur de forme obscure. L'échec est ici **explicite et
+    précoce**, avant tout chargement de checkpoint.
+
+    Returns:
+        La version de `transformers` effectivement installée.
+    """
+    from packaging.version import Version
+
+    installed = transformers.__version__
+    if Version(installed) < Version(MIN_TRANSFORMERS_VERSION):
+        raise RuntimeError(
+            f"transformers {installed} est trop ancien pour le TeacherScorer "
+            f"d-OPD : l'API cache `DynamicCache(ddp_cache_data=...)` et "
+            f"`.layers` exigent >= {MIN_TRANSFORMERS_VERSION}. "
+            "Installer une version compatible (J17 : 5.10.2)."
+        )
+    return installed
 
 #: Plafond du **cache de préfixe étendu** (DOPD_SPEC §3.6) : au-delà, le lot de
 #: branches est réduit. 16 GiB = règle de l'App. B du papier.
@@ -158,6 +201,7 @@ def load_teacher(
     """
     if dtype not in _DTYPES:
         raise ValueError(f"dtype doit être l'un de {sorted(_DTYPES)}, reçu {dtype!r}")
+    assert_supported_transformers()
     source = resolve_model_source(model_id)
     model = AutoModelForCausalLM.from_pretrained(
         source,
@@ -266,6 +310,12 @@ class Qwen3TeacherScorer(TeacherScorer):
             raise ValueError("prefix_ids est vide")
         if not candidates:
             raise ValueError("candidate_ids est vide")
+        if not suffix:
+            # Suffixe vide : `log p(∅ | …) = 0` par convention. Le préfixe
+            # n'est pas prérempli — le résultat est analytiquement nul et le
+            # préremplissage serait un forward intégral inutile. Le cache
+            # reste donc froid : l'appelant suivant le préremplira si besoin.
+            return np.zeros(len(candidates), dtype=np.float64)
         if self._prefix_key != prefix or self._prefix_snapshot is None:
             self._prefill(prefix)
         return self._score_branches(prefix, candidates, suffix)
@@ -348,8 +398,24 @@ class Qwen3TeacherScorer(TeacherScorer):
         # Il faut S + 2 logits : celui qui prédit le candidat (position P - 1)
         # et ceux qui prédisent le suffixe (positions P .. P + S - 1).
         keep = len(suffix) + 2
+        # Même géométrie explicite que le chemin cache : positions 0..L-1,
+        # masque plein. Les deux chemins sont ainsi comparables **token pour
+        # token**, et un écart d'une position dans l'un se voit dans l'autre.
+        total_length = full.shape[1]
+        position_ids = torch.arange(
+            total_length, dtype=torch.long, device=self.device
+        ).unsqueeze(0).expand(branches, -1)
+        attention_mask = torch.ones(
+            (branches, total_length), dtype=torch.long, device=self.device
+        )
         with torch.no_grad():
-            out = self.model(input_ids=full, use_cache=False, logits_to_keep=keep)
+            out = self.model(
+                input_ids=full,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                use_cache=False,
+                logits_to_keep=keep,
+            )
             logits = out.logits.float()
         # Indice 0 = position P - 1 (prédit le candidat) ; indices 1..S
         # prédisent les tokens du suffixe.
@@ -394,8 +460,25 @@ class Qwen3TeacherScorer(TeacherScorer):
         self.reset_prefix_cache()
         self._require_full_attention()
         input_ids = torch.tensor([prefix], dtype=torch.long, device=self.device)
+        # La géométrie est **explicite** : positions 0..P-1, masque plein sur
+        # le préfixe. Le couple (position_ids, attention_mask) est calculé
+        # par la logique du scorer et non par l'inférence interne de
+        # `transformers`, qui diffère entre versions (4.56 / 5.x) et dont
+        # l'erreur serait silencieuse.
+        position_ids = torch.arange(
+            len(prefix), dtype=torch.long, device=self.device
+        ).unsqueeze(0)
+        attention_mask = torch.ones(
+            (1, len(prefix)), dtype=torch.long, device=self.device
+        )
         with torch.no_grad():
-            out = self.model(input_ids=input_ids, use_cache=True, logits_to_keep=1)
+            out = self.model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                use_cache=True,
+                logits_to_keep=1,
+            )
             logits = out.logits[:, -1, :].float()
             prior = torch.softmax(logits, dim=-1)
             cache = out.past_key_values
@@ -526,9 +609,26 @@ class Qwen3TeacherScorer(TeacherScorer):
         branch_input = torch.cat(
             (candidate_tensor, suffix_tensor.expand(branches, -1)), dim=1
         )
+        # La branche continue la numérotation du préfixe : le candidat est à
+        # la position P, le premier token du suffixe à P+1, etc. Le masque
+        # couvre le préfixe (P tokens) **et** les tokens de la branche, sans
+        # trou : le futur conditionne le passé par le cache, pas par le masque.
+        position_ids = torch.arange(
+            len(prefix),
+            len(prefix) + branch_input.shape[1],
+            dtype=torch.long,
+            device=self.device,
+        ).unsqueeze(0).expand(branches, -1)
+        attention_mask = torch.ones(
+            (branches, len(prefix) + branch_input.shape[1]),
+            dtype=torch.long,
+            device=self.device,
+        )
         with torch.no_grad():
             out = self.model(
                 input_ids=branch_input,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
                 past_key_values=cache,
                 use_cache=True,
                 logits_to_keep=branch_input.shape[1],

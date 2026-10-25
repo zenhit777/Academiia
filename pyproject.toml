@@ -26,7 +26,11 @@ dependencies = [
 [project.optional-dependencies]
 eval = [
   "huggingface_hub",
-  "transformers",
+  # Le harnais d-OPD (J17) reconstruit le cache de préfixe via
+  # `DynamicCache(ddp_cache_data=...)` et `.layers` : API disponible à
+  # partir de 4.56.2. Le harnais Dream garde son propre environnement
+  # épinglé (4.46.2) et n'installe pas cet extra.
+  "transformers>=4.56.2",
   "pyyaml",
 ]
 peft = [

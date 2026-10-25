@@ -1,0 +1,26 @@
+# Dépendances du harnais d-OPD J17 (TeacherScorer réel, Qwen3-0.6B).
+#
+# Le paquet `academiia.dopd` reste **pur** (stdlib + NumPy + academiia.core) :
+# `torch` et `transformers` ne sont autorisés que sous `modules/dopd/harness/`
+# (ADR-001). Ce fichier est donc une contrainte d'environnement du harnais,
+# pas une dépendance du paquet importable.
+#
+# Versions : celles **vérifiées** sur la machine de mesure J17
+# (RTX 5090, CUDA 13.0, WSL2).
+#
+# `transformers>=4.56.2` : le cache de préfixe reconstruit le `DynamicCache`
+# via le mot-clé `ddp_cache_data` et lit l'attribut `.layers`. Ces deux
+# members de l'API cache sont absents de 4.51.0 et présents à partir de
+# 4.56.2 (vérifié sur 4.46.2, 4.51.0, 4.56.2, 4.57.6, 5.0.0 et 5.10.2).
+# Le harnais `TeacherScorer` refuse explicitement une version plus ancienne
+# (`assert_supported_transformers`) plutôt que d'échouer obscurément au
+# milieu du scoring.
+#
+# `torch>=2.6` : requis par l'API cache 5.x (`torch._dynamo.mark_static_address`).
+
+torch>=2.6
+transformers>=4.56.2
+huggingface_hub
+safetensors
+numpy
+packaging

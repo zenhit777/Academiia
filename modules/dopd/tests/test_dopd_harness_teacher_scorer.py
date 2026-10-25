@@ -78,17 +78,29 @@ class _FakeOutput:
 
 
 class _FakeModel:
-    """Modèle déterministe : la position du candidat change le score.
+    """Modèle déterministe **sensible au préfixe, aux positions et au masque**.
 
-    Le modèle reproduit les propriétés essentials du contrat :
+    Le modèle reproduit les propriétés essentielles du contrat :
 
     * le prior causal est une distribution sur le vocabulaire ;
     * le score de suffixe dépend **du candidat** (sinon le contrôle
       d'exactitude ne testerait rien) ;
+    * le score dépend **du préfixe** : deux préfixes différents donnent des
+      scores différents (sans cela, une implémentation qui ignore le préfixe
+      passerait tous les tests) ;
+    * le score dépend de la **position** du token : une lecture de logit
+      décalée d'une position change le résultat ;
     * le chemin cache et le chemin de rejeu donnent le **même** résultat
       logique — c'est ce que le contrôle d'exactitude vérifie sur le vrai
       modèle ;
     * le cache prérempli contient une clé et une valeur par couche.
+
+    La dépendance au préfixe et à la position est obtenue en propageant, dans
+    le « contexte », la somme pondérée des tokens du préfixe **et** la
+    position absolue de chaque token. Le chemin cache reçoit le préfixe via
+    le cache ; le chemin de rejeu le reçoit via la séquence complète. Les
+    deux reconstructs donc le même contexte, ce qui rend leur comparaison
+    significative.
     """
 
     def __init__(self) -> None:
@@ -96,6 +108,8 @@ class _FakeModel:
         self.training = True
         self.calls: list[int] = []
         self.seen_prefixes: list[list[float]] = []
+        self.seen_position_ids: list[list[int]] = []
+        self.seen_attention_masks: list[list[int]] = []
         self._parameter = torch.nn.Parameter(torch.zeros(1), requires_grad=True)
 
     def parameters(self):
@@ -107,49 +121,117 @@ class _FakeModel:
     def to(self, device):  # pragma: no cover - interface de compatibilité
         return self
 
-    def _logits(self, input_ids: torch.Tensor) -> torch.Tensor:
-        """Logits déterministes, **indépendants de la position**.
+    @staticmethod
+    def _aggregate(tokens: torch.Tensor, positions: torch.Tensor) -> torch.Tensor:
+        """Agrégat causal par position : somme des tokens **antérieurs ou égaux**.
 
-        L'indépendance de la position est volontaire : elle rend le chemin
-        cache et le chemin de rejeu **logiquement équivalents**, puisque les
-        deux ne voient les mêmes tokens qu'à des positions de contexte
-        différentes. L'écart BF16 réel est mesuré sur le vrai modèle.
+        Chaque token `x` à la position absolue `p` contribue `x * (p + 1)`.
+        L'agrégat à la position `q` est la somme des contributions des
+        positions `0..q` : c'est l'équivalent d'une attention causale
+        uniforme sur tout le contexte visible.
+        """
+        contributions = tokens.to(torch.float32) * (positions.to(torch.float32) + 1.0)
+        return contributions.cumsum(dim=-1)
+
+    def _logits(
+        self,
+        input_ids: torch.Tensor,
+        aggregates: torch.Tensor,
+        position_ids: torch.Tensor,
+    ) -> torch.Tensor:
+        """Logits déterministes, dépendants de l'agrégat et de la position.
+
+        Le logit du vocabulaire `v` au token de position `p` vaut
+        `cos(sin(token * 0.37) + v + aggregate * 0.01 + p * 0.11)`. L'agrégat
+        vient du contexte visible (préfixe + tokens antérieurs de la
+        branche), la position de l'index absolu : un décalage de position ou
+        un préfixe ignoré change le résultat.
         """
         token = input_ids.to(torch.float32)
         base = torch.sin(token * 0.37)
-        logits = torch.stack(
-            [torch.cos(base + offset) for offset in range(VOCAB_SIZE)], dim=-1
+        shift = aggregates * 0.01 + position_ids.to(torch.float32) * 0.11
+        return torch.stack(
+            [torch.cos(base + shift + offset) for offset in range(VOCAB_SIZE)],
+            dim=-1,
         )
-        return logits
 
     def __call__(
         self,
         input_ids: torch.Tensor,
+        attention_mask: torch.Tensor | None = None,
+        position_ids: torch.Tensor | None = None,
         past_key_values: object | None = None,
         use_cache: bool = True,
         logits_to_keep: int = 0,
     ) -> _FakeOutput:
         self.calls.append(int(input_ids.shape[-1]))
-        logits = self._logits(input_ids)
+        if position_ids is None:
+            position_ids = torch.arange(
+                input_ids.shape[-1], dtype=torch.long, device=input_ids.device
+            ).unsqueeze(0).expand(input_ids.shape[0], -1)
+        if position_ids is not None:
+            self.seen_position_ids.append(
+                [int(value) for value in position_ids[0].tolist()]
+            )
+        if attention_mask is not None:
+            self.seen_attention_masks.append(
+                [int(value) for value in attention_mask[0].tolist()]
+            )
+        if past_key_values is None:
+            # Préremplissage (batch 1) ou rejeu intégral (batch = branches) :
+            # le contexte visible est la séquence entière, l'agrégat est
+            # causal et calculé **par ligne**.
+            aggregates = self._aggregate(input_ids, position_ids)
+            logits = self._logits(input_ids, aggregates, position_ids)
+            if logits_to_keep:
+                logits = logits[:, -logits_to_keep:, :]
+            if input_ids.shape[0] == 1:
+                layers = []
+                tokens = input_ids[0].to(torch.float32)
+                for _ in range(LAYERS):
+                    layer = _FakeCacheLayer()
+                    length = int(input_ids.shape[-1])
+                    layer.keys = torch.zeros(1, HEADS, length, HEAD_DIM)
+                    layer.values = torch.zeros(1, HEADS, length, HEAD_DIM)
+                    # Les tokens du préfixe sont mémorisés dans le cache :
+                    # c'est ce qui permet au test de vérifier que chaque
+                    # branche reçoit **le** préfixe demandé, et non celui
+                    # d'un job antérieur.
+                    layer.values[0, :, :, 0] = tokens.unsqueeze(0)
+                    layers.append(layer)
+                return _FakeOutput(logits, _FakeCache(layers))
+            # Rejeu intégral : pas de cache.
+            return _FakeOutput(logits, None)
+        # Branches : le contexte visible est reconstitué depuis le **cache**
+        # (le préfixe) et les tokens de la branche — exactement comme le
+        # vrai modèle, où l'attention de la branche porte sur le préfixe
+        # mis en cache plus les tokens qui la précèdent.
+        cached = past_key_values.layers[0].values[0, 0, :, 0]
+        self.seen_prefixes.append([float(value) for value in cached.tolist()])
+        prefix_length = int(cached.shape[-1])
+        prefix_positions = torch.arange(
+            prefix_length, dtype=torch.long, device=input_ids.device
+        )
+        prefix_contribution = cached.to(torch.float32) * (
+            prefix_positions.to(torch.float32) + 1.0
+        )
+        branch_contribution = input_ids.to(torch.float32) * (
+            position_ids.to(torch.float32) + 1.0
+        )
+        # Agrégat cumulé : préfixe puis branche.
+        aggregates = torch.cumsum(
+            torch.cat(
+                (
+                    prefix_contribution.unsqueeze(0).expand(input_ids.shape[0], -1),
+                    branch_contribution,
+                ),
+                dim=-1,
+            ),
+            dim=-1,
+        )[:, prefix_length:]
+        logits = self._logits(input_ids, aggregates, position_ids)
         if logits_to_keep:
             logits = logits[:, -logits_to_keep:, :]
-        if past_key_values is None:
-            layers = []
-            tokens = input_ids[0].to(torch.float32)
-            for _ in range(LAYERS):
-                layer = _FakeCacheLayer()
-                length = int(input_ids.shape[-1])
-                layer.keys = torch.zeros(1, HEADS, length, HEAD_DIM)
-                layer.values = torch.zeros(1, HEADS, length, HEAD_DIM)
-                # Les tokens du préfixe sont mémorisés dans le cache : c'est
-                # ce qui permet au test de vérifier que chaque branche reçoit
-                # **le** préfixe demandé, et non celui d'un job antérieur.
-                layer.values[0, :, :, 0] = tokens.unsqueeze(0)
-                layers.append(layer)
-            return _FakeOutput(logits, _FakeCache(layers))
-        self.seen_prefixes.append(
-            [float(value) for value in past_key_values.layers[0].values[0, 0, :, 0]]
-        )
         return _FakeOutput(logits, past_key_values)
 
 
@@ -206,29 +288,60 @@ def test_suffix_scores_depend_on_the_candidate(scorer: Qwen3TeacherScorer) -> No
     assert len(set(scores.tolist())) > 1
 
 
-def _expected_suffix_score(candidate: int, suffix: tuple[int, ...]) -> float:
+def _expected_suffix_score(
+    prefix: tuple[int, ...],
+    candidate: int,
+    suffix: tuple[int, ...],
+) -> float:
     """Score de suffixe attendu, recalculé **hors du scorer**.
 
-    Le modèle factice produit, pour un token `t`, les logits
-    `logits[v] = cos(sin(t * 0.37) + v)`. Le score de suffixe est donc la
-    somme des log-probabilités du suffixe, chacune lue dans la distribution
-    conditionnée par le token qui la précède dans la branche.
+    Le modèle factice produit, pour un token `t` à la position absolue `p`,
+    les logits `logits[v] = cos(sin(t * 0.37) + v + agg(p) * 0.01 + p * 0.11)`,
+    où `agg(p)` est la somme pondérée `Σ x_q * (q + 1)` des tokens `x_q` aux
+    positions `q <= p` (agrégat causal uniforme).
+
+    Le contexte de la branche est donc : le préfixe aux positions `0..P-1`,
+    le candidat à la position `P`, puis les tokens du suffixe à `P+1..P+S`.
+    Le score est la somme des log-probabilités du suffixe.
 
     Ce calcul ne passe par **aucune** méthode du scorer : il sert de vérité
     absolue, là où `test_cache_path_matches_replay_path` ne prouve que la
     *coïncidence* des deux chemins (les deux pourraient être faux ensemble).
     """
+    prefix_length = len(prefix)
+    # Contributions : (token, position) dans l'ordre causal.
+    contributions = [
+        (token, position) for position, token in enumerate(prefix)
+    ]
+    contributions.append((candidate, prefix_length))
+    for offset, token in enumerate(suffix):
+        contributions.append((token, prefix_length + 1 + offset))
+
+    # Agrégat causal au début de chaque token de suffixe.
+    totals: list[float] = []
+    running = 0.0
+    for token, position in contributions:
+        running += token * (position + 1)
+        totals.append(running)
+
     total = 0.0
-    previous = candidate
-    for token in suffix:
-        base = math.sin(previous * 0.37)
+    branch = [candidate, *suffix]
+    for offset, token in enumerate(suffix):
+        # Le logit qui prédit `suffix[offset]` est celui du token **à la
+        # position qui la précède dans la branche** : le candidat (position
+        # P) prédit `suffix[0]`, `suffix[offset-1]` (position P+offset)
+        # prédit `suffix[offset]`.
+        predictor_position = prefix_length + offset
+        predictor_token = branch[offset]
+        aggregate = totals[predictor_position]
+        base = math.sin(predictor_token * 0.37)
+        shift = aggregate * 0.01 + predictor_position * 0.11
         logits = np.array(
-            [math.cos(base + offset) for offset in range(VOCAB_SIZE)], dtype=np.float64
+            [math.cos(base + shift + o) for o in range(VOCAB_SIZE)], dtype=np.float64
         )
         shifted = logits - logits.max()
         log_probs = shifted - math.log(float(np.exp(shifted).sum()))
         total += float(log_probs[token])
-        previous = token
     return total
 
 
@@ -248,7 +361,10 @@ def test_suffix_scores_match_an_independent_recomputation(
     cached = scorer.suffix_loglikelihood(prefix, candidates, suffix)
     _, replayed = scorer.replay_job(prefix, candidates, suffix)
     expected = np.array(
-        [_expected_suffix_score(candidate, suffix) for candidate in candidates],
+        [
+            _expected_suffix_score(prefix, candidate, suffix)
+            for candidate in candidates
+        ],
         dtype=np.float64,
     )
 
@@ -263,9 +379,13 @@ def test_prior_matches_an_independent_recomputation(scorer: Qwen3TeacherScorer) 
     endroit donnerait un prior encore normalisé, mais faux.
     """
     prefix = (1, 2, 3)
+    position = len(prefix) - 1
+    aggregate = sum(token * (index + 1) for index, token in enumerate(prefix))
     base = math.sin(prefix[-1] * 0.37)
+    shift = aggregate * 0.01 + position * 0.11
     logits = np.array(
-        [math.cos(base + offset) for offset in range(VOCAB_SIZE)], dtype=np.float64
+        [math.cos(base + shift + offset) for offset in range(VOCAB_SIZE)],
+        dtype=np.float64,
     )
     shifted = logits - logits.max()
     expected = np.exp(shifted) / float(np.exp(shifted).sum())
@@ -413,3 +533,220 @@ def test_teacher_topk_rejects_invalid_k() -> None:
     prior = np.array([0.5, 0.5], dtype=np.float64)
     with pytest.raises(ValueError, match="k"):
         teacher_topk(prior, 0)
+
+
+# ---------------------------------------------------------------------------
+# Classe de bug « masque / positions / conditionnement par le préfixe »
+#
+# Un fake dont les logits ne dépendent que du token laisse passer une
+# implémentation qui (i) ignore le préfixe, (ii) passe un masque décalé ou
+# (iii) lit les logits à la mauvaise position. Les tests ci-dessous ferment
+# cette hole : le fake est sensible au préfixe, aux positions et au masque,
+# et chaque propriété est vérifiée **explicitement**.
+# ---------------------------------------------------------------------------
+
+
+def test_scores_change_when_the_prefix_changes(scorer: Qwen3TeacherScorer) -> None:
+    """Deux préfixes différents doivent donner des scores différents.
+
+    C'est le test qui détecte une implémentation ignorant le préfixe : sans
+    cette propriété, tous les autres contrôles (cache vs rejeu) peuvent
+    passer alors que le modèle ne conditionne pas sur le contexte.
+    """
+    candidates = (4, 5)
+    suffix = (7, 8)
+    first = scorer.suffix_loglikelihood((1, 2, 3), candidates, suffix)
+    second = scorer.suffix_loglikelihood((4, 5, 6), candidates, suffix)
+    assert not np.allclose(first, second)
+
+
+def test_the_model_receives_explicit_positions_and_mask(
+    scorer: Qwen3TeacherScorer,
+) -> None:
+    """Le préremplissage et les branches portent une géométrie explicite.
+
+    Préremplissage : positions `0..P-1`, masque plein sur `P` tokens.
+    Branches : positions `P..P+S` (le candidat à `P`), masque plein sur
+    `P + 1 + S` tokens (préfixe + candidat + suffixe).
+
+    Une géométrie absente ou décalée est ici **visible**, pas silencieuse.
+    """
+    prefix = (1, 2, 3)
+    suffix = (7, 8)
+    scorer.suffix_loglikelihood(prefix, (4, 5), suffix)
+    # Préremplissage puis forward des branches.
+    assert scorer.model.seen_position_ids == [[0, 1, 2], [3, 4, 5]]
+    assert scorer.model.seen_attention_masks == [
+        [1, 1, 1],
+        [1, 1, 1, 1, 1, 1],
+    ]
+
+
+def test_a_shifted_position_would_change_the_scores() -> None:
+    """Le score dépend effectivement de la position : garde-fou du décalage.
+
+    Si le fake était insensible aux positions, un off-by-one de `position_ids`
+    passerait tous les tests. Ce test **vérifie la sensibilité** elle-même.
+    """
+    prefix = (1, 2, 3)
+    candidates = (4, 5)
+    suffix = (7, 8)
+
+    reference = Qwen3TeacherScorer(_FakeModel(), device="cpu")
+    expected = reference.suffix_loglikelihood(prefix, candidates, suffix)
+
+    class _ShiftedPositionsModel(_FakeModel):
+        """Fake dont les positions sont décalées d'une unité."""
+
+        def __call__(self, input_ids, **kwargs):
+            position_ids = kwargs.get("position_ids")
+            if position_ids is not None:
+                kwargs["position_ids"] = position_ids + 1
+            return super().__call__(input_ids, **kwargs)
+
+    shifted = Qwen3TeacherScorer(_ShiftedPositionsModel(), device="cpu")
+    actual = shifted.suffix_loglikelihood(prefix, candidates, suffix)
+    assert not np.allclose(expected, actual)
+
+
+def test_chunked_scoring_matches_unchunked_scoring() -> None:
+    """Le découpage en lots ne change pas le résultat.
+
+    Le plafond `max_prefix_cache_bytes` (§3.6) peut imposer un découpage des
+    branches en plusieurs forwards. Le résultat doit être **exactement** le
+    même qu'en un seul forward : c'est la garantie que le découpage est une
+    optimisation sans effet numérique.
+    """
+    model = _FakeModel()
+    prefix = (1, 2, 3)
+    candidates = (4, 5, 6, 7)
+    suffix = (8, 9)
+
+    unchunked = Qwen3TeacherScorer(model, device="cpu")
+    expected = unchunked.suffix_loglikelihood(prefix, candidates, suffix)
+
+    # Plafond assez petit pour forcer un lot de 1 branche.
+    chunked_model = _FakeModel()
+    chunked = Qwen3TeacherScorer(chunked_model, device="cpu")
+    chunked.max_prefix_cache_bytes = 1
+    actual = chunked.suffix_loglikelihood(prefix, candidates, suffix)
+
+    assert actual.shape == expected.shape
+    assert np.max(np.abs(actual - expected)) <= 1e-6
+    # Le découpage a bien eu lieu : plusieurs forwards de branches.
+    assert len(chunked_model.calls) > len(unchunked.model.calls)
+
+
+def test_empty_suffix_does_not_prefill(scorer: Qwen3TeacherScorer) -> None:
+    """Un suffixe vide ne déclenche aucun forward de préremplissage.
+
+    `log p(∅ | …) = 0` par convention : le préremplissage du préfixe serait
+    un forward intégral inutile.
+    """
+    scorer.model.calls.clear()
+    scores = scorer.suffix_loglikelihood((1, 2, 3), (4, 5), ())
+    assert scores.shape == (2,)
+    assert np.all(scores == 0.0)
+    assert scorer.model.calls == []
+
+
+def test_unsupported_transformers_version_is_refused_explicitly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Une version de `transformers` trop ancienne est refusée nommément.
+
+    L'API cache `DynamicCache(ddp_cache_data=...)` n'existe pas avant 4.56.2 :
+    sans garde-fou, l'erreur remonterait au milieu du scoring, sous une
+    forme obscure.
+    """
+    import teacher_scorer_qwen3 as module
+
+    monkeypatch.setattr(module.transformers, "__version__", "4.46.2")
+    with pytest.raises(RuntimeError, match="trop ancien"):
+        module.assert_supported_transformers()
+
+
+# ---------------------------------------------------------------------------
+# Contrôle sur **modèle réel**
+#
+# Le fake vérifie la logique du scorer ; seul un vrai `Qwen3ForCausalLM`
+# vérifie que le cache de préfixe, les positions et le masque se comportent
+# comme le suppose l'implémentation. La configuration est minuscule (2
+# couches, 4 têtes, 32 embeddings) : le test reste instantané sur CPU et ne
+# télécharge rien.
+# ---------------------------------------------------------------------------
+
+
+def _tiny_qwen3():
+    """Construit un `Qwen3ForCausalLM` minuscule, **sans téléchargement**."""
+    pytest.importorskip("transformers")
+    qwen3 = pytest.importorskip("transformers.models.qwen3")
+    torch.manual_seed(0)
+    config = qwen3.Qwen3Config(
+        vocab_size=64,
+        hidden_size=32,
+        intermediate_size=64,
+        num_hidden_layers=2,
+        num_attention_heads=4,
+        num_key_value_heads=2,
+        head_dim=8,
+        max_position_embeddings=128,
+        attn_implementation="eager",
+    )
+    model = qwen3.Qwen3ForCausalLM(config)
+    model.eval()
+    return model
+
+
+def test_real_model_cache_path_matches_full_replay() -> None:
+    """Sur un vrai Qwen3, le chemin cache égale le rejeu intégral.
+
+    Ce test est le contrôle qui manque à un fake : il détecte un masque
+    décalé, un `position_ids` faux ou une lecture de logit à la mauvaise
+    position — des fautes que le fake, par construction, ne voit pas.
+    """
+    model = _tiny_qwen3()
+    scorer = Qwen3TeacherScorer(model, device="cpu")
+    prefix = (3, 11, 7, 5, 2)
+    candidates = (9, 17, 23)
+    suffix = (4, 8)
+
+    cached = scorer.suffix_loglikelihood(prefix, candidates, suffix)
+    replay_prior, replayed = scorer.replay_job(prefix, candidates, suffix)
+    prior = scorer.causal_prior(prefix)
+
+    assert cached.shape == replayed.shape == (3,)
+    assert np.max(np.abs(cached - replayed)) <= 1e-4
+    assert np.max(np.abs(prior - replay_prior)) <= 1e-4
+
+
+def test_real_model_scores_depend_on_the_prefix() -> None:
+    """Sur un vrai Qwen3, changer le préfixe change les scores.
+
+    Preuve que le conditionnement par le contexte est effectif : une
+    implémentation qui ignorerait le préfixe serait ici attrapée.
+    """
+    model = _tiny_qwen3()
+    scorer = Qwen3TeacherScorer(model, device="cpu")
+    candidates = (9, 17)
+    suffix = (4, 8)
+    first = scorer.suffix_loglikelihood((3, 11, 7), candidates, suffix)
+    second = scorer.suffix_loglikelihood((21, 2, 13), candidates, suffix)
+    assert not np.allclose(first, second)
+
+
+def test_real_model_chunked_matches_unchunked() -> None:
+    """Sur un vrai Qwen3, le découpage en lots ne change rien."""
+    model = _tiny_qwen3()
+    prefix = (3, 11, 7, 5)
+    candidates = (9, 17, 23, 31)
+    suffix = (4, 8)
+
+    unchunked = Qwen3TeacherScorer(model, device="cpu")
+    expected = unchunked.suffix_loglikelihood(prefix, candidates, suffix)
+
+    chunked = Qwen3TeacherScorer(model, device="cpu")
+    chunked.max_prefix_cache_bytes = 1
+    actual = chunked.suffix_loglikelihood(prefix, candidates, suffix)
+
+    assert np.max(np.abs(actual - expected)) <= 1e-4
