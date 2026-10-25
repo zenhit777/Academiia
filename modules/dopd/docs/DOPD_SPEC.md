@@ -1172,7 +1172,7 @@ NumPy (`prior` float64 de somme 1, `candidate_loglikelihoods` alignés sur
 | C4 | Cohérence du prior | **TENU** | `|somme − 1|` max **4,8e-07** ≤ 1e-4 ; aucun NaN/inf |
 | C5 | Chaîne scorer → cible | **TENU** | **12/12** jobs à futur visible : `applied = true`, cible finie, `|somme − 1|` max **1,5e-07** ; les 4 jobs à futur vide activent le fallback causal (`no_visible_future`) |
 | C6 | Latence (cellule de référence J14) | **TENU** | 16 branches : cache **53,2 ms**, rejeu 168,4 ms, gain **3,162×** ≥ 2× (J14 : 51,2 ms / 3,28×) |
-| C7 | Latence (géométrie d-OPD) | **TENU** | cache max **53,29 ms** ≤ 200 ms ; CPU FP32 (hors plafond) : 373,6 ms |
+| C7 | Latence (géométrie d-OPD) | **TENU (réserve de géométrie)** | cache max **53,29 ms** ≤ 200 ms ; CPU FP32 (hors plafond) : 373,6 ms. Les états réels ont **16 branches** (référence déjà dans le top-16), §6.10.5 fige 17 : seuil tenu avec une géométrie légèrement **inférieure** au protocole |
 | C8 | Latence (33 branches) | **TENU** | cache **67,1 ms** ≤ 250 ms (J14 : 65,6 ms) |
 | C9 | Gelé | **TENU** | `requires_grad` de tous les paramètres = `False` ; `model.training = False` ; aucun `backward`/`optimizer`/`step` dans le harnais |
 | C10 | Poids intacts | **TENU** | sha256 des tenseurs **identique** avant/après (runs GPU et CPU) |
@@ -1197,31 +1197,40 @@ diagnostics supplémentaires (champs `max_abs_delta_diff`,
 2. **L'écart BF16 vient du chemin de rejeu lui-même, pas du cache.** En BF16,
    `replay_batch_sensitivity` atteint **0,369659** : rejouer le même contexte
    par lot de 1 ou par lot de 16 donne déjà des scores différents de ~0,37.
-   L'écart cache/rejeu (0,395069) est donc **presque entièrement** celui du
-   rejeu par rapport à lui-même. La cache n'y contribue que
-   `0,395069 − 0,369659 = 0,025`.
+   Ce maximum est atteint **au même job** que le maximum d'écart cache/rejeu
+   (`p05`, position 0) : sur ce job, l'écart cache/rejeu n'excède la
+   sensibilité du rejeu à lui-même que de **0,025410**. Cette comparaison
+   n'est pas une décomposition exacte (elle oppose deux maxima), mais elle situe
+   l'ordre de grandeur : l'écart est **de la taille de la sensibilité du rejeu**.
+   En FP32, la sensibilité tombe à **0** (run CPU, 16 états) ou **1,5259e-05**
+   (contrôle GPU).
 3. **Amplification par la magnitude.** L'écart absolu est proportionnel à
    `|s_i(v)|` : les deux états en échec sont ceux dont les log-probabilités de
-   suffixe sont les plus négatives (**|s|max = 20,67** et **27,41**). BF16 a
-   ~8 bits de mantisse ; une erreur relative de ~0,4 % sur un logit de
-   magnitude 20 devient un écart absolu de ~0,08 par token, cumulé sur 3
-   tokens de suffixe.
+   suffixe sont les plus négatives (**|s|max = 20,67** et **27,41**).
+   **Interprétation** (non dérivée d'un artefact, mais cohérente avec les
+   mesures) : BF16 a 8 bits de significande ; une erreur relative de ~0,4 %
+   sur un logit de magnitude 20 donne ~0,08 d'écart absolu par token, cumulé
+   sur 3 tokens de suffixe.
 
 **Conclusion.** L'écart C2 est un **artefact de précision BF16 du protocole de
 comparaison**, pas un défaut de la mécanique du cache de préfixe. La grandeur
 réellement consommée par la cible est `Δs_i(v) = s_i(v) − s_i(x̂_i)` ; son
 écart cache/rejeu en BF16 est du même ordre (max **0,395436**), et tombe à
-**3,2e-05** en FP32 (run CPU). Le passage en FP32 est donc **gratuit en
+**3,2e-05** en FP32 (run CPU). Le passage en FP32 est **quasi gratuit en
 latence** sur cette machine : **52,57 ms** contre **51,89 ms** en BF16
-(géométrie d-OPD, 17 branches, pic mémoire 2 411 MiB contre 1 250 MiB).
+(**+0,68 ms**, soit +1,3 %), pour un pic mémoire de 2 411 MiB contre 1 250 MiB
+(**+1 161 MiB**). *Mesure complémentaire non versionnée* (sonde jetable, hors
+artefact ADR-002 ; voir `modules/dopd/docs/reports/J17.md` §4.5).
 
 #### 6.11.4 Limites de la livraison
 
 - Le cache de préfixe ne paie qu'au-delà d'un préfixe long : sur les états
-  réels (préfixe de 12–14 tokens), le cache est **plus lent** que le rejeu
-  (53,3 ms contre 26,9 ms), car le surcoût fixe par forward domine. Le gain
-  mesuré (3,16× à 16 branches, 5,48× à 33 branches, préfixe 1 024) est le
-  gain de la **cellule de référence J14**, pas celui de la géométrie courte.
+  réels (préfixes de **12 à 21** tokens), le cache est **plus lent** que le
+  rejeu (médiane **51,63 ms** contre **26,45 ms** ; max **53,29 ms** contre
+  **27,01 ms**), car le surcoût fixe par forward (~24,85 ms en moyenne)
+  domine. Le gain mesuré (3,16× à 16 branches, 5,48× à 33 branches, préfixe
+  1 024) est le gain de la **cellule de référence J14**, pas celui de la
+  géométrie courte.
 - `V_i` est le **top-16 du professeur** : l'union avec le top-16 de l'élève
   (§3.4) n'est pas calculable tant que `StudentPolicy` n'existe pas. Le
   contrat à 33 branches est donc exercé par la cellule de référence.
@@ -1231,6 +1240,22 @@ latence** sur cette machine : **52,57 ms** contre **51,89 ms** en BF16
 - Les réserves de lecture J15/J16 s'appliquent inchangées : effet future-aware
   **non uniforme** (médiane nulle, queue nuisible de 13,3 %), 3 prompts sur 20
   dégradés.
+
+#### 6.11.5 Décision pour J18
+
+**GO conditionnel**, avec une réserve de règle explicite : §6.10.7 conditionne
+le « GO conditionnel » à « C1–C14 **sont tenues** ». C2 échouant, cette clause
+n'est pas littéralement remplie. La décision repose sur le fait qu'**un seul**
+critère échoue, **hors** de la liste NO-GO (C1, C3, C5, C9, C10, C11 — aucun
+déclenché), avec une cause identifiée (précision BF16 du protocole de
+comparaison) et un contournement mesuré (FP32 : écart 6,1e-05 sur état réel,
+2,7e-05 sur le run CPU complet, +0,68 ms de latence).
+
+Conditions à lever avant d'ouvrir J18 : (1) professeur en **FP32** ; (2)
+**protocole d'entraînement pré-enregistré distinct** ; (3) référence de
+comparaison fixée sur le **rejeu intégral FP32** ; (4) prise en compte du fait
+que le cache est **plus lent que le rejeu** aux préfixes de 12 à 21 tokens.
+Détail et points ouverts : `modules/dopd/docs/reports/J17.md`.
 
 ---
 ---
