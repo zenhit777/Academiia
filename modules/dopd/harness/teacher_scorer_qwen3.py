@@ -404,10 +404,15 @@ class Qwen3TeacherScorer(TeacherScorer):
         del out, logits, prior, cache
 
     def _prefix_cache_bytes(self, prefix_length: int, suffix_length: int) -> int:
-        """Taille (en octets) du cache étendu à `n` branches.
+        """Taille (en octets) du cache **d'une branche**.
 
-        Formule de `bench_budget_rtx5090.py` : 2 (K et V) × couches × lot ×
-        longueur × têtes KV × dim × taille d'un élément.
+        Formule de `bench_budget_rtx5090.py` avec `batch_size = 1` : 2 (K et V)
+        × couches × longueur × têtes KV × dim × taille d'un élément. La
+        longueur est `préfixe + 1 candidat + suffixe`, soit le contenu du cache
+        au moment du forward des branches.
+
+        Le cache **étendu** à `n` branches en coûte `n` fois : c'est ce que
+        `_branch_batch_size` déduit du plafond (§3.6).
         """
         config = self.model.config
         head_dim = getattr(config, "head_dim", None)

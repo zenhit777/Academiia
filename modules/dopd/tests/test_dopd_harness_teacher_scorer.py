@@ -12,6 +12,7 @@ la collecte doit passer sans torch (critère C13).
 
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
@@ -203,6 +204,85 @@ def test_suffix_scores_depend_on_the_candidate(scorer: Qwen3TeacherScorer) -> No
     suffix = (7, 8)
     scores = scorer.suffix_loglikelihood(prefix, (4, 5, 6), suffix)
     assert len(set(scores.tolist())) > 1
+
+
+def _expected_suffix_score(candidate: int, suffix: tuple[int, ...]) -> float:
+    """Score de suffixe attendu, recalculé **hors du scorer**.
+
+    Le modèle factice produit, pour un token `t`, les logits
+    `logits[v] = cos(sin(t * 0.37) + v)`. Le score de suffixe est donc la
+    somme des log-probabilités du suffixe, chacune lue dans la distribution
+    conditionnée par le token qui la précède dans la branche.
+
+    Ce calcul ne passe par **aucune** méthode du scorer : il sert de vérité
+    absolue, là où `test_cache_path_matches_replay_path` ne prouve que la
+    *coïncidence* des deux chemins (les deux pourraient être faux ensemble).
+    """
+    total = 0.0
+    previous = candidate
+    for token in suffix:
+        base = math.sin(previous * 0.37)
+        logits = np.array(
+            [math.cos(base + offset) for offset in range(VOCAB_SIZE)], dtype=np.float64
+        )
+        shifted = logits - logits.max()
+        log_probs = shifted - math.log(float(np.exp(shifted).sum()))
+        total += float(log_probs[token])
+        previous = token
+    return total
+
+
+def test_suffix_scores_match_an_independent_recomputation(
+    scorer: Qwen3TeacherScorer,
+) -> None:
+    """Les scores doivent égaler une valeur **absolue**, pas seulement coïncider.
+
+    Un décalage d'une position dans la lecture des logits donnerait deux
+    chemins (cache et rejeu) d'accord entre eux mais faux tous les deux : ce
+    test est le seul à le détecter.
+    """
+    prefix = (1, 2, 3)
+    suffix = (7, 8)
+    candidates = (4, 5, 6)
+
+    cached = scorer.suffix_loglikelihood(prefix, candidates, suffix)
+    _, replayed = scorer.replay_job(prefix, candidates, suffix)
+    expected = np.array(
+        [_expected_suffix_score(candidate, suffix) for candidate in candidates],
+        dtype=np.float64,
+    )
+
+    assert np.max(np.abs(cached - expected)) <= 1e-6
+    assert np.max(np.abs(replayed - expected)) <= 1e-6
+
+
+def test_prior_matches_an_independent_recomputation(scorer: Qwen3TeacherScorer) -> None:
+    """Le prior causal doit égaler le softmax des logits du dernier préfixe.
+
+    Contrôle la **position** de lecture du logit : un logit lu au mauvais
+    endroit donnerait un prior encore normalisé, mais faux.
+    """
+    prefix = (1, 2, 3)
+    base = math.sin(prefix[-1] * 0.37)
+    logits = np.array(
+        [math.cos(base + offset) for offset in range(VOCAB_SIZE)], dtype=np.float64
+    )
+    shifted = logits - logits.max()
+    expected = np.exp(shifted) / float(np.exp(shifted).sum())
+
+    prior = scorer.causal_prior(prefix)
+    # Le scorer calcule le softmax en float32 (§3.6) ; l'attendu est en
+    # float64. La tolérance couvre l'arrondi float32 (~1e-8 sur des
+    # probabilités de l'ordre de 0,1), pas une erreur de lecture de logit
+    # (qui serait de l'ordre de 0,1).
+    assert np.max(np.abs(prior - expected)) <= 1e-6
+
+
+def test_empty_suffix_yields_zero_scores(scorer: Qwen3TeacherScorer) -> None:
+    """Sans futur visible, le score de suffixe est vide (zéros)."""
+    scores = scorer.suffix_loglikelihood((1, 2, 3), (4, 5), ())
+    assert scores.shape == (2,)
+    assert np.all(scores == 0.0)
 
 
 def test_prefix_is_prefilled_once_per_job(scorer: Qwen3TeacherScorer) -> None:
