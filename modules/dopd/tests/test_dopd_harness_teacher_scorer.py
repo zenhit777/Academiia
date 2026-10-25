@@ -63,11 +63,6 @@ class _FakeCache:
 
     def __init__(self, layers: list[_FakeCacheLayer]) -> None:
         self.layers = layers
-        #: Visibilité du préfixe au moment du préremplissage : permet au
-        #: chemin des branches de savoir quels tokens du préfixe sont
-        #: visibles (le masque des branches ne couvre que ses propres
-        #: tokens, pas ceux déjà en cache).
-        self.prefix_visible: torch.Tensor | None = None
 
     def batch_repeat_interleave(self, repeats: int) -> None:
         for layer in self.layers:
@@ -224,10 +219,6 @@ class _FakeModel:
                     layer.values[0, :, :, 0] = tokens.unsqueeze(0)
                     layers.append(layer)
                 cache = _FakeCache(layers)
-                # La visibilité du préfixe est mémorisée avec le cache : le
-                # chemin des branches doit pouvoir retrouver quels tokens du
-                # préfixe sont visibles.
-                cache.prefix_visible = visible[0, : input_ids.shape[-1]].clone()
                 return _FakeOutput(logits, cache)
             # Rejeu intégral : pas de cache.
             return _FakeOutput(logits, None)
