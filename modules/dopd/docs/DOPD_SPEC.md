@@ -1171,9 +1171,9 @@ NumPy (`prior` float64 de somme 1, `candidate_loglikelihoods` alignés sur
 | C3 | Exactitude cache vs rejeu (FP32) | **TENU** | cellule de référence **1,1444e-05** ≤ 1e-3 ✔ ; **état réel BF16 rejoué en FP32 : 6,1035e-05** ≤ 1e-3 ✔ ; run CPU FP32 complet : suffixe max **2,7e-05**, prior max **2e-06** ✔ |
 | C4 | Cohérence du prior | **TENU** | `|somme − 1|` max **4,8e-07** ≤ 1e-4 ; aucun NaN/inf |
 | C5 | Chaîne scorer → cible | **TENU** | **12/12** jobs à futur visible : `applied = true`, cible finie, `|somme − 1|` max **1,5e-07** ; les 4 jobs à futur vide activent le fallback causal (`no_visible_future`) |
-| C6 | Latence (cellule de référence J14) | **TENU** | 16 branches : cache **53,2 ms**, rejeu 168,4 ms, gain **3,162×** ≥ 2× (J14 : 51,2 ms / 3,28×) |
-| C7 | Latence (géométrie d-OPD) | **TENU (réserve de géométrie)** | cache **médiane 51,63 ms** (max 53,29 ms) ≤ 200 ms ; CPU FP32 (hors plafond) : médiane 326,41 ms, max 373,61 ms. Les états réels ont **16 branches** (référence déjà dans le top-16), §6.10.5 fige 17 : seuil tenu avec une géométrie légèrement **inférieure** au protocole |
-| C8 | Latence (33 branches) | **TENU** | cache **67,1 ms** ≤ 250 ms (J14 : 65,6 ms) |
+| C6 | Latence (cellule de référence J14) | **TENU** | 16 branches : cache **53,4 ms**, rejeu 164,9 ms, gain **3,09×** ≥ 2× (J14 : 51,2 ms / 3,28×) |
+| C7 | Latence (géométrie d-OPD) | **TENU (réserve de géométrie)** | cache **médiane 51,13 ms** (max 53,96 ms) ≤ 200 ms ; CPU FP32 (hors plafond) : médiane 326,35 ms, max 376,64 ms. Les états réels ont **16 branches** (référence déjà dans le top-16), §6.10.5 fige 17 : seuil tenu avec une géométrie légèrement **inférieure** au protocole |
+| C8 | Latence (33 branches) | **TENU** | cache **67,4 ms** ≤ 250 ms (J14 : 65,6 ms) |
 | C9 | Gelé | **TENU** | `requires_grad` de tous les paramètres = `False` ; `model.training = False` ; aucun `backward`/`optimizer`/`step` dans le harnais |
 | C10 | Poids intacts | **TENU** | sha256 des tenseurs **identique** avant/après (runs GPU et CPU) |
 | C11 | Provenance ADR-002 | **TENU** | manifeste `academiia.lineage/1` : `producer.module = "dopd"`, commit, commande exacte, versions, seeds, empreintes des sources, `training.performed = false` |
@@ -1227,9 +1227,9 @@ voir `modules/dopd/docs/reports/J17.md` §4.5).
 
 - Le cache de préfixe ne paie qu'au-delà d'un préfixe long : sur les états
   réels (préfixes de **12 à 21** tokens), le cache est **plus lent** que le
-  rejeu (médiane **51,63 ms** contre **26,45 ms** ; max **53,29 ms** contre
-  **27,01 ms**), car le surcoût fixe par forward (~24,85 ms en moyenne)
-  domine. Le gain mesuré (3,16× à 16 branches, 5,48× à 33 branches, préfixe
+  rejeu (médiane **51,13 ms** contre **26,10 ms** ; max **53,96 ms** contre
+  **26,91 ms**), car le surcoût fixe par forward (~24,84 ms en moyenne)
+  domine. Le gain mesuré (3,09× à 16 branches, 5,36× à 33 branches, préfixe
   1 024) est le gain de la **cellule de référence J14**, pas celui de la
   géométrie courte. Le point de basculement du cache reste celui mesuré par
   J14 (plus lent à 256 tokens, 2,00× plus rapide à 512) : J17 ne mesure que
