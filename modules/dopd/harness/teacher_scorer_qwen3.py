@@ -357,11 +357,14 @@ class Qwen3TeacherScorer(TeacherScorer):
         if len(suffix) == 0:
             scores = np.zeros(branches, dtype=np.float64)
         else:
-            log_probs = torch.log_softmax(logits[:, 1 : len(suffix) + 1, :], dim=-1)
+            # Même voie que le chemin cache : log-prob du seul token cible,
+            # sans matérialiser la distribution complète du vocabulaire.
+            suffix_logits = logits[:, 1 : len(suffix) + 1, :]
             targets = suffix_tensor.expand(branches, -1)
-            token_log_probs = log_probs.gather(-1, targets.unsqueeze(-1)).squeeze(-1)
+            target_logits = suffix_logits.gather(-1, targets.unsqueeze(-1)).squeeze(-1)
+            token_log_probs = target_logits - torch.logsumexp(suffix_logits, dim=-1)
             scores = token_log_probs.sum(dim=-1).cpu().numpy().astype(np.float64)
-            del log_probs, token_log_probs
+            del suffix_logits, target_logits, token_log_probs
         del out, logits, full
         return prior, scores
 
@@ -478,7 +481,14 @@ class Qwen3TeacherScorer(TeacherScorer):
 
         Le lot est découpé pour ne jamais dépasser le plafond de cache étendu
         (§3.6) : au-delà, le nombre de branches par forward est réduit.
+
+        **Suffixe vide** : le score est défini comme nul (aucun token de
+        futur à conditionner). Le forward des branches est alors **sans
+        objet** : il est court-circuité, ce qui évite de dupliquer le cache
+        et de lancer un forward inutilisé.
         """
+        if not suffix:
+            return np.zeros(len(candidates), dtype=np.float64)
         scores: list[np.ndarray] = []
         limit = self._branch_batch_size(len(prefix), len(suffix))
         for start in range(0, len(candidates), limit):
@@ -494,6 +504,10 @@ class Qwen3TeacherScorer(TeacherScorer):
     ) -> np.ndarray:
         """Un forward **avec cache de préfixe** sur un lot de branches."""
         branches = len(candidates)
+        if not suffix:
+            # Suffixe vide : aucun token à conditionner, le forward est
+            # sans objet (court-circuit plutôt qu'un lancement inutile).
+            return np.zeros(branches, dtype=np.float64)
         assert self._prefix_snapshot is not None
         candidate_tensor = torch.tensor(
             [[int(token)] for token in candidates], dtype=torch.long, device=self.device
@@ -524,11 +538,15 @@ class Qwen3TeacherScorer(TeacherScorer):
         logits = out.logits[:, : len(suffix), :].float()
         del out, cache
 
-        if len(suffix) == 0:
-            return np.zeros(branches, dtype=np.float64)
-        log_probs = torch.log_softmax(logits, dim=-1)
+        # Log-probabilité du **seul** token cible, sans matérialiser la
+        # distribution complète : `log_softmax` sur 151 936 colonnes
+        # produirait un tenseur float32 de ~60 Mo par position et par lot.
+        # `logsumexp` sur le vocabulaire donne le dénominateur ; le numérateur
+        # est le logit du token cible.
         targets = suffix_tensor.expand(branches, -1)
-        token_log_probs = log_probs.gather(-1, targets.unsqueeze(-1)).squeeze(-1)
+        target_logits = logits.gather(-1, targets.unsqueeze(-1)).squeeze(-1)
+        normalizer = torch.logsumexp(logits, dim=-1)
+        token_log_probs = target_logits - normalizer
         result = token_log_probs.sum(dim=-1).cpu().numpy().astype(np.float64)
-        del logits, log_probs
+        del logits, target_logits, normalizer, token_log_probs
         return result
