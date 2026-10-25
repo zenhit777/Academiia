@@ -69,7 +69,7 @@
 > (C3)** : le même job rejoué en FP32 donne un écart de **1,1e-05** (cellule de
 > référence) et **6,1e-05** (état réel), contre **0,395** en BF16 — écart
 > imputé à la précision BF16 du protocole de comparaison, **pas** à la
-> mécanique du cache. Latence : cache **53,2 ms** à 16 branches et **67,1 ms**
+> mécanique du cache. Latence : cache **53,4 ms** à 16 branches et **67,4 ms**
 > à 33 (référence J14 : 51,2 / 65,6 ms) ; le passage en FP32 coûte
 > **+0,68 ms** de latence (**+1,3 %**) et **+1 161 MiB** de pic mémoire
 > (mesure complémentaire non versionnée). Sur les 14 critères pré-enregistrés,
