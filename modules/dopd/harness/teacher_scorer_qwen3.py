@@ -389,6 +389,7 @@ class Qwen3TeacherScorer(TeacherScorer):
         suivants.
         """
         self.reset_prefix_cache()
+        self._require_full_attention()
         input_ids = torch.tensor([prefix], dtype=torch.long, device=self.device)
         with torch.no_grad():
             out = self.model(input_ids=input_ids, use_cache=True, logits_to_keep=1)
@@ -440,6 +441,33 @@ class Qwen3TeacherScorer(TeacherScorer):
             return 1
         return max(1, int(self.max_prefix_cache_bytes // per_branch))
 
+    def _require_full_attention(self) -> None:
+        """Vérifie que **toutes** les couches sont à attention pleine.
+
+        Le chemin cache reconstruit le `DynamicCache` **sans** configuration :
+        il suppose donc que chaque couche est à attention pleine. C'est le
+        cas de `Qwen3-0.6B` (`sliding_window = None`). Un modèle à attention
+        glissante produirait une erreur de forme cryptique dans le noyau
+        d'attention ; ce garde-fou la transforme en **refus explicite**.
+        """
+        config = self.model.config
+        layer_types = getattr(config, "layer_types", None)
+        if layer_types and any(
+            str(layer_type) != "full_attention" for layer_type in layer_types
+        ):
+            raise ValueError(
+                "cache de préfixe non supporté : le modèle a des couches à "
+                f"attention glissante ({list(layer_types)}). Utiliser le chemin "
+                "de rejeu intégral, ou un modèle à attention pleine."
+            )
+        sliding_window = getattr(config, "sliding_window", None)
+        if sliding_window:
+            raise ValueError(
+                "cache de préfixe non supporté : le modèle déclare "
+                f"sliding_window={sliding_window}. Utiliser le chemin de rejeu "
+                "intégral, ou un modèle à attention pleine."
+            )
+
     def _score_branches(
         self,
         prefix: tuple[int, ...],
@@ -475,8 +503,10 @@ class Qwen3TeacherScorer(TeacherScorer):
         # Cache reconstruit depuis l'instantané figé : chaque lot repart du
         # préfixe exact, jamais d'un cache pollué par un job précédent.
         # `DynamicCache` est construit **sans** configuration : toutes les
-        # couches de Qwen3 sont à attention pleine, la reconstruction ne
-        # dépend donc d'aucun type de couche particulier.
+        # couches de Qwen3-0.6B sont à attention pleine (`sliding_window =
+        # None`), la reconstruction ne dépend donc d'aucun type de couche
+        # particulier.
+        self._require_full_attention()
         cache = DynamicCache(ddp_cache_data=self._prefix_snapshot)
         cache.batch_repeat_interleave(branches)
         branch_input = torch.cat(

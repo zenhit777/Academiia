@@ -285,6 +285,29 @@ def test_empty_suffix_yields_zero_scores(scorer: Qwen3TeacherScorer) -> None:
     assert np.all(scores == 0.0)
 
 
+def test_sliding_window_models_are_refused_explicitly(
+    scorer: Qwen3TeacherScorer,
+) -> None:
+    """Un modèle à attention glissante doit être **refusé nommément**.
+
+    Le cache de préfixe reconstruit un `DynamicCache` sans configuration : il
+    suppose une attention pleine. Sans garde-fou, l'erreur remonte du noyau
+    d'attention sous une forme cryptique ; le refus doit nommer la cause.
+    """
+    scorer.model.config.layer_types = ["full_attention", "sliding_attention"]
+    with pytest.raises(ValueError, match="glissante"):
+        scorer.suffix_loglikelihood((1, 2, 3), (4, 5), (7, 8))
+
+
+def test_sliding_window_config_is_refused_explicitly(
+    scorer: Qwen3TeacherScorer,
+) -> None:
+    """Un `sliding_window` déclaré doit être refusé, même sans `layer_types`."""
+    scorer.model.config.sliding_window = 8
+    with pytest.raises(ValueError, match="sliding_window"):
+        scorer.suffix_loglikelihood((1, 2, 3), (4, 5), (7, 8))
+
+
 def test_prefix_is_prefilled_once_per_job(scorer: Qwen3TeacherScorer) -> None:
     """Le préfixe commun n'est prérempli qu'une fois pour un job complet.
 
