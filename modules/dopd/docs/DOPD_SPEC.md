@@ -847,6 +847,76 @@ cette hypothèse et rend la décision conditionnelle. La KL par rapport au
 posterior exact n'est pas calculée (infinie quand le support exact dépasse le
 top-`k`) ; la distance de variation totale l'englobe et reste finie.
 
+
+#### 6.9.9 Résultats J15 (exécution, après le gel des critères)
+
+> **Les critères de §6.9.7 et §6.9.8 n'ont pas été modifiés après le run.** Le
+> commit `4a74023` fige les critères ; le commit `fe499ff` porte le code
+> producteur (`diagnostic_annexe_d.py` / `diagnostic.py`) et le résultat
+> versionné. La commande exacte, les empreintes des sources et le manifeste
+> ADR-002 sont dans `modules/dopd/eval/annexe_d_qwen3_0.6b_multiprompt/results.json`
+> (sha256 `ed41ed7e…`) ; le rapport complet est `modules/dopd/docs/reports/J15.md`.
+
+**Décision : GO conditionnel** (`gate.status = "passed"`,
+`gate_j15_status = "GO conditionnel"`). Le critère primaire (§6.9.7-1) est
+atteint — l'effet future-aware est réel et significatif sur une séquence de
+prompts variés ; la médiane nulle (§6.9.7-2) est la réserve qui rend la
+décision **conditionnelle**.
+
+Critères du diagnostic multi-prompt (§6.9.7) :
+
+| Critère pré-enregistré | Seuil | Mesuré | Verdict |
+|---|---|---|---|
+| 6.9.7-1 critère primaire (`ΔKL` agrégé > 0, IC ∉ [0]) | IC ∉ [0] | `ΔKL = +0,0802`, IC 95 % `[+0,064 ; +0,096]` | **atteint** |
+| 6.9.7-2 médiane de `ΔKL` > 0 | > 0 | **médiane = 0** (42,8 % de marginaux à `ΔKL = 0`) | **non atteint** |
+| 6.9.7-3 proportion de prompts significatifs ≥ 0,5 | ≥ 0,5 | **15 / 20 = 0,75** | **atteint** |
+| 6.9.7-4 test des signes, p < 0,05 | p < 0,05 | **p ≈ 0** (20/20 prompts direction positive) | **atteint** |
+| 6.9.7-5 effectif ≥ 100 blocs/config et ≥ 200 marginaux | seuil minimal | 100 blocs/config, **61 120** marginaux | **atteint** |
+
+Réduction de KL par configuration (IC 95 % bootstrap de blocs de base) :
+
+| Configuration | Marginaux | `ΔKL` moyen | IC 95 % | Temps mural |
+|---|---:|---:|---:|---:|
+| `N4_V6` | 17 200 | +0,1045 | `[+0,082 ; +0,126]` | 764 s |
+| `N4_V12` | 17 600 | +0,1181 | `[+0,098 ; +0,138]` | 806 s |
+| `N6_V6` | 26 320 | +0,0390 | `[+0,006 ; +0,071]` | 1 660 s |
+
+**Médiane nulle / marginaux sans futur visible.** La médiane n'est pas du
+bruit : **42,8 %** des marginaux ont `ΔKL = 0` exactement — aucun futur visible
+dans le bloc, la correction future-aware est alors structuralement inactive.
+C'est la R4/R5 de J14 rendue quantitative sur une séquence de prompts variés :
+l'effet agrégé (moyenne) est réel mais **porté par les 57,2 %** de marginaux
+dotés d'un futur visible ; la médiane tombe à zéro car plus qu'un marginal sur
+deux est structuralement nul. Le critère primaire fondé sur la moyenne arith-
+métique (eq. 28) est donc **sensible à la queue**, confirmé ici sur 20 prompts.
+
+**Test des signes.** Les 20 prompts sont tous en direction positive — cohérence
+de direction forte, même si l'amplitude varie d'un prompt à l'autre.
+
+**Écart cible exacte vs top-k = 16 (§6.9.8)**, sur les 61 120 marginaux :
+
+| Grandeur | Valeur | Interprétation |
+|---|---:|---|
+| Masse discardée moyenne (au-delà de k=16) | **2,95 %** | la queue tronquée pèse ~3 % en moyenne |
+| Masse discardée maximale | **37,3 %** | cas extrêmes : jusqu'à un tiers de la masse hors du top-16 |
+| Distance de Total Variation moyenne | **1,48 %** | écart moyen entre les deux distributions |
+
+La troncature à k = 16 est **fidèle en moyenne** (TV moyenne 1,48 %) mais
+**hétérogène** (masse discardée max 37,3 %). Information de faisabilité avant
+tout investissement dans un `TeacherScorer` : l'approximation top-k n'est pas
+neutre.
+
+**Limites déclarées.**
+
+1. L'amplitude agrégée (`ΔKL ≈ +0,08`, -16,1 % de réduction relative) reste bien
+   inférieure à celle du papier (-71,9 %) : références de lecture, pas seuils.
+2. L'effet est moyenne-porté-par-queue : un `TeacherScorer` réel doit confirmer
+   sur plus de prompts et plus d'échelles avant qu'un `StudentPolicy` soit
+   justifié.
+3. Le run est une **inférence seule** : ≈ 54 min mural au total, aucun poids
+   modifié, aucun backward (`training.performed = false`).
+
+---
 ---
 
 ## 7. Hors scope explicite de J12

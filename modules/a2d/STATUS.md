@@ -29,7 +29,7 @@
 > `modules/dopd/docs/reports/J13.md`.
 >
 > **Mise à jour J14 (2026-10-23)** : la **porte scientifique Annexe D** de
-> d-OPD est **franchie** sur Qwen3-0.6B : la cible future-aware à un seul futur
+> d-OPD est **franchie, avec réserves de lecture** sur Qwen3-0.6B : la cible future-aware à un seul futur
 > échantillonné réduit la KL appariée de **0,1623** (IC 95 % bootstrap
 > `[0,0742 ; 0,2252]`), sur 3 056 marginaux et 3 configurations. Run GPU
 > **déclaré**, inférence seule : **aucun entraînement, aucun backward, aucun
@@ -39,6 +39,20 @@
 > 51,2 ms par job avec cache de préfixe) ; l'échelle du papier (4B–8B) reste
 > **hors de portée** d'une carte unique. Voir
 > `modules/dopd/docs/BUDGET_RTX5090.md`, `modules/dopd/docs/reports/J14.md`.
+>
+> **Mise à jour J15 (2026-10-25)** : la **porte scientifique Annexe D** de d-OPD
+> est renforcée par un **diagnostic multi-prompt** (20 prompts variés, 61 120
+> marginaux) et une **mesure de l'écart cible exacte vs top-k = 16**. L'effet
+> future-aware reste réel et significatif (`ΔKL = +0,0802`, IC 95 % `[0,064 ;
+> 0,096]`) mais **moyenne-porté-par-queue** (médiane nulle : 42,8 % de marginaux
+> sans futur visible) : la porte est désormais qualifiée **« franchie, avec
+> réserves de lecture »**, décision **GO conditionnel** pour un `TeacherScorer`
+> réel. Troncature top-k fidèle en moyenne (TV 1,48 %) mais hétérogène (masse
+> perdue max 37,3 %). Runs GPU **déclarés**, inférence seule : **aucun
+> entraînement, aucun backward, aucun poids modifié**, et **aucun résultat, seuil
+> ou verdict G1 touché**. Résidus J14 corrigés (formulation, règle 12,
+> `importorskip`, CI citée sur le HEAD d'arrivée). Voir
+> `modules/dopd/docs/reports/J15.md`.
 
 Ce document est le **point d'entrée** pour savoir ce qui est démontré, ce qui ne l'est pas, et
 où se trouve chaque chose. Il remplace les statuts dispersés dans les rapports de mission ;
