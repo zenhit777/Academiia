@@ -86,8 +86,12 @@
 > du checkpoint dans `parent.hashes` (ADR-002), tests rendus sensibles au
 > préfixe/aux positions/masque avec **contrôle sur un vrai Qwen3**, échec dur
 > hors dépôt, révision du snapshot et positions effectives consignées. La
-> sensibilité de la suite a été prouvée par **injection de fautes** (4 et 3
-> tests échouent selon la faute). Décision J18 : **GO conditionnel** — réserve
+> sensibilité de la suite a été prouvée par **injection de fautes** (6, 4 et 3
+> tests échouent selon la faute : masque, positions, préfixe). Une **seconde
+> revue indépendante** a confirmé 6/7 constats corrigés et signalé un écart
+> résiduel sur F3 (le fake enregistrait le masque sans l'utiliser) : corrigé —
+> les tokens masqués sont exclus de l'agrégat du fake, propriété **verrouillée
+> par un test** (écart de logits masque plein vs nul : 0,0 → 0,377). Décision J18 : **GO conditionnel** — réserve
 > explicite : §6.10.7 subordonne ce GO à « C1–C14 tenues », clause non
 > littéralement remplie ; la décision est une **interprétation** (un seul
 > critère échoué, hors liste NO-GO) et **J18 doit la trancher

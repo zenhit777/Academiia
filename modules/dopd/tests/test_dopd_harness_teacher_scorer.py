@@ -63,6 +63,11 @@ class _FakeCache:
 
     def __init__(self, layers: list[_FakeCacheLayer]) -> None:
         self.layers = layers
+        #: Visibilité du préfixe au moment du préremplissage : permet au
+        #: chemin des branches de savoir quels tokens du préfixe sont
+        #: visibles (le masque des branches ne couvre que ses propres
+        #: tokens, pas ceux déjà en cache).
+        self.prefix_visible: torch.Tensor | None = None
 
     def batch_repeat_interleave(self, repeats: int) -> None:
         for layer in self.layers:
@@ -122,15 +127,28 @@ class _FakeModel:
         return self
 
     @staticmethod
-    def _aggregate(tokens: torch.Tensor, positions: torch.Tensor) -> torch.Tensor:
+    def _aggregate(
+        tokens: torch.Tensor,
+        positions: torch.Tensor,
+        visible: torch.Tensor,
+    ) -> torch.Tensor:
         """Agrégat causal par position : somme des tokens **antérieurs ou égaux**.
 
         Chaque token `x` à la position absolue `p` contribue `x * (p + 1)`.
         L'agrégat à la position `q` est la somme des contributions des
         positions `0..q` : c'est l'équivalent d'une attention causale
         uniforme sur tout le contexte visible.
+
+        Seuls les tokens **visibles** (`visible = 1`) contribuent : un token
+        masqué est exclu du contexte, exactement comme le fait une attention
+        masquée. C'est ce qui rend le fake sensible aux **valeurs** du masque
+        et non seulement à sa présence.
         """
-        contributions = tokens.to(torch.float32) * (positions.to(torch.float32) + 1.0)
+        contributions = (
+            tokens.to(torch.float32)
+            * (positions.to(torch.float32) + 1.0)
+            * visible.to(torch.float32)
+        )
         return contributions.cumsum(dim=-1)
 
     def _logits(
@@ -177,11 +195,17 @@ class _FakeModel:
             self.seen_attention_masks.append(
                 [int(value) for value in attention_mask[0].tolist()]
             )
+        # Visibilité : le masque vaut 1 pour un token visible, 0 pour un
+        # token masqué. Sans masque, tout est visible.
+        if attention_mask is None:
+            visible = torch.ones_like(input_ids, dtype=torch.long)
+        else:
+            visible = attention_mask.to(torch.long)
         if past_key_values is None:
             # Préremplissage (batch 1) ou rejeu intégral (batch = branches) :
             # le contexte visible est la séquence entière, l'agrégat est
             # causal et calculé **par ligne**.
-            aggregates = self._aggregate(input_ids, position_ids)
+            aggregates = self._aggregate(input_ids, position_ids, visible)
             logits = self._logits(input_ids, aggregates, position_ids)
             if logits_to_keep:
                 logits = logits[:, -logits_to_keep:, :]
@@ -199,7 +223,12 @@ class _FakeModel:
                     # d'un job antérieur.
                     layer.values[0, :, :, 0] = tokens.unsqueeze(0)
                     layers.append(layer)
-                return _FakeOutput(logits, _FakeCache(layers))
+                cache = _FakeCache(layers)
+                # La visibilité du préfixe est mémorisée avec le cache : le
+                # chemin des branches doit pouvoir retrouver quels tokens du
+                # préfixe sont visibles.
+                cache.prefix_visible = visible[0, : input_ids.shape[-1]].clone()
+                return _FakeOutput(logits, cache)
             # Rejeu intégral : pas de cache.
             return _FakeOutput(logits, None)
         # Branches : le contexte visible est reconstitué depuis le **cache**
@@ -212,21 +241,23 @@ class _FakeModel:
         prefix_positions = torch.arange(
             prefix_length, dtype=torch.long, device=input_ids.device
         )
-        prefix_contribution = cached.to(torch.float32) * (
-            prefix_positions.to(torch.float32) + 1.0
-        )
+        # Le masque reçu couvre le préfixe **et** les tokens de la branche.
+        # Dans un vrai modèle à cache, ce sont les `prefix_length` premières
+        # valeurs du masque **de la branche** qui commandent la visibilité
+        # des clés déjà en cache : le fake applique la même règle.
+        prefix_visible = visible[:, :prefix_length]
+        branch_visible = visible[:, prefix_length:]
+        # Contributions par ligne de lot : (batch, longueur).
+        prefix_contribution = (
+            cached.to(torch.float32).unsqueeze(0)
+            * (prefix_positions.to(torch.float32) + 1.0).unsqueeze(0)
+        ) * prefix_visible.to(torch.float32)
         branch_contribution = input_ids.to(torch.float32) * (
             position_ids.to(torch.float32) + 1.0
-        )
+        ) * branch_visible.to(torch.float32)
         # Agrégat cumulé : préfixe puis branche.
         aggregates = torch.cumsum(
-            torch.cat(
-                (
-                    prefix_contribution.unsqueeze(0).expand(input_ids.shape[0], -1),
-                    branch_contribution,
-                ),
-                dim=-1,
-            ),
+            torch.cat((prefix_contribution, branch_contribution), dim=-1),
             dim=-1,
         )[:, prefix_length:]
         logits = self._logits(input_ids, aggregates, position_ids)
@@ -648,6 +679,36 @@ def test_empty_suffix_does_not_prefill(scorer: Qwen3TeacherScorer) -> None:
     assert scores.shape == (2,)
     assert np.all(scores == 0.0)
     assert scorer.model.calls == []
+
+
+def test_the_fake_is_sensitive_to_the_mask_values() -> None:
+    """Le fake doit dépendre des **valeurs** du masque, pas de sa présence.
+
+    Sans cette propriété, un fake qui enregistre le masque sans l'utiliser
+    laisserait passer une implémentation qui passe un masque faux : la
+    couverture de la classe de bug « masque » serait alors **illusoire**.
+    Ce test verrouille la sensibilité elle-même.
+    """
+    prefix = (1, 2, 3)
+    candidates = (4, 5)
+    suffix = (7, 8)
+
+    class _MaskedModel(_FakeModel):
+        """Fake dont tous les tokens sont masqués."""
+
+        def __call__(self, input_ids, **kwargs):
+            attention_mask = kwargs.get("attention_mask")
+            if attention_mask is not None:
+                kwargs["attention_mask"] = torch.zeros_like(attention_mask)
+            return super().__call__(input_ids, **kwargs)
+
+    reference = Qwen3TeacherScorer(_FakeModel(), device="cpu")
+    expected = reference.suffix_loglikelihood(prefix, candidates, suffix)
+
+    masked = Qwen3TeacherScorer(_MaskedModel(), device="cpu")
+    actual = masked.suffix_loglikelihood(prefix, candidates, suffix)
+
+    assert not np.allclose(expected, actual)
 
 
 def test_unsupported_transformers_version_is_refused_explicitly(
