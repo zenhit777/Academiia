@@ -1005,6 +1005,142 @@ contre le posterior exact ».
 ---
 ---
 
+### 6.10 `TeacherScorer` réel Qwen3-0.6B (J17) — critères pré-enregistrés
+
+> **Pré-enregistrement** : cette section est figée **avant** l'implémentation du
+> `TeacherScorer` et **avant** tout run GPU J17. Le commit des critères est
+> ancêtre du commit du code producteur (`modules/dopd/harness/teacher_scorer_qwen3.py`
+> / `modules/dopd/harness/run_teacher_scorer_smoke.py`). Toute modification de
+> cette section après un résultat vaut nouveau protocole, pas correction de
+> rapport (même principe que §6.9.7).
+
+#### 6.10.1 Objet et périmètre
+
+Livrer une implémentation **réelle** du contrat `TeacherScorer` (J13) à
+l'échelle `Qwen/Qwen3-0.6B`, utilisable en inférence seule, conforme à la
+géométrie de scoring mesurée en J14 (§6.9.6) :
+
+- **préfixe causal partagé** `(q, z, Â_i)` mis en cache (KV cache), une seule fois ;
+- **candidat variable** `v` inséré à la position `i`, une branche par candidat ;
+- **suffixe partagé** `Ĉ_i = (x̂_{i+1}, …, x̂_N)` conditionnant le score.
+
+Ce que J17 **ne fait pas** : aucun `StudentPolicy`, aucune boucle
+d'entraînement, aucun backward, aucun optimizer, aucune écriture de checkpoint,
+aucune modification des résultats, seuils ou verdicts G1, aucune release
+`v0.1.0`, aucune échelle supérieure à 0,6B.
+
+#### 6.10.2 Placement et contraintes architecturales (ADR-001)
+
+| Élément | Emplacement | Contrainte |
+|---|---|---|
+| `TeacherScorer` de production | `modules/dopd/harness/teacher_scorer_qwen3.py` | `torch` / `transformers` autorisés **uniquement** sous `harness/` |
+| Paquet `academiia.dopd` | `modules/dopd/dopd/` | **aucun** import `torch` / `transformers` ; le paquet reste pur (stdlib + NumPy + `academiia.core`) |
+| Cible future-aware | `modules/dopd/dopd/target.py` | **inchangée** : le scorer rend des tableaux NumPy consommables tels quels |
+| Harnais de smoke | `modules/dopd/harness/run_teacher_scorer_smoke.py` | produit le JSON versionné et le manifeste ADR-002 |
+
+Le `TeacherScorer` implémente l'ABC `academiia.dopd.TeacherScorer` : il
+hérite donc de `score(request)` et de la validation qu'il porte. Aucun
+amendement du contrat J13 n'est nécessaire : l'implémentation réelle s'y
+conforme **sans modification du paquet**.
+
+#### 6.10.3 Configuration figée
+
+| Paramètre | Valeur figée | Justification |
+|---|---|---|
+| Modèle professeur | `Qwen/Qwen3-0.6B` | §6.3, checkpoint de développement |
+| dtype des poids | **BF16** (run GPU) ; **FP32** (run CPU) | §3.6 (App. B), dtype natif du checkpoint ; le run CPU n'est pas plafonné par la latence et valide la chaîne avec la tolérance FP32 (C3) |
+| dtype d'arithmétique | **float32** | §3.6 : logits, log-probabilités, sommes, deltas, normalisation |
+| `k` (candidats par distribution) | **16** | §3.4, §6.9.8 (troncature mesurée fidèle) |
+| Branches maximales par job | **33** (union ≤ 32 + référence) | §3.6, App. B |
+| Longueur de bloc `N` | **4** | §6.1 (défaut du papier) |
+| Pas de débruitage | **4** | §6.1 (hors périmètre J17, consigné) |
+| Température / top-p / top-k de génération | **1,0 / 1,0 / 0** | App. C.2, App. C.4 (paramètres de rollout du papier, consignés) |
+| Seed | **20261025** | date de la mission ; aucune composante aléatoire dans le scoring lui-même |
+| Plafond de cache de préfixe étendu | **16 GiB** | §3.6 : le lot de branches est réduit au-delà |
+
+#### 6.10.4 Géométrie de scoring figée
+
+Pour une position masquée `i` d'un bloc `x̂` de longueur `N = 4` :
+
+- `prefix_ids = (q, z, Â_i)` — contexte prompt + partie du bloc avant `i` ;
+- `suffix_ids = (x̂_{i+1}, …, x̂_N)` — partie du bloc après `i` (suffixe **visible**) ;
+- `candidate_ids = V_i` — union des top-16 professeur et top-16 élève (§3.4), sans doublon ;
+- `reference_id = x̂_i` — token réellement produit à la position `i`.
+
+Le scorer rend, pour chaque job :
+
+- `prior` : `r_i(v)` sur **tout** le vocabulaire (151 936 tokens), somme 1 ;
+- `candidate_loglikelihoods` : `s_i(v) = log p_T(Ĉ_i | q, z, Â_i, v)` (eq. 14), aligné sur `candidate_ids` ;
+- `reference_loglikelihood` : `s_i(x̂_i)`.
+
+Ces trois grandeurs alimentent **directement**
+`academiia.dopd.compute_future_aware_target` (eq. 18) : le smoke vérifie
+que la chaîne scorer → cible NumPy est finie, somme 1 et applique la
+correction quand le futur est visible.
+
+#### 6.10.5 Critères d'acceptation du smoke J17
+
+Le smoke est **conforme** si et seulement si toutes les conditions suivantes
+sont satisfaites. Elles sont fixées **avant** le premier run.
+
+| # | Critère | Seuil / condition | Preuve attendue |
+|---|---|---|---|
+| C1 | **Conformité au contrat** | `Qwen3TeacherScorer` hérite de `academiia.dopd.TeacherScorer` ; `score(ScoringRequest)` rend un `ScoringResult` valide (prior de somme 1, scores alignés) | test unitaire + sortie du smoke |
+| C2 | **Exactitude cache vs rejeu** (BF16) | écart absolu maximal sur les scores de suffixe **≤ 0,35** et sur le prior **≤ 0,15** — ordre de grandeur des écarts BF16 mesurés en J14 (≤ 0,162 suffixe et ≤ 0,085 prior à la cellule 1 024/33 branches ; ≤ 0,094 et ≤ 0,036 à 16 branches) | champ `max_abs_*_diff` du JSON |
+| C3 | **Exactitude cache vs rejeu** (FP32, contrôle) | écart absolu maximal sur les scores de suffixe **≤ 1e-3** et sur le prior **≤ 1e-3** ; le contrôle FP32 de J14 mesurait `3,1e-5` (suffixe) et `9e-6` (prior) | champ `fp32_control.*` du JSON |
+| C4 | **Cohérence du prior** | `|somme(prior) − 1| ≤ 1e-4` ; prior sans NaN/inf ; scores candidates alignés sur `candidate_ids` | smoke |
+| C5 | **Chaîne scorer → cible** | `compute_future_aware_target` renvoie `applied = true` (raison `applied`), cible finie, somme 1 à `1e-4` près, sur **tous** les jobs avec futur visible | champ `target.*` du JSON |
+| C6 | **Latence (cellule de référence J14)** | à géométrie **identique** à J14 (préfixe 1 024 tokens, suffixe 3, **16 branches au total**, cache de préfixe), la latence médiane du job complet (prior + scores) est **≤ 150 ms** et le chemin cache est **au moins 2× plus rapide** que le chemin de rejeu intégral ; valeurs de référence J14 : 51,2 ms (cache) vs 167,9 ms (rejeu), gain 3,28× | champ `latency.reference_geometry` |
+| C7 | **Latence (géométrie d-OPD)** | **sur GPU**, sur les états réels (prompts J15, blocs `N = 4`, 17 branches = 16 candidats + référence), latence médiane **≤ 200 ms** par job ; le run CPU consigne la même mesure **sans plafond** (critère non applicable au CPU) | champ `latency.real_states` |
+| C8 | **Latence (charge à 33 branches)** | à 33 branches (union ≤ 32 + référence) et préfixe 1 024, latence médiane **≤ 250 ms** ; référence J14 : 65,6 ms | champ `latency.reference_geometry` (entrée 33 branches) |
+| C9 | **Gelé** | `requires_grad` de **tous** les paramètres du professeur = `False` ; `model.training = False` ; **aucun** appel `backward`, `optimizer`, `step` dans le harnais ; empreinte sha256 des poids identique avant/après le run | champ `training.*` du JSON + inspection statique du harnais |
+| C10 | **Poids intacts** | sha256 des tenseurs du professeur **identique** avant et après le run | champ `weights.sha256_before/after` |
+| C11 | **Provenance ADR-002** | manifeste `academiia.lineage/1` présent, `producer.module = "dopd"`, `producer.commit` = commit du code producteur, commande exacte, versions, seeds, empreintes des sources, `training.performed = false` | bloc `lineage` du JSON |
+| C12 | **Règle 9 (cache)** | le snapshot lu vit **dans le dépôt** (`model_source_in_repo = true`) ; sinon avertissement émis et `model_source_in_repo = false` consigné | bloc `cache` du JSON |
+| C13 | **Collecte sans torch** | `pytest` collecte et passe sans torch installé (les tests du harnais sont ignorés via `pytest.importorskip`, pas en erreur) | preuve CI locale (venv sans torch) |
+| C14 | **Non-régression** | `target.py`, `diagnostic.py` (correctifs J16) et `modules/a2d/eval/dream_a2d/` **inchangés** ; verdict G1 intact | diff de la plage de commits |
+
+#### 6.10.6 Plan de mesures figé
+
+1. **Cellule de référence J14** (GPU) : préfixe de **1 024** tokens, suffixe de **3**
+   tokens, **16** branches au total (15 candidats + 1 référence) et **33** branches
+   au total (32 candidats + 1 référence) — comparaison directe aux 51,2 / 65,6 ms
+   de J14. Ce n'est pas un résultat scientifique : c'est une mesure de débit.
+   Identifiants de token tirés aléatoirement avec la seed figée (§6.10.3), comme
+   dans `bench_budget_rtx5090.py`.
+2. **États réels** (CPU puis GPU) : prompts du jeu versionné de J15
+   (`modules/dopd/eval/annexe_d_qwen3_0.6b_multiprompt/prompts.json`), blocs de
+   `N = 4` tokens générés **greedily** par le professeur lui-même (température 1,0,
+   top-p 1,0, top-k 0 : aucune composante aléatoire), puis scoring de chaque
+   position `i` du bloc. Les positions `i = 0, 1, 2` ont un **futur visible**
+   (suffixes de 3, 2 et 1 token) ; la position `i = 3` n'en a pas (suffixe vide)
+   et exerce le fallback causal (`no_visible_future`). Effectif minimal :
+   **4 prompts × 2 positions avec futur visible = 8 jobs réels** ; le plan complet
+   score les 4 positions du bloc, soit 16 jobs par jeu de 4 prompts, avec un
+   vocabulaire de 151 936 tokens.
+   `V_i` est le **top-16 du professeur** : l'union avec le top-16 de l'élève
+   (§3.4) n'est pas calculable en J17, puisque aucun `StudentPolicy` n'existe
+   (§6.10.1). Le contrat du scorer est donc exercé avec `|V_i| ≤ 16`, et le
+   contrat de branches à 33 est exercé par la cellule de référence (point 1).
+3. **Contrôle FP32** : le même job rejoué avec un modèle FP32, sur la cellule de
+   référence (1 024 / 3 / 16 branches), pour distinguer l'écart de précision BF16
+   d'un défaut de logique. Le contrôle est **exécuté une fois** (GPU) : il sert
+   de borne haute d'exactitude, pas de mesure répétée.
+4. **Exactitude** : pour chaque job, le chemin cache est comparé au chemin de
+   **rejeu intégral** (contexte complet rejoué par branche, sans cache).
+
+#### 6.10.7 Décision pour J18
+
+La décision pour J18 (`StudentPolicy` ou mini-boucle d'entraînement) est
+**GO conditionnel** si C1–C14 sont tenues, et **NO-GO** si l'une des
+conditions C1, C3, C5, C9, C10 ou C11 échoue. Les réserves de lecture J15/J16
+sont rappelées dans le rapport : effet **non uniforme** (médiane nulle, queue
+nuisible de 13,3 %), et le passage à un `StudentPolicy` exigerait un protocole
+d'entraînement pré-enregistré **distinct** de J17.
+
+---
+---
+
 ## 7. Hors scope explicite de J12
 
 - Entraînement d-OPD, rollout, distillation, optimization.
