@@ -12,6 +12,12 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
+# Garde de collecte : sans torch, le module entier est ignore (et non une
+# erreur d'import). Ce fichier n'utilise pas torch directement.
+pytest.importorskip("torch", reason="torch absent : tests GPU ignores")
+
 _HARNESS_PATH = Path(__file__).resolve().parents[1] / "harness" / "bench_budget_rtx5090.py"
 _SPEC = importlib.util.spec_from_file_location("dopd_harness_budget", _HARNESS_PATH)
 assert _SPEC is not None and _SPEC.loader is not None

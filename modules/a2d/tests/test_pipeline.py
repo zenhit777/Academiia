@@ -10,8 +10,13 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import torch
-from safetensors.torch import load_file, save_file
+import pytest
+
+# Garde de collecte : sans torch, le module entier est ignore (et non une
+# erreur d'import). `torch` est lie par importorskip, pas par `import torch`.
+torch = pytest.importorskip("torch", reason="torch absent : tests GPU ignores")
+
+from safetensors.torch import load_file, save_file  # noqa: E402
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 CLI = SCRIPTS / "cli"

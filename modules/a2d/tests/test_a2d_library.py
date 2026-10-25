@@ -25,11 +25,15 @@ import sys
 from pathlib import Path
 
 import pytest
-import torch
-from safetensors import safe_open
-from safetensors.torch import load_file, save_file
 
-from academiia.a2d import (CheckpointPairSource, LegacyNpySource, LoraAdapterSource,
+# Garde de collecte : sans torch, le module entier est ignore (et non une
+# erreur d'import). `torch` est lie par importorskip, pas par `import torch`.
+torch = pytest.importorskip("torch", reason="torch absent : tests GPU ignores")
+
+from safetensors import safe_open  # noqa: E402
+from safetensors.torch import load_file, save_file  # noqa: E402
+
+from academiia.a2d import (CheckpointPairSource, LegacyNpySource, LoraAdapterSource,  # noqa: E402
                  MergeConfig, MergeError, MergeRefused, MissingVectorError,
                  compute_effective_coefficients, family_of, get_mapping,
                  load_weight_map, merge_checkpoint, normalize_mode,

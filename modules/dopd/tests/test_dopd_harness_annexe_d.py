@@ -17,9 +17,12 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import torch
 
-from academiia.dopd.diagnostic import RestrictedSupport
+# Garde de collecte : sans torch, le module entier est ignore (et non une
+# erreur d'import). `torch` est lie par importorskip, pas par `import torch`.
+torch = pytest.importorskip("torch", reason="torch absent : tests GPU ignores")
+
+from academiia.dopd.diagnostic import RestrictedSupport  # noqa: E402
 
 _HARNESS_PATH = Path(__file__).resolve().parents[1] / "harness" / "diagnostic_annexe_d.py"
 _SPEC = importlib.util.spec_from_file_location("dopd_harness_annexe_d", _HARNESS_PATH)
