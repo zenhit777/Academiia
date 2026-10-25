@@ -14,12 +14,15 @@ import pytest
 from academiia.dopd.diagnostic import (
     RestrictedSupport,
     bootstrap_delta_ci,
+    decide_multiprompt_gate,
     evaluate_gate,
     exact_token_posteriors,
     exact_token_posteriors_reference,
     kl_exact_to_target,
+    prompt_sign_breakdown,
     sample_compatible_index,
     summarize_marginals,
+    truncate_causal_gap,
     verify_enumeration_agreement,
 )
 
@@ -287,3 +290,123 @@ def test_gate_fails_on_numerical_integrity_violation():
     )
     assert decision.status == "failed"
     assert not decision.numeric_integrity_met
+
+
+# ---------------------------------------------------------------------------
+# J16 : TV contre la troncature renormalisée, signes et décision reproductible
+# ---------------------------------------------------------------------------
+
+
+def test_truncate_causal_gap_renormalizes_before_tv():
+    """TV contre la troncature renormalisée = masse discardée (et non sa moitié)."""
+    full = np.asarray([0.5, 0.3, 0.1, 0.1])
+    gap = truncate_causal_gap(full, 2)
+    assert gap["discarded_mass"] == pytest.approx(0.2, abs=1e-15)
+    assert gap["truncated_mass"] == pytest.approx(0.8, abs=1e-15)
+    # Troncature renormalisée : [0.625, 0.375, 0, 0] -> TV = 0.2.
+    assert gap["tv_distance"] == pytest.approx(0.2, abs=1e-15)
+    renormalized = np.asarray([0.625, 0.375, 0.0, 0.0])
+    assert gap["tv_distance"] == pytest.approx(
+        0.5 * np.abs(full - renormalized).sum(), abs=1e-15
+    )
+    # La version J15 (non renormalisée, divisée par deux) valait 0.1.
+    assert gap["tv_distance"] != pytest.approx(0.1, abs=1e-12)
+
+
+def test_truncate_causal_gap_no_truncation():
+    gap = truncate_causal_gap(np.asarray([0.4, 0.6]), 5)
+    assert gap == {"discarded_mass": 0.0, "truncated_mass": 1.0, "tv_distance": 0.0}
+
+
+def test_truncate_causal_gap_rejects_non_positive_k():
+    with pytest.raises(ValueError, match="strictement positif"):
+        truncate_causal_gap(np.asarray([0.5, 0.5]), 0)
+
+
+def _prompt_stats() -> tuple[dict[str, dict], dict[str, tuple[float, float]]]:
+    per_prompt = {
+        "pos_sig": {"mean_delta_kl": 0.2},
+        "pos_not_sig": {"mean_delta_kl": 0.01},
+        "neg_sig": {"mean_delta_kl": -0.3},
+        "neg_not_sig": {"mean_delta_kl": -0.01},
+    }
+    prompt_ci = {
+        "pos_sig": (0.1, 0.3),
+        "pos_not_sig": (-0.1, 0.2),
+        "neg_sig": (-0.5, -0.1),
+        "neg_not_sig": (-0.2, 0.1),
+    }
+    return per_prompt, prompt_ci
+
+
+def test_prompt_sign_breakdown_distinguishes_direction_and_significance():
+    per_prompt, prompt_ci = _prompt_stats()
+    breakdown = prompt_sign_breakdown(per_prompt, prompt_ci)
+    assert breakdown["n_positive"] == 2
+    assert breakdown["n_negative"] == 2
+    assert breakdown["n_significant_positive"] == 1
+    assert breakdown["n_significant_negative"] == 1
+    assert breakdown["n_not_significant"] == 2
+    assert breakdown["significant_negative_prompt_ids"] == ["neg_sig"]
+
+
+def _decide(**overrides) -> dict:
+    values = {
+        "mean_delta_kl": 0.08,
+        "aggregate_ci95": (0.06, 0.10),
+        "median_delta_kl": 0.0,
+        "n_prompts": 20,
+        "n_prompts_significant_positive": 14,
+        "n_prompts_significant_negative": 1,
+        "sign_test_p_value": 0.0,
+        "blocks_per_configuration": {"N4_V6": 100, "N6_V6": 100},
+        "total_marginals": 61120,
+    }
+    values.update(overrides)
+    return decide_multiprompt_gate(**values)
+
+
+def test_decide_multiprompt_gate_is_conditional_when_median_is_zero():
+    decision = _decide()
+    assert decision["status"] == "GO conditionnel"
+    assert decision["criteria"]["1_aggregate_delta_kl_positive_ci_excludes_zero"]["met"]
+    assert not decision["criteria"]["2_median_delta_kl_positive"]["met"]
+    criterion3 = decision["criteria"][
+        "3_proportion_prompts_significant_positive_ge_threshold"
+    ]
+    assert criterion3["met"]
+    assert criterion3["value"] == pytest.approx(0.7)
+    assert criterion3["historical_ci_excludes_zero"]["n_prompts"] == 15
+    assert criterion3["historical_ci_excludes_zero"][
+        "n_prompts_significant_negative"
+    ] == 1
+    assert "1 significativement négatif" in decision["rationale"]
+
+
+def test_decide_multiprompt_gate_rejects_primary_failure():
+    decision = _decide(
+        mean_delta_kl=-0.01,
+        aggregate_ci95=(-0.02, 0.01),
+        median_delta_kl=-0.1,
+    )
+    assert decision["status"] == "NO-GO"
+
+
+def test_decide_multiprompt_gate_is_go_when_all_criteria_hold():
+    decision = _decide(median_delta_kl=0.001, n_prompts_significant_negative=0)
+    assert decision["status"] == "GO"
+
+
+def test_decide_multiprompt_gate_uses_positive_proportion_not_absolute_significance():
+    """15/20 « IC exclut zéro » ne suffit pas si un des 15 est négatif."""
+    decision = _decide(
+        n_prompts_significant_positive=9,
+        n_prompts_significant_negative=6,
+        median_delta_kl=0.001,
+    )
+    criterion3 = decision["criteria"][
+        "3_proportion_prompts_significant_positive_ge_threshold"
+    ]
+    assert not criterion3["met"]
+    assert criterion3["historical_ci_excludes_zero"]["n_prompts"] == 15
+    assert decision["status"] == "GO conditionnel"

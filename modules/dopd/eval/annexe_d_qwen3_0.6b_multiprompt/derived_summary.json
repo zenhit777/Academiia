@@ -1,0 +1,335 @@
+{
+  "schema": "dopd.multiprompt_derived/1",
+  "kind": "dopd_annexe_d_multiprompt_derived",
+  "source": {
+    "path": "modules/dopd/eval/annexe_d_qwen3_0.6b_multiprompt/results.json",
+    "sha256": "ed41ed7e4aee15c66289ae0d3865efcdaf4e0327761d735a62da2f26e742c5f5",
+    "n_rows": 61120
+  },
+  "producer": {
+    "script": "modules/dopd/harness/summarize_multiprompt.py",
+    "script_sha256": "2f46df0709526684027bfe0196c90323882f491c9f6b96c1da9ae3b9fca35236",
+    "python": "3.12.3",
+    "numpy": "2.4.6"
+  },
+  "headline": {
+    "n_marginals": 61120,
+    "mean_causal_kl": 0.9350779287713015,
+    "mean_future_kl": 0.8548873434331475,
+    "mean_delta_kl": 0.0801905853381537,
+    "aggregate_ci95_delta_kl": [
+      0.06381534237632878,
+      0.09617038274240884
+    ],
+    "relative_reduction_pct": 8.57581842868697,
+    "median_delta_kl": 0.0,
+    "relative_reduction_j14_pct_reference": 16.12
+  },
+  "prompts": {
+    "n_prompts": 20,
+    "n_positive": 17,
+    "n_negative": 3,
+    "n_zero_mean": 0,
+    "n_significant_positive": 14,
+    "n_significant_negative": 1,
+    "n_not_significant": 5,
+    "positive_prompt_ids": [
+      "p01",
+      "p02",
+      "p03",
+      "p04",
+      "p05",
+      "p07",
+      "p08",
+      "p09",
+      "p11",
+      "p12",
+      "p13",
+      "p14",
+      "p15",
+      "p16",
+      "p17",
+      "p19",
+      "p20"
+    ],
+    "negative_prompt_ids": [
+      "p06",
+      "p10",
+      "p18"
+    ],
+    "significant_negative_prompt_ids": [
+      "p18"
+    ],
+    "not_significant_prompt_ids": [
+      "p01",
+      "p06",
+      "p10",
+      "p14",
+      "p16"
+    ],
+    "n_prompts_ci_excludes_zero": 15,
+    "proportion_prompts_ci_excludes_zero": 0.75,
+    "proportion_prompts_significant_positive": 0.7,
+    "sign_test_exact_two_sided_p": 0.0025768280029296875,
+    "per_prompt": {
+      "p01": {
+        "n": 3056,
+        "mean_delta_kl": 0.06534747766041149,
+        "median_delta_kl": 5.023699682964099e-07
+      },
+      "p02": {
+        "n": 3056,
+        "mean_delta_kl": 0.21077552598026256,
+        "median_delta_kl": 0.0
+      },
+      "p03": {
+        "n": 3056,
+        "mean_delta_kl": 0.1356690704244334,
+        "median_delta_kl": 0.0
+      },
+      "p04": {
+        "n": 3056,
+        "mean_delta_kl": 0.23994525213263954,
+        "median_delta_kl": 1.0860431467995617e-06
+      },
+      "p05": {
+        "n": 3056,
+        "mean_delta_kl": 0.05968657086847996,
+        "median_delta_kl": 0.0
+      },
+      "p06": {
+        "n": 3056,
+        "mean_delta_kl": -0.011367613452293089,
+        "median_delta_kl": 0.0
+      },
+      "p07": {
+        "n": 3056,
+        "mean_delta_kl": 0.09190675366730913,
+        "median_delta_kl": 0.0
+      },
+      "p08": {
+        "n": 3056,
+        "mean_delta_kl": 0.2208643475563773,
+        "median_delta_kl": 1.543292305261287e-05
+      },
+      "p09": {
+        "n": 3056,
+        "mean_delta_kl": 0.08084383083048499,
+        "median_delta_kl": 1.006420153690657e-09
+      },
+      "p10": {
+        "n": 3056,
+        "mean_delta_kl": -0.1098375970540837,
+        "median_delta_kl": 0.0
+      },
+      "p11": {
+        "n": 3056,
+        "mean_delta_kl": 0.09927386477818131,
+        "median_delta_kl": 4.807920824367908e-05
+      },
+      "p12": {
+        "n": 3056,
+        "mean_delta_kl": 0.13625280771914863,
+        "median_delta_kl": 0.0010419911399151393
+      },
+      "p13": {
+        "n": 3056,
+        "mean_delta_kl": 0.20486755646265026,
+        "median_delta_kl": 0.0005194108424315874
+      },
+      "p14": {
+        "n": 3056,
+        "mean_delta_kl": 0.08723096290122016,
+        "median_delta_kl": 2.0716642496062754e-05
+      },
+      "p15": {
+        "n": 3056,
+        "mean_delta_kl": 0.07236800289386373,
+        "median_delta_kl": 0.0
+      },
+      "p16": {
+        "n": 3056,
+        "mean_delta_kl": 0.019578623821516383,
+        "median_delta_kl": 0.00012466813156095387
+      },
+      "p17": {
+        "n": 3056,
+        "mean_delta_kl": 0.09972809459235042,
+        "median_delta_kl": 0.014659568749760076
+      },
+      "p18": {
+        "n": 3056,
+        "mean_delta_kl": -0.2760026193997086,
+        "median_delta_kl": 0.0
+      },
+      "p19": {
+        "n": 3056,
+        "mean_delta_kl": 0.048468364394114595,
+        "median_delta_kl": 1.0545612343503203e-05
+      },
+      "p20": {
+        "n": 3056,
+        "mean_delta_kl": 0.12821242998571533,
+        "median_delta_kl": 0.04875091543598398
+      }
+    },
+    "prompt_ci95": {
+      "p01": [
+        -0.0646136252435553,
+        0.1773293290445451
+      ],
+      "p02": [
+        0.1556669796708949,
+        0.26616764673992255
+      ],
+      "p03": [
+        0.041896307382202166,
+        0.21438640632511122
+      ],
+      "p04": [
+        0.20055583205232183,
+        0.27757787804412354
+      ],
+      "p05": [
+        0.03237233279661578,
+        0.09038955802390776
+      ],
+      "p06": [
+        -0.06826853662139297,
+        0.044089704201572884
+      ],
+      "p07": [
+        0.06511153650016778,
+        0.1195132385313549
+      ],
+      "p08": [
+        0.16884307323594638,
+        0.26875920440907963
+      ],
+      "p09": [
+        0.021244159177338674,
+        0.13256163976890856
+      ],
+      "p10": [
+        -0.2711637127276752,
+        0.03835686310192111
+      ],
+      "p11": [
+        0.057786165605724214,
+        0.13807909639561028
+      ],
+      "p12": [
+        0.10130499509515295,
+        0.17457416347600746
+      ],
+      "p13": [
+        0.15641408852633915,
+        0.24990867216775392
+      ],
+      "p14": [
+        -0.05186522812570259,
+        0.19725616603197843
+      ],
+      "p15": [
+        0.05067419798695357,
+        0.09716703265412031
+      ],
+      "p16": [
+        -0.006123905401959527,
+        0.04349435744828151
+      ],
+      "p17": [
+        0.038566516951147295,
+        0.15308274765569974
+      ],
+      "p18": [
+        -0.4150837681316122,
+        -0.13808088106438585
+      ],
+      "p19": [
+        0.029456449851649295,
+        0.07207603270804123
+      ],
+      "p20": [
+        0.09081734348230344,
+        0.1642544247087078
+      ]
+    }
+  },
+  "marginals": {
+    "n_visible_future": 35040,
+    "n_degraded": 4661,
+    "degraded_fraction": 0.13301940639269405,
+    "mean_delta_kl_degraded": -1.186311445398854,
+    "min_delta_kl_degraded": -28.709425965315273,
+    "n_zero_exact": 26080,
+    "n_near_zero_numerical": 72,
+    "n_zero_within_1e-9": 26152,
+    "fraction_zero_within_1e-9": 0.42787958115183244,
+    "sign_test_all_marginals": {
+      "n": 35040,
+      "positive": 30379,
+      "negative": 4661,
+      "p_value": 0.0,
+      "z_normal_approximation": 137.38466406025736,
+      "p_value_note": "0.0 = saturation numérique ; p < 1e-300"
+    }
+  },
+  "top_k": {
+    "k": 16,
+    "n_marginals_measured": 61120,
+    "mean_discarded_mass": 0.029534453987388114,
+    "max_discarded_mass": 0.3731896658778219,
+    "mean_tv_distance_renormalized": 0.029534453987388114,
+    "mean_tv_distance_as_published_j15": 0.014767226993694075,
+    "tv_relation": "legacy_half_tv",
+    "identity": "tv_renormalized == discarded_mass"
+  },
+  "gate": {
+    "derived_status": "GO conditionnel",
+    "published_status_in_results_json": "GO conditionnel",
+    "consistent_with_published": true,
+    "criteria": {
+      "1_aggregate_delta_kl_positive_ci_excludes_zero": {
+        "met": true,
+        "value": 0.0801905853381537,
+        "ci95": [
+          0.06381534237632878,
+          0.09617038274240884
+        ]
+      },
+      "2_median_delta_kl_positive": {
+        "met": false,
+        "value": 0.0
+      },
+      "3_proportion_prompts_significant_positive_ge_threshold": {
+        "met": true,
+        "value": 0.7,
+        "n_prompts_significant_positive": 14,
+        "n_prompts": 20,
+        "threshold": 0.5,
+        "historical_ci_excludes_zero": {
+          "value": 0.75,
+          "n_prompts": 15,
+          "n_prompts_significant_negative": 1
+        }
+      },
+      "4_sign_test_p_lt_0.05": {
+        "met": true,
+        "value": 0.0
+      },
+      "5_effectif_blocks_ge_min_marginals_ge_min": {
+        "met": true,
+        "blocks_per_configuration": {
+          "N4_V12": 100,
+          "N4_V6": 100,
+          "N6_V6": 100
+        },
+        "minimum_blocks_per_configuration": 100,
+        "total_marginals": 61120,
+        "minimum_marginals": 2000
+      }
+    },
+    "rationale": "Critère primaire (1) TENU ; médiane (2) FRAGILE ; proportion de prompts significativement positifs (3) 14/20 = 0.700 (TENUE) ; test des signes (4) p < 1e-300 (saturation de l'arrondi) (TENU) ; effectif (5) TENU. GO conditionnel. Annotation : 15/20 prompts ont un IC qui exclut zéro, dont 1 significativement négatif(s) — l'exclusion de zéro ne vaut pas effet positif."
+  }
+}

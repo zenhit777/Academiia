@@ -10,12 +10,19 @@ Ce que le script ne fait jamais : aucun optimizer, aucun backward, aucun
 ``requires_grad``, aucune mise à jour de poids, aucun rollout de modèle, aucun
 benchmark. Le checkpoint teacher est gelé et lu seulement.
 
-Commande GPU prévue :
+Commande GPU prévue (redirection de cache **explicite**, règle 9) :
 
     HF_HOME="$PWD/_artefact/hf-cache" python \
         modules/dopd/harness/diagnostic_annexe_d.py \
         --model Qwen/Qwen3-0.6B --device cuda --local-files-only \
         --output modules/dopd/eval/annexe_d_qwen3_0.6b/results.json
+
+Le harnais pose ``HF_HOME`` par défaut vers ``_artefact/hf-cache`` **si la
+variable n'est pas déjà définie**, mais il ne peut pas créer un snapshot absent :
+si le modèle n'existe que dans le cache utilisateur, ``model_source`` le dit
+explicitement et un avertissement de règle 9 est émis. Le protocole consigne
+``hf_home``, ``hf_home_source`` et ``model_source_in_repo`` pour que la
+redirection affichée soit vérifiable.
 """
 
 from __future__ import annotations
@@ -32,8 +39,9 @@ import time
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
+_HF_HOME_AT_IMPORT = os.environ.get("HF_HOME")
 _DEFAULT_HF_CACHE = _REPO_ROOT / "_artefact" / "hf-cache"
-if not os.environ.get("HF_HOME"):
+if not _HF_HOME_AT_IMPORT:
     os.environ["HF_HOME"] = str(_DEFAULT_HF_CACHE)
 
 import numpy as np  # noqa: E402
@@ -45,6 +53,7 @@ from academiia.dopd import DOPDConfig  # noqa: E402
 from academiia.dopd.diagnostic import (  # noqa: E402
     RestrictedSupport,
     bootstrap_delta_ci,
+    decide_multiprompt_gate,
     evaluate_gate,
     evaluate_multiprompt,
     exact_token_posteriors,
@@ -145,6 +154,43 @@ def _resolve_model_source(model: str) -> str:
             if (snapshot / "config.json").is_file():
                 return str(snapshot)
     return model
+
+
+def _cache_environment(model_source: str) -> dict:
+    """Décrit la redirection de cache réellement en vigueur (règle 9).
+
+    ``hf_home_source`` distingue une valeur fournie par le processus d'une
+    valeur posée par le harnais. ``model_source_in_repo`` dit si le snapshot
+    utilisé vit dans le dépôt : c'est la seule information qui permette de
+    vérifier une affirmation de redirection.
+    """
+    try:
+        Path(model_source).resolve().relative_to(_REPO_ROOT)
+        in_repo = True
+    except (ValueError, OSError):
+        in_repo = False
+    return {
+        "hf_home": os.environ.get("HF_HOME"),
+        "hf_home_source": (
+            "process_environment" if _HF_HOME_AT_IMPORT else "harness_default"
+        ),
+        "huggingface_hub_cache": os.environ.get("HUGGINGFACE_HUB_CACHE"),
+        "model_source": model_source,
+        "model_source_in_repo": bool(in_repo),
+    }
+
+
+def _warn_if_cache_is_outside_repo(environment: dict) -> None:
+    if environment["model_source_in_repo"]:
+        return
+    print(
+        "ATTENTION (regle 9) : le modele est lu hors du depot : "
+        f"{environment['model_source']} ; HF_HOME={environment['hf_home']} "
+        f"({environment['hf_home_source']}). Ecriture hors depot inventoriee dans "
+        "modules/a2d/docs/reports/OUT_OF_WORKSPACE.md ; pour un prochain run, "
+        "poser HF_HOME=$PWD/_artefact/hf-cache et y placer le snapshot.",
+        file=sys.stderr,
+    )
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -592,7 +638,9 @@ def _process_configuration(
     return config_rows, numerical_max_error, max_distribution_error
 
 
-def _run_multiprompt(args, model, tokenizer, device: torch.device) -> int:
+def _run_multiprompt(
+    args, model, tokenizer, device: torch.device, source: str
+) -> int:
     """Diagnostic Annexe D multi-prompt (J15) : variabilité inter-prompt + troncature top-k.
 
     Chaque prompt construit son propre support restreint ; les marginaux portent
@@ -602,6 +650,8 @@ def _run_multiprompt(args, model, tokenizer, device: torch.device) -> int:
     ``multiprompt`` supplementaire ; il n'affecte pas le chemin J14.
     """
     started = time.time()
+    cache = _cache_environment(source)
+    _warn_if_cache_is_outside_repo(cache)
     prompts = _load_prompt_set(args.prompt_file)
     topk_enabled = args.top_k > 0
     topk: dict | None = (
@@ -676,6 +726,18 @@ def _run_multiprompt(args, model, tokenizer, device: torch.device) -> int:
         numerical_max_error=numerical_max_error,
         max_distribution_error=max_distribution_error,
     )
+    multiprompt_gate = decide_multiprompt_gate(
+        mean_delta_kl=agg["mean_delta_kl"],
+        aggregate_ci95=tuple(agg["aggregate_ci95_delta_kl"]),
+        median_delta_kl=agg["median_delta_kl"],
+        n_prompts=agg["n_prompts"],
+        n_prompts_significant_positive=agg["n_prompts_significant_positive"],
+        n_prompts_significant_negative=agg["n_prompts_significant_negative"],
+        sign_test_p_value=agg["sign_test"]["p_value"],
+        blocks_per_configuration=decision.blocks_per_configuration,
+        total_marginals=len(records_all),
+        significant_threshold=PROMPT_SIGNIFICANT_THRESHOLD,
+    )
 
     topk_summary: dict | None = None
     if topk_enabled:
@@ -683,14 +745,17 @@ def _run_multiprompt(args, model, tokenizer, device: torch.device) -> int:
         if results:
             discarded = np.mean([r["discarded_mass"] for r in results])
             tv = np.mean([r["tv_distance"] for r in results])
+            truncated = np.mean([r["truncated_mass"] for r in results])
             max_disc = max(r["discarded_mass"] for r in results)
             topk_summary = {
                 "enabled": True,
                 "k": args.top_k,
                 "n_marginals_measured": len(results),
                 "mean_discarded_mass": float(discarded),
+                "mean_truncated_mass": float(truncated),
                 "max_discarded_mass": float(max_disc),
                 "mean_tv_distance": float(tv),
+                "tv_definition": "renormalized_truncation (tv == discarded_mass)",
             }
         else:
             topk_summary = {"enabled": True, "k": args.top_k, "n_marginals_measured": 0}
@@ -701,7 +766,8 @@ def _run_multiprompt(args, model, tokenizer, device: torch.device) -> int:
             "spec": "modules/dopd/docs/DOPD_SPEC.md#6.9",
             "multiprompt": True,
             "model": args.model,
-            "model_source": _resolve_model_source(args.model),
+            "model_source": source,
+            "cache": cache,
             "device": args.device,
             "dtype": args.dtype,
             "torch_version": torch.__version__,
@@ -759,7 +825,18 @@ def _run_multiprompt(args, model, tokenizer, device: torch.device) -> int:
             "sign_test": agg["sign_test"],
             "n_prompts": agg["n_prompts"],
             "n_prompts_ci_excludes_zero": agg["n_prompts_ci_excludes_zero"],
+            "n_prompts_positive": agg["n_prompts_positive"],
+            "n_prompts_negative": agg["n_prompts_negative"],
+            "n_prompts_significant_positive": agg["n_prompts_significant_positive"],
+            "n_prompts_significant_negative": agg["n_prompts_significant_negative"],
+            "negative_prompt_ids": agg["negative_prompt_ids"],
+            "significant_negative_prompt_ids": agg[
+                "significant_negative_prompt_ids"
+            ],
             "proportion_prompts_significant": agg["proportion_prompts_significant"],
+            "proportion_prompts_significant_positive": agg[
+                "proportion_prompts_significant_positive"
+            ],
             "per_prompt": agg["per_prompt"],
             "prompt_ci95": agg["prompt_ci95"],
             "decision": {
@@ -767,11 +844,18 @@ def _run_multiprompt(args, model, tokenizer, device: torch.device) -> int:
                     (agg["aggregate_ci95_delta_kl"][0] > 0.0)
                     or (agg["aggregate_ci95_delta_kl"][1] < 0.0)
                 ),
+                "aggregate_ci_positive": bool(
+                    agg["aggregate_ci95_delta_kl"][0] > 0.0
+                ),
                 "median_positive": bool(agg["median_delta_kl"] > 0.0),
                 "prompts_meet_threshold": bool(
-                    agg["proportion_prompts_significant"] >= PROMPT_SIGNIFICANT_THRESHOLD
+                    agg["proportion_prompts_significant_positive"]
+                    >= PROMPT_SIGNIFICANT_THRESHOLD
                 ),
             },
+            "gate_j15_status": multiprompt_gate["status"],
+            "criteria": multiprompt_gate["criteria"],
+            "rationale": multiprompt_gate["rationale"],
             "top_k": topk_summary,
         },
         "configurations": config_summaries,
@@ -804,6 +888,7 @@ def _run_multiprompt(args, model, tokenizer, device: torch.device) -> int:
                 "teacher": args.model,
                 "support_construction": "appendix_d_sequential_restricted",
                 "prompt_file": str(args.prompt_file),
+                "cache": cache,
                 "source_sha256": {
                     relative: sha256_file(str(_REPO_ROOT / relative))
                     for relative in PRODUCER_SOURCES
@@ -812,6 +897,7 @@ def _run_multiprompt(args, model, tokenizer, device: torch.device) -> int:
             verification={
                 "kind": "annexe_d_multiprompt",
                 "gate_status": decision.status,
+                "gate_j15_status": multiprompt_gate["status"],
                 "primary_ci95": list(agg["aggregate_ci95_delta_kl"]),
                 "numerical_max_error": numerical_max_error,
                 "max_distribution_sum_error": max_distribution_error,
@@ -821,8 +907,13 @@ def _run_multiprompt(args, model, tokenizer, device: torch.device) -> int:
                 f"--model {args.model} --device {args.device} --dtype {args.dtype} "
                 f"--prompt-file {args.prompt_file} --blocks {args.blocks} "
                 f"--seed {args.seed} --bootstrap-seed {args.bootstrap_seed} "
-                f"--local-files-only --output {args.output}"
-                + (f" --top-k {args.top_k}" if topk_enabled else "")
+                + ("--local-files-only " if args.local_files_only else "")
+                + f"--output {args.output}"
+                + (
+                    f" --top-k {args.top_k} --topk-max {args.topk_max}"
+                    if topk_enabled
+                    else ""
+                )
             ),
         ).to_dict(),
     }
@@ -855,6 +946,8 @@ def main(argv: list[str] | None = None) -> int:
     dtype = getattr(torch, args.dtype)
     device = torch.device(args.device)
     source = _resolve_model_source(args.model)
+    cache = _cache_environment(source)
+    _warn_if_cache_is_outside_repo(cache)
 
     print(f"[1/5] chargement {args.model} ({args.dtype}, {args.device})", flush=True)
     tokenizer = AutoTokenizer.from_pretrained(source, local_files_only=args.local_files_only)
@@ -870,7 +963,7 @@ def main(argv: list[str] | None = None) -> int:
     # Ce branchement empêche tout contact avec le chemin single-prompt J14,
     # dont la sortie reste byte-à-byte identique.
     if args.prompt_file is not None:
-        return _run_multiprompt(args, model, tokenizer, device)
+        return _run_multiprompt(args, model, tokenizer, device, source)
 
     prompt_ids = tokenizer(args.prompt, return_tensors="pt").to(device)["input_ids"][0]
     rows: list[dict] = []
@@ -1035,8 +1128,9 @@ def main(argv: list[str] | None = None) -> int:
         "python modules/dopd/harness/diagnostic_annexe_d.py "
         f"--model {args.model} --device {args.device} --dtype {args.dtype} "
         f"--blocks {args.blocks} --seed {args.seed} "
-        f"--bootstrap-seed {args.bootstrap_seed} --local-files-only "
-        f"--output {args.output}"
+        f"--bootstrap-seed {args.bootstrap_seed} "
+        + ("--local-files-only " if args.local_files_only else "")
+        + f"--output {args.output}"
     )
     builder = _ManifestBuilder(producer_commit)
     manifest = builder.build_manifest(
@@ -1060,6 +1154,7 @@ def main(argv: list[str] | None = None) -> int:
             "prompt_sha256": _sha256_text(args.prompt),
             "teacher": args.model,
             "support_construction": "appendix_d_sequential_restricted",
+            "cache": cache,
             "source_sha256": source_hashes,
         },
         verification={
@@ -1079,6 +1174,7 @@ def main(argv: list[str] | None = None) -> int:
             "prompt": args.prompt,
             "model": args.model,
             "model_source": source,
+            "cache": cache,
             "device": args.device,
             "dtype": args.dtype,
             "torch_version": torch.__version__,

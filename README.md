@@ -3,12 +3,16 @@
 Espace de recherche qui applique la méthode **A2D** (Qin et al., EPFL, 2026,
 [arXiv:2610.08108](https://arxiv.org/abs/2610.08108)) : transférer un vecteur de tâche
 autoregressif vers un modèle de diffusion, puis composer ce transfert avec le vecteur de
-post-training du modèle de diffusion. Le dépôt prépare également **d-OPD**
-([arXiv:2609.35362](https://arxiv.org/abs/2609.35362)), une distillation on-policy
-future-aware pour les modèles de diffusion par blocs (squelette J12, sans entraînement).
+post-training du modèle de diffusion. Le dépôt prépare également **d-OPD** : la porte
+scientifique Annexe D (J14) est franchie avec réserves de lecture, renforcée J15 et
+auditée J16 ; **aucun entraînement** n'a eu lieu.
 
 **Spécification de référence** : [`modules/a2d/docs/A2D_SPEC.md`](modules/a2d/docs/A2D_SPEC.md)
-(équations, Table 6, cibles des Tables 1/16/21).
+(équations, Table 6, cibles des Tables 1/16/21). Le dépôt prépare également **d-OPD**
+([arXiv:2609.35362](https://arxiv.org/abs/2609.35362)), une distillation on-policy
+future-aware pour les modèles de diffusion par blocs : la porte scientifique Annexe D
+(J14) est franchie avec réserves de lecture, renforcée J15 et auditée J16 ; **aucun
+entraînement** n'a eu lieu.
 **État consolidé (portes G1/G2/G1b/G3, ce qui est démontré ou non)** :
 [`modules/a2d/STATUS.md`](modules/a2d/STATUS.md).
 **Détail opérationnel, tableaux de scores et commandes** :
@@ -22,7 +26,7 @@ future-aware pour les modèles de diffusion par blocs (squelette J12, sans entra
 | **a2d** (méthode) | [`modules/a2d/`](modules/a2d/) | `academiia.a2d` | validé mécaniquement — transfert, merge, ablations, vérification post hoc ; porte **G1 non franchie** |
 | **a2d legacy** | [`modules/a2d/legacy/`](modules/a2d/legacy/) | — | déprécié — pipeline Jainius (hors papier), conservé pour l'historique |
 | **infra vLLM** | [`infra/vllm/`](infra/vllm/) | — | en place — service d'inférence (image FP8 épinglée) |
-| **d-OPD** | [`modules/dopd/`](modules/dopd/) | `academiia.dopd` | **squelette J12** — cible future-aware (NumPy/CPU), configuration ; aucun entraînement, aucun checkpoint |
+| **d-OPD** | [`modules/dopd/`](modules/dopd/) | `academiia.dopd` | **porte Annexe D franchie avec réserves de lecture (J14), renforcée J15, auditée J16** — cible future-aware (NumPy/CPU), configuration, contrats d'interface ; diagnostic multi-prompt sur Qwen3-0.6B versionné (`ΔKL = +0,0802`, IC 95 % `[+0,0638 ; +0,0962]`) ; **aucun entraînement**, aucun `TeacherScorer` mis en œuvre |
 
 Règle de dépendance : un module importe `academiia.core`, **jamais** un autre module
 → [ADR-001](docs/adr/ADR-001-disposition.md).

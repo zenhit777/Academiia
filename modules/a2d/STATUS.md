@@ -43,16 +43,24 @@
 > **Mise à jour J15 (2026-10-25)** : la **porte scientifique Annexe D** de d-OPD
 > est renforcée par un **diagnostic multi-prompt** (20 prompts variés, 61 120
 > marginaux) et une **mesure de l'écart cible exacte vs top-k = 16**. L'effet
-> future-aware reste réel et significatif (`ΔKL = +0,0802`, IC 95 % `[0,064 ;
-> 0,096]`) mais **moyenne-porté-par-queue** (médiane nulle : 42,8 % de marginaux
-> sans futur visible) : la porte est désormais qualifiée **« franchie, avec
-> réserves de lecture »**, décision **GO conditionnel** pour un `TeacherScorer`
-> réel. Troncature top-k fidèle en moyenne (TV 1,48 %) mais hétérogène (masse
-> perdue max 37,3 %). Runs GPU **déclarés**, inférence seule : **aucun
-> entraînement, aucun backward, aucun poids modifié**, et **aucun résultat, seuil
-> ou verdict G1 touché**. Résidus J14 corrigés (formulation, règle 12,
-> `importorskip`, CI citée sur le HEAD d'arrivée). Voir
-> `modules/dopd/docs/reports/J15.md`.
+> future-aware reste réel et significatif (`ΔKL = +0,0802`, IC 95 % `[0,0638 ;
+> 0,0962]`) mais **moyenne-porté-par-queue** (médiane nulle : 42,788 % de marginaux
+> sans futur visible) et avec une queue nuisible (13,30 % des marginaux à futur
+> visible dégradés) : la porte est qualifiée **« franchie, avec réserves de
+> lecture »**, décision **GO conditionnel** pour un `TeacherScorer` réel. Réduction
+> relative **8,58 %** (le chiffre 16,12 % est celui de J14). Troncature top-k
+> fidèle en moyenne (TV corrigée 2,9534 %) mais hétérogène (masse perdue max
+> 37,3190 %). Runs GPU **déclarés**, inférence seule : **aucun entraînement,
+> aucun backward, aucun poids modifié**, et **aucun résultat, seuil ou verdict G1
+> touché**. Voir `modules/dopd/docs/reports/J15.md`.
+>
+> **Mise à jour J16 (2026-10-25)** : l'audit `AUDIT_J15.md` a relevé cinq écarts
+> de communication/métrique ; ils sont corrigés dans `J15.md`, `DOPD_SPEC.md`
+> §6.9.9 et `derived_summary.json`. **Aucun résultat, seuil ni verdict G1 n'a été
+> modifié** : la porte Annexe D reste franchie avec réserves de lecture, décision
+> **GO conditionnel** confirmée (critère primaire atteint, médiane = 0). J16 ne
+> met en œuvre **ni `TeacherScorer` réel, ni entraînement**, et ne pousse rien.
+> Voir `modules/dopd/docs/reports/J16.md`.
 
 Ce document est le **point d'entrée** pour savoir ce qui est démontré, ce qui ne l'est pas, et
 où se trouve chaque chose. Il remplace les statuts dispersés dans les rapports de mission ;

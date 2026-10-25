@@ -30,8 +30,10 @@ __all__ = [
     "summarize_marginals",
     "verify_enumeration_agreement",
     "bootstrap_prompt_ci",
+    "decide_multiprompt_gate",
     "evaluate_multiprompt",
     "per_prompt_marginals",
+    "prompt_sign_breakdown",
     "sign_test",
     "truncate_causal_gap",
 ]
@@ -625,34 +627,233 @@ def truncate_causal_gap(
 ) -> dict[str, float]:
     """Écart entre la cible causale complète et sa troncade aux ``k`` meilleurs tokens.
 
-    Deux scalaires finis, décisionnels avant toute implémentation d'un
+    Trois scalaires finis, décisionnels avant toute implémentation d'un
     ``TeacherScorer`` :
 
     - ``discarded_mass`` : masse de probabilité que la troncature met hors du
       support (1 − somme des ``k`` plus grandes probabilités) ;
-    - ``tv_distance`` : distance L1 normalisée (distance de variation totale)
-      entre la distribution complète et la version tronquée renormalisée.
+    - ``truncated_mass`` : masse conservée par les ``k`` plus grandes
+      probabilités (``1 − discarded_mass``) ;
+    - ``tv_distance`` : distance de variation totale entre la distribution
+      complète et la **troncature renormalisée** (0 = identique, 1 = disjoint),
+      conformément au contrat pré-enregistré de §6.9.8.
 
-    Une troncature à ``k`` grande échelle ne doit ni perdre de masse notable,
-    ni éloigner la cible de la distribution complète. La KL par rapport au
-    posterior exact n'est pas calculée ici (infinie quand le support exact
-    dépasse le top-`k`) : la distance de variation totale l'englobe et reste
-    finie.
+    Pour une troncature renormalisée, ``tv_distance`` est **exactement**
+    ``discarded_mass`` : en notant ``S`` la masse conservée, la probabilité
+    déplacée vaut ``1 − S`` sur le support conservé et ``1 − S`` sur le
+    complément, donc ``TV = (1 − S) = discarded_mass``. Les deux champs sont
+    donc algébriquement dépendants : ``tv_distance`` n'est **pas** une
+    confirmation indépendante de ``discarded_mass``, c'est la même information.
+
+    La version publiée en J15 divisait par deux la distance L1 contre la
+    troncature **non renormalisée** : elle valait donc ``discarded_mass / 2``.
+    Le champ ``discarded_mass`` du résultat J15 reste, lui, correct ; la TV
+    renormalisée se déduit de l'artefact J15 par ``tv = discarded_mass``.
+
+    La KL par rapport au posterior exact n'est pas calculée ici (infinie quand
+    le support exact dépasse le top-``k``) : la distance de variation totale
+    l'englobe et reste finie.
     """
     probs = np.asarray(full_causal, dtype=np.float64)
+    if k <= 0:
+        raise ValueError("k doit être strictement positif")
     total = float(np.sum(probs))
     if total <= 0.0 or not np.isfinite(total):
-        return {"discarded_mass": float("nan"), "tv_distance": float("nan")}
+        return {
+            "discarded_mass": float("nan"),
+            "truncated_mass": float("nan"),
+            "tv_distance": float("nan"),
+        }
     normalized = probs / total
     k = min(k, normalized.size)
     if k >= normalized.size:
-        return {"discarded_mass": 0.0, "tv_distance": 0.0}
+        return {"discarded_mass": 0.0, "truncated_mass": 1.0, "tv_distance": 0.0}
     top_indices = np.argpartition(-normalized, k - 1)[:k]
+    truncated_mass = float(np.sum(normalized[top_indices]))
+    discarded_mass = float(1.0 - truncated_mass)
     truncated = np.zeros_like(normalized)
-    truncated[top_indices] = normalized[top_indices]
-    discarded_mass = float(1.0 - np.sum(truncated))
+    if truncated_mass > 0.0:
+        truncated[top_indices] = normalized[top_indices] / truncated_mass
     tv_distance = float(np.sum(np.abs(normalized - truncated))) / 2.0
-    return {"discarded_mass": discarded_mass, "tv_distance": tv_distance}
+    return {
+        "discarded_mass": discarded_mass,
+        "truncated_mass": truncated_mass,
+        "tv_distance": tv_distance,
+    }
+
+
+def prompt_sign_breakdown(
+    per_prompt: dict[str, dict],
+    prompt_ci95: dict[str, tuple[float, float]],
+) -> dict:
+    """Ventile les prompts par **signe** de la moyenne et par significativité.
+
+    Le code J15 de ``evaluate_multiprompt`` comptait ``n_prompts_ci_excludes_zero``
+    sans distinguer le sens : « IC exclut zéro » n'est pas « effet positif ».
+    Cette fonction sépare explicitement les deux informations, exigées par la
+    correction J16 :
+
+    - ``n_positive`` / ``n_negative`` : signe de la moyenne ``ΔKL`` du prompt ;
+    - ``n_significant_positive`` : borne basse de l'IC > 0 ;
+    - ``n_significant_negative`` : borne haute de l'IC < 0 ;
+    - ``n_not_significant`` : IC contenant zéro ;
+    - les identifiants des prompts concernés, pour que le rapport soit
+      vérifiable prompt par prompt.
+    """
+    positive: list[str] = []
+    negative: list[str] = []
+    zero: list[str] = []
+    significant_positive: list[str] = []
+    significant_negative: list[str] = []
+    not_significant: list[str] = []
+    for prompt in sorted(per_prompt):
+        mean = float(per_prompt[prompt]["mean_delta_kl"])
+        lower, upper = (float(value) for value in prompt_ci95[prompt])
+        if mean > 0.0:
+            positive.append(prompt)
+        elif mean < 0.0:
+            negative.append(prompt)
+        else:
+            zero.append(prompt)
+        if np.isfinite(lower) and lower > 0.0:
+            significant_positive.append(prompt)
+        elif np.isfinite(upper) and upper < 0.0:
+            significant_negative.append(prompt)
+        else:
+            not_significant.append(prompt)
+    return {
+        "n_prompts": len(per_prompt),
+        "n_positive": len(positive),
+        "n_negative": len(negative),
+        "n_zero_mean": len(zero),
+        "n_significant_positive": len(significant_positive),
+        "n_significant_negative": len(significant_negative),
+        "n_not_significant": len(not_significant),
+        "positive_prompt_ids": positive,
+        "negative_prompt_ids": negative,
+        "significant_negative_prompt_ids": significant_negative,
+        "not_significant_prompt_ids": not_significant,
+    }
+
+
+def decide_multiprompt_gate(
+    *,
+    mean_delta_kl: float,
+    aggregate_ci95: tuple[float, float],
+    median_delta_kl: float,
+    n_prompts: int,
+    n_prompts_significant_positive: int,
+    n_prompts_significant_negative: int,
+    sign_test_p_value: float,
+    blocks_per_configuration: dict[str, int],
+    total_marginals: int,
+    significant_threshold: float = 0.5,
+    minimum_marginals: int = 2000,
+    minimum_blocks_per_configuration: int = 100,
+) -> dict:
+    """Applique la règle de décision pré-enregistrée de §6.9.7, sans GPU.
+
+    Les cinq critères sont recalculés à partir de grandeurs publiées, de façon
+    **reproductible et versionnée** (remplace le script ad hoc
+    ``_artefact/j15_stamp_status.py`` qui avait estampillé ``gate_j15_status``
+    dans ``results.json``).
+
+    Le critère 3 est évalué dans sa lecture la plus stricte : la proportion de
+    prompts **significativement positifs**. Le décompte historique « IC exclut
+    zéro » (qui incluait un prompt significativement négatif) est conservé
+    comme annotation, pas comme critère.
+
+    Statuts : ``NO-GO`` si le critère primaire échoue ; ``GO conditionnel`` si
+    le critère primaire est tenu mais qu'un autre critère (médiane, proportion,
+    test des signes, effectif) échoue ; ``GO`` si les cinq sont tenus.
+    """
+    lower, upper = (float(value) for value in aggregate_ci95)
+    primary_positive = bool(np.isfinite(mean_delta_kl) and mean_delta_kl > 0.0)
+    primary_ci = bool(np.isfinite(lower) and lower > 0.0)
+    c1 = primary_positive and primary_ci
+    c2 = bool(np.isfinite(median_delta_kl) and median_delta_kl > 0.0)
+    positive_proportion = (
+        n_prompts_significant_positive / n_prompts if n_prompts else float("nan")
+    )
+    c3 = bool(n_prompts and positive_proportion >= significant_threshold)
+    c4 = bool(np.isfinite(sign_test_p_value) and sign_test_p_value < 0.05)
+    blocks_ok = bool(blocks_per_configuration) and all(
+        count >= minimum_blocks_per_configuration
+        for count in blocks_per_configuration.values()
+    )
+    c5 = bool(blocks_ok and total_marginals >= minimum_marginals)
+    all_met = all((c1, c2, c3, c4, c5))
+    if not c1:
+        status = "NO-GO"
+    elif all_met:
+        status = "GO"
+    else:
+        status = "GO conditionnel"
+    legacy_ci_excludes_zero = (
+        n_prompts_significant_positive + n_prompts_significant_negative
+    )
+    if sign_test_p_value == 0.0:
+        sign_label = "p < 1e-300 (saturation de l'arrondi)"
+    else:
+        sign_label = f"p = {sign_test_p_value:.3g}"
+    rationale = (
+        f"Critère primaire (1) {'TENU' if c1 else 'NON TENU'} ; "
+        f"médiane (2) {'TENUE' if c2 else 'FRAGILE'} ; "
+        f"proportion de prompts significativement positifs (3) "
+        f"{n_prompts_significant_positive}/{n_prompts} = {positive_proportion:.3f} "
+        f"({'TENUE' if c3 else 'NON TENUE'}) ; "
+        f"test des signes (4) {sign_label} "
+        f"({'TENU' if c4 else 'NON TENU'}) ; "
+        f"effectif (5) {'TENU' if c5 else 'NON TENU'}. "
+        f"{status}. "
+        f"Annotation : {legacy_ci_excludes_zero}/{n_prompts} prompts ont un IC qui "
+        f"exclut zéro, dont {n_prompts_significant_negative} significativement "
+        "négatif(s) — l'exclusion de zéro ne vaut pas effet positif."
+    )
+    return {
+        "status": status,
+        "criteria": {
+            "1_aggregate_delta_kl_positive_ci_excludes_zero": {
+                "met": c1,
+                "value": float(mean_delta_kl),
+                "ci95": [lower, upper],
+            },
+            "2_median_delta_kl_positive": {
+                "met": c2,
+                "value": float(median_delta_kl),
+            },
+            "3_proportion_prompts_significant_positive_ge_threshold": {
+                "met": c3,
+                "value": float(positive_proportion),
+                "n_prompts_significant_positive": int(n_prompts_significant_positive),
+                "n_prompts": int(n_prompts),
+                "threshold": float(significant_threshold),
+                "historical_ci_excludes_zero": {
+                    "value": (
+                        legacy_ci_excludes_zero / n_prompts if n_prompts else float("nan")
+                    ),
+                    "n_prompts": int(legacy_ci_excludes_zero),
+                    "n_prompts_significant_negative": int(
+                        n_prompts_significant_negative
+                    ),
+                },
+            },
+            "4_sign_test_p_lt_0.05": {
+                "met": c4,
+                "value": float(sign_test_p_value),
+            },
+            "5_effectif_blocks_ge_min_marginals_ge_min": {
+                "met": c5,
+                "blocks_per_configuration": dict(sorted(blocks_per_configuration.items())),
+                "minimum_blocks_per_configuration": int(
+                    minimum_blocks_per_configuration
+                ),
+                "total_marginals": int(total_marginals),
+                "minimum_marginals": int(minimum_marginals),
+            },
+        },
+        "rationale": rationale,
+    }
 
 
 def evaluate_multiprompt(
@@ -680,6 +881,7 @@ def evaluate_multiprompt(
     )
     per_prompt = per_prompt_marginals(records)
     prompt_ci = bootstrap_prompt_ci(records, seed=seed, iterations=iterations)
+    breakdown = prompt_sign_breakdown(per_prompt, prompt_ci)
     if deltas.size:
         sig = sign_test(deltas)
     else:
@@ -700,5 +902,20 @@ def evaluate_multiprompt(
         "sign_test": sig,
         "n_prompts": n_prompts,
         "n_prompts_ci_excludes_zero": prompts_excluding_zero,
+        "n_prompts_positive": breakdown["n_positive"],
+        "n_prompts_negative": breakdown["n_negative"],
+        "n_prompts_zero_mean": breakdown["n_zero_mean"],
+        "n_prompts_significant_positive": breakdown["n_significant_positive"],
+        "n_prompts_significant_negative": breakdown["n_significant_negative"],
+        "n_prompts_not_significant": breakdown["n_not_significant"],
+        "negative_prompt_ids": breakdown["negative_prompt_ids"],
+        "significant_negative_prompt_ids": breakdown[
+            "significant_negative_prompt_ids"
+        ],
         "proportion_prompts_significant": (prompts_excluding_zero / n_prompts) if n_prompts else float("nan"),
+        "proportion_prompts_significant_positive": (
+            breakdown["n_significant_positive"] / n_prompts
+            if n_prompts
+            else float("nan")
+        ),
     }

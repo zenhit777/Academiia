@@ -571,16 +571,17 @@ cible est mathématiquement cohérente et que le squelette respecte les règles 
 
 ### 6.7 Étapes proposées après J12
 
-| Étape | Contenu | Prérequis |
+| Étape | Contenu | État |
 |---|---|---|
-| **J13** | `TeacherScorer` Qwen3-0.6B (CPU d'abord, KV cache, batch de candidats) ; smoke sur une séquence courte ; pas d'entraînement | checkpoint 0,6B, tokenizer, licence vérifiée |
-| **J14** | `RolloutRecorder` + conversion AR → dLLM par blocs pour Qwen3-0.6B ; vérificateur de tâche ; données de test jouets | code de conversion ou réimplémentation documentée |
-| **J15** | boucle on-policy **réduite** (sous-ensemble de prompts, budget déclaré), comparaison OPDLM vs d-OPD à budget égal, seed et IC | GPU, budget explicite, protocole pré-enregistré |
-| **J16** | évaluation sur sous-ensemble, IC, rapport honnête sur l'écart au papier | J15 terminé |
+| **J13** | contrats d'interface (`TeacherScorer`, `RolloutRecorder`, `TaskVerifier`, `LineageWriter`) et smoke de chargement Qwen3-0.6B, sans entraînement | **fait** |
+| **J14** | diagnostic Annexe D (support restreint exact, KL, bootstrap) ; porte scientifique franchie **avec réserves de lecture** | **fait** |
+| **J15** | diagnostic multi-prompt (20 prompts) et mesure de l'écart cible exacte vs top-k = 16 | **fait** |
+| **J16** | audit de J15, corrections A–E, reproductibilité des champs de porte ; décision **GO conditionnel** | **fait** |
+| **J17+** | protocole pré-enregistré du `TeacherScorer` réel, puis `StudentPolicy` et boucle réduite | à missionner |
 | **Plus tard** | tailles 1,7B/4B/8B, blocs 8/16, reproduction des six benchmarks | GPU adapté (8 × H100 ou équivalent) |
 
 Aucune de ces étapes n'est autorisée par le seul fait que J12 est terminé : chacune demande
-une mission et, pour J15+, un budget GPU mesuré.
+une mission et, pour J17+, un budget GPU mesuré.
 
 ### 6.8 Risques et points ouverts
 
@@ -824,6 +825,21 @@ Cette porte reste une **porte de lecture** : elle renforce la confiance dans la
 cible future-aware, elle n'autorise aucun entraînement ni aucune implémentation
 de `TeacherScorer`/`StudentPolicy`.
 
+> **Note de lecture (ajoutée en J16, non normative).** Cette note ne modifie ni
+> les seuils ni la décision pré-enregistrée ; elle lève deux ambiguïtés de
+> lecture révélées par l'audit J15.
+>
+> 1. **Critère 3.** Il est évalué dans sa lecture stricte : proportion de
+>    prompts **significativement positifs** — `14/20 = 0,70`, au-dessus du seuil
+>    `0,5`. Le décompte historique « IC exclut zéro » (`15/20 = 0,75`) est
+>    conservé comme **annotation** : il inclut un prompt significativement
+>    négatif (`p18`). Les deux lectures dépassent le seuil.
+> 2. **Critère 4.** Il est évalué sur les signes **par prompt** : test binomial
+>    exact bilatéral `17/3` → `p = 0,00258`, donc `< 0,05`. Le `p ≈ 0` publié en
+>    J15 est l'approximation normale sur les 35 040 marginaux à futur visible
+>    (test différent, également significatif) ; il ne doit pas être présenté
+>    comme « 20/20 prompts positifs ».
+
 #### 6.9.8 Écart cible exacte vs cible top-k = 16 (J15)
 
 **Question.** L'entraînement d-OPD tronque la cible à `k = 16` tokens ; le
@@ -847,74 +863,144 @@ cette hypothèse et rend la décision conditionnelle. La KL par rapport au
 posterior exact n'est pas calculée (infinie quand le support exact dépasse le
 top-`k`) ; la distance de variation totale l'englobe et reste finie.
 
+> **Correctif J16 (implémentation J15).**
+>
+> 1. **TV.** La version J15 de `truncate_causal_gap` calculait la TV contre la
+>    troncature **non renormalisée** : elle valait donc exactement
+>    `discarded_mass / 2`. La TV corrigée contre la troncature **renormalisée**
+>    est `2,9534 %` en moyenne et `37,3190 %` au maximum ; elle est
+>    **algébriquement égale** à `discarded_mass`. Les deux champs ne sont donc
+>    **pas indépendants** : ils portent la même information. La valeur publiée
+>    en J15 (`1,4767 %`) est exactement la moitié ; `discarded_mass` reste
+>    correct et permet de reconstruire la TV corrigée.
+> 2. **Borne `2 048`.** Le compteur était réinitialisé par configuration ; la
+>    borne n'a jamais lié. `61 120` marginaux ont été mesurés (≈ 1 019 par
+>    prompt et par configuration), soit un **sur-ensemble** du plan
+>    pré-enregistré.
+> 3. **Vocabulaire.** La distribution de référence est la **distribution
+>    causale complète** (softmax des logits du dernier état), pas le posterior
+>    exact énuméré. Le pré-enregistrement était correct ; le rapport J15
+>    employait « posterior exact » à tort.
 
-#### 6.9.9 Résultats J15 (exécution, après le gel des critères)
+
+#### 6.9.9 Résultats J15 (exécution, après le gel des critères) — corrigés en J16
 
 > **Les critères de §6.9.7 et §6.9.8 n'ont pas été modifiés après le run.** Le
-> commit `4a74023` fige les critères ; le commit `fe499ff` porte le code
-> producteur (`diagnostic_annexe_d.py` / `diagnostic.py`) et le résultat
-> versionné. La commande exacte, les empreintes des sources et le manifeste
-> ADR-002 sont dans `modules/dopd/eval/annexe_d_qwen3_0.6b_multiprompt/results.json`
-> (sha256 `ed41ed7e…`) ; le rapport complet est `modules/dopd/docs/reports/J15.md`.
+> commit `4a74023` fige les critères ; `fe499ff` porte le code producteur
+> (`diagnostic_annexe_d.py` / `diagnostic.py`) ; `01146ec` corrige les résidus
+> J14 (`importorskip`) ; `d6a2a74` porte le résultat versionné et le rapport
+> J15. La plage J15 est donc `1966111..d6a2a74` (**4 commits**, et non 2).
+>
+> **Artefacts.** `results.json` (sha256 `ed41ed7e…`) est **immuable** : il a été
+> produit par `fe499ff` et n'est pas réécrit. Deux champs de porte y ont été
+> ajoutés après coup par un script **non versionné** (`multiprompt.gate_j15_status`,
+> `criteria`, `rationale`) ; ils sont **remplacés** par
+> `derived_summary.json`, produit par
+> `modules/dopd/harness/summarize_multiprompt.py` (CPU, sans torch) et
+> vérifiable par `--check`. Le rapport corrigé est
+> `modules/dopd/docs/reports/J15.md` ; l'audit est
+> `modules/dopd/docs/reports/AUDIT_J15.md` ; les corrections sont détaillées
+> dans `modules/dopd/docs/reports/J16.md`.
 
-**Décision : GO conditionnel** (`gate.status = "passed"`,
-`gate_j15_status = "GO conditionnel"`). Le critère primaire (§6.9.7-1) est
-atteint — l'effet future-aware est réel et significatif sur une séquence de
-prompts variés ; la médiane nulle (§6.9.7-2) est la réserve qui rend la
-décision **conditionnelle**.
+**Décision : GO conditionnel** (confirmée en J16). Le critère primaire
+(§6.9.7-1) est atteint — l'effet future-aware est réel et significatif sur une
+séquence de prompts variés ; la médiane nulle (§6.9.7-2) est la réserve qui
+rend la décision **conditionnelle**. La correction J16 ne change pas la
+décision : la lecture stricte du critère 3 (`14/20 = 0,70`) reste au-dessus du
+seuil `0,5`, et le critère 4 reste significatif au test exact par prompt
+(`p = 0,00258`).
 
-Critères du diagnostic multi-prompt (§6.9.7) :
+Critères du diagnostic multi-prompt (§6.9.7, lecture corrigée J16) :
 
 | Critère pré-enregistré | Seuil | Mesuré | Verdict |
 |---|---|---|---|
-| 6.9.7-1 critère primaire (`ΔKL` agrégé > 0, IC ∉ [0]) | IC ∉ [0] | `ΔKL = +0,0802`, IC 95 % `[+0,064 ; +0,096]` | **atteint** |
-| 6.9.7-2 médiane de `ΔKL` > 0 | > 0 | **médiane = 0** (42,8 % de marginaux à `ΔKL = 0`) | **non atteint** |
-| 6.9.7-3 proportion de prompts significatifs ≥ 0,5 | ≥ 0,5 | **15 / 20 = 0,75** | **atteint** |
-| 6.9.7-4 test des signes, p < 0,05 | p < 0,05 | **p ≈ 0** (20/20 prompts direction positive) | **atteint** |
-| 6.9.7-5 effectif ≥ 100 blocs/config et ≥ 200 marginaux | seuil minimal | 100 blocs/config, **61 120** marginaux | **atteint** |
+| 6.9.7-1 critère primaire (`ΔKL` agrégé > 0, IC ∉ [0]) | IC ∉ [0] | `ΔKL = +0,0802`, IC 95 % `[+0,0638 ; +0,0962]` | **atteint** |
+| 6.9.7-2 médiane de `ΔKL` > 0 | > 0 | **médiane = 0** (42,788 % de marginaux à `ΔKL ≈ 0`) | **non atteint** |
+| 6.9.7-3 proportion de prompts **significativement positifs** ≥ 0,5 | ≥ 0,5 | **14 / 20 = 0,70** (lecture historique « IC exclut zéro » : 15/20 = 0,75, dont **1 négatif**) | **atteint** |
+| 6.9.7-4 test des signes par prompt, p < 0,05 | p < 0,05 | **17 positifs / 3 négatifs** ; binomial exact `p = 0,00258` (le `p ≈ 0` publié est l'approximation normale sur 35 040 marginaux) | **atteint** |
+| 6.9.7-5 effectif ≥ 100 blocs/config et ≥ 2 000 marginaux | seuil minimal | 100 blocs/config, **61 120** marginaux | **atteint** |
 
 Réduction de KL par configuration (IC 95 % bootstrap de blocs de base) :
 
 | Configuration | Marginaux | `ΔKL` moyen | IC 95 % | Temps mural |
-|---|---:|---:|---:|---:|
-| `N4_V6` | 17 200 | +0,1045 | `[+0,082 ; +0,126]` | 764 s |
-| `N4_V12` | 17 600 | +0,1181 | `[+0,098 ; +0,138]` | 806 s |
-| `N6_V6` | 26 320 | +0,0390 | `[+0,006 ; +0,071]` | 1 660 s |
+|---|---:|---:|---|---:|
+| `N4_V6` | 17 200 | +0,1045 | `[+0,0823 ; +0,1262]` | 764 s |
+| `N4_V12` | 17 600 | +0,1181 | `[+0,0977 ; +0,1379]` | 806 s |
+| `N6_V6` | 26 320 | +0,0390 | `[+0,0063 ; +0,0706]` | 1 660 s |
+
+Les trois configurations sont positives et leur IC exclut zéro (contrairement à
+J14, où `N6_V6` contenait zéro).
 
 **Médiane nulle / marginaux sans futur visible.** La médiane n'est pas du
-bruit : **42,8 %** des marginaux ont `ΔKL = 0` exactement — aucun futur visible
-dans le bloc, la correction future-aware est alors structuralement inactive.
-C'est la R4/R5 de J14 rendue quantitative sur une séquence de prompts variés :
-l'effet agrégé (moyenne) est réel mais **porté par les 57,2 %** de marginaux
-dotés d'un futur visible ; la médiane tombe à zéro car plus qu'un marginal sur
-deux est structuralement nul. Le critère primaire fondé sur la moyenne arith-
-métique (eq. 28) est donc **sensible à la queue**, confirmé ici sur 20 prompts.
+bruit : **42,788 %** des marginaux ont `ΔKL ≈ 0` — **26 080** exactement nuls
+(aucun futur visible dans le bloc : la correction future-aware est
+structuralement inactive) et **72** artefacts numériques (`< 1e-9`). C'est la
+R4/R5 de J14 rendue quantitative sur une séquence de prompts variés : l'effet
+agrégé (moyenne) est réel mais **porté par les 57,2 %** de marginaux dotés d'un
+futur visible ; la médiane tombe à zéro car plus qu'un marginal sur deux est
+structuralement nul. Le critère primaire fondé sur la moyenne arithmétique
+(eq. 28) est donc **sensible à la queue**, confirmé ici sur 20 prompts.
 
-**Test des signes.** Les 20 prompts sont tous en direction positive — cohérence
-de direction forte, même si l'amplitude varie d'un prompt à l'autre.
+**Test des signes et queue nuisible.** La phrase J15 « 20/20 prompts en
+direction positive (aucun ne dégrade la KL) » était **fausse**. Le recalcul sur
+les 61 120 marginaux donne :
+
+| Mesure | Valeur |
+|---|---:|
+| Prompts à moyenne `ΔKL` positive | **17 / 20** |
+| Prompts à moyenne `ΔKL` négative | **3 / 20** — `p06` (−0,0114), `p10` (−0,1098), `p18` (−0,2760) |
+| Prompts significativement positifs (IC > 0) | **14 / 20** |
+| Prompts significativement négatifs (IC < 0) | **1 / 20** — `p18`, IC `[−0,4151 ; −0,1381]` |
+| Prompts non significatifs | 5 / 20 |
+| Marginaux à futur visible **dégradés** | **4 661 / 35 040 = 13,30 %** |
+| `ΔKL` moyen des marginaux dégradés | **−1,1863** (pire cas : **−28,7094**) |
+
+La cohérence de direction est donc **majoritaire mais pas unanime** : la queue
+favorable qui porte la moyenne s'accompagne d'une **queue nuisible** de 13,3 %.
+C'est une réserve de lecture supplémentaire, qui ne renverse pas le critère
+primaire mais interdit de présenter l'effet comme uniforme.
 
 **Écart cible exacte vs top-k = 16 (§6.9.8)**, sur les 61 120 marginaux :
 
 | Grandeur | Valeur | Interprétation |
 |---|---:|---|
-| Masse discardée moyenne (au-delà de k=16) | **2,95 %** | la queue tronquée pèse ~3 % en moyenne |
-| Masse discardée maximale | **37,3 %** | cas extrêmes : jusqu'à un tiers de la masse hors du top-16 |
-| Distance de Total Variation moyenne | **1,48 %** | écart moyen entre les deux distributions |
+| Masse discardée moyenne (au-delà de k=16) | **2,9534 %** | la queue tronquée pèse ~3 % en moyenne |
+| Masse discardée maximale | **37,3190 %** | cas extrêmes : plus d'un tiers de la masse hors du top-16 |
+| TV corrigée moyenne (troncature renormalisée) | **2,9534 %** | identique à la masse discardée (relation algébrique) |
+| TV publiée en J15 | **1,4767 %** | moitié de la TV réelle (troncature non renormalisée) |
 
-La troncature à k = 16 est **fidèle en moyenne** (TV moyenne 1,48 %) mais
-**hétérogène** (masse discardée max 37,3 %). Information de faisabilité avant
-tout investissement dans un `TeacherScorer` : l'approximation top-k n'est pas
-neutre.
+La troncature à k = 16 est **fidèle en moyenne** (2,95 %) mais **hétérogène**
+(max 37,3 %). Information de faisabilité avant tout investissement dans un
+`TeacherScorer` : l'approximation top-k n'est pas neutre. La Table 3 du papier
+rapporte une **couverture de masse** de 99,45 % (professeur) / 99,44 % (élève)
+à `k = 16`, cohérente avec les ≈ 97 % locaux ; le papier ne publie **pas** de
+TV, et la comparaison doit rester une comparaison de couverture, pas de « TV
+contre le posterior exact ».
 
 **Limites déclarées.**
 
-1. L'amplitude agrégée (`ΔKL ≈ +0,08`, -16,1 % de réduction relative) reste bien
-   inférieure à celle du papier (-71,9 %) : références de lecture, pas seuils.
-2. L'effet est moyenne-porté-par-queue : un `TeacherScorer` réel doit confirmer
-   sur plus de prompts et plus d'échelles avant qu'un `StudentPolicy` soit
-   justifié.
-3. Le run est une **inférence seule** : ≈ 54 min mural au total, aucun poids
-   modifié, aucun backward (`training.performed = false`).
+1. **Réduction relative : 8,58 %** (`ΔKL / KL_causale = 0,0801906 / 0,9350779`).
+   Le chiffre **16,12 %** est celui de **J14** (prompt unique) ; il ne doit pas
+   être réutilisé pour J15. La comparaison au `−71,9 %` du papier n'a pas de
+   base directe : le papier utilise Qwen3-8B, 10 configurations, 400 blocs,
+   49 948 marginaux et un agrégat poolé sur 4 niveaux `σ` ; J15 utilise
+   Qwen3-0.6B, 3 configurations, 100 blocs et 61 120 marginaux. La KL causale
+   locale (`0,9351`) est **2,10×** celle du papier (`0,4444`).
+2. L'effet est **moyenne-porté-par-queue** : médiane nulle (42,788 % de
+   marginaux structurellement nuls) et queue nuisible de 13,3 %. Un
+   `TeacherScorer` réel doit confirmer sur plus de prompts et plus d'échelles
+   avant qu'un `StudentPolicy` soit justifié.
+3. **Cache et règle 9.** Le run a lu le modèle dans
+   `/home/sjteb/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B/snapshots/…`,
+   **pas** dans `_artefact/hf-cache` (absent). L'écriture est inventoriée dans
+   `modules/a2d/docs/reports/OUT_OF_WORKSPACE.md` ; la commande J15 qui affichait
+   `HF_HOME=…` a été corrigée. Le harnais consigne désormais `hf_home`,
+   `hf_home_source` et `model_source_in_repo`, et émet un avertissement si le
+   modèle est lu hors du dépôt.
+4. Le run est une **inférence seule** : **3 280 s** de temps mural total
+   (3 230 s dans les trois configurations), soit ≈ 55 min ; 21 615 MiB RSS,
+   1 607 MiB alloués CUDA au pic. Aucun poids modifié, aucun backward
+   (`training.performed = false`).
 
 ---
 ---

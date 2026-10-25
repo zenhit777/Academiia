@@ -16,6 +16,17 @@
 > La règle désormais en vigueur : **toute écriture doit vivre dans le dépôt**
 > (`AGENTS.md` règle 9). Les harnais d'évaluation redirigent leurs caches vers
 > `harness/<famille>/.cache/` (`harness/dream/setup.sh`).
+>
+> **Complément J15/J16 (2026-10-25).** Le run GPU J15 a lu le modèle depuis
+> `/home/sjteb/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B` (≈ 1,52 Go, déjà
+> dans l'inventaire §1.2), **et non** depuis `_artefact/hf-cache` comme la
+> commande citée initialement dans `J15.md` l'affirmait : le drapeau
+> `HF_HOME="$PWD/_artefact/hf-cache"` n'a pas été appliqué et ce dossier
+> **n'existe pas**. C'est une écriture de lecture hors dépôt (le cache existait
+> déjà ; aucun téléchargement). J16 corrige la commande dans `J15.md`, consigne
+> le cache réellement utilisé (`hf_home`, `model_source_in_repo`) et émet un
+> avertissement si le modèle est lu hors du dépôt. Aucune suppression n'a été
+> effectuée ; aucun poids ni aucun checkpoint n'a été écrit hors dépôt par J16.
 
 ## 1. Inventaire
 
