@@ -1139,6 +1139,100 @@ nuisible de 13,3 %), et le passage à un `StudentPolicy` exigerait un protocole
 d'entraînement pré-enregistré **distinct** de J17.
 
 ---
+
+### 6.11 Livraison J17 — `TeacherScorer` réel (état après exécution)
+
+> Cette section est **postérieure** aux runs : elle **publie** l'état livré.
+> Elle ne modifie pas les critères de §6.10, qui restent figés (§6.10.1).
+> Les chiffres viennent de `modules/dopd/eval/teacher_scorer_qwen3_0.6b/results.json`
+> (GPU, BF16) et `modules/dopd/eval/teacher_scorer_qwen3_0.6b_cpu/results.json`
+> (CPU, FP32).
+
+#### 6.11.1 Ce qui est livré
+
+| Élément | Emplacement | Garantie |
+|---|---|---|
+| `Qwen3TeacherScorer` | `modules/dopd/harness/teacher_scorer_qwen3.py` | implémente l'ABC J13 `TeacherScorer` ; professeur gelé (`eval()`, `requires_grad=False`) ; cache de préfixe (App. B) ; arithmétique float32 ; plafond de cache étendu 16 GiB (§3.6) |
+| Harnais de smoke | `modules/dopd/harness/run_teacher_scorer_smoke.py` | produit le JSON versionné + manifeste ADR-002 ; chemins de contrôle cache et rejeu |
+| Tests | `modules/dopd/tests/test_dopd_harness_teacher_scorer.py` | `pytest.importorskip("torch")` : ignorés sans torch, **pas** en erreur |
+
+Le paquet `academiia.dopd` est **inchangé** : `target.py`, `diagnostic.py` et
+`interfaces.py` ne sont pas modifiés par J17. Le scorer rend des tableaux
+NumPy (`prior` float64 de somme 1, `candidate_loglikelihoods` alignés sur
+`candidate_ids`, `reference_loglikelihood`) **directement** consommables par
+`compute_future_aware_target`.
+
+#### 6.11.2 Résultat des critères pré-enregistrés (§6.10.5)
+
+| # | Critère | Verdict | Preuve mesurée |
+|---|---|---|---|
+| C1 | Conformité au contrat | **TENU** | `isinstance(scorer, TeacherScorer)` ; `score()` rend un `ScoringResult` valide (test unitaire + smoke) |
+| C2 | Exactitude cache vs rejeu (BF16) | **NON TENU sur les états réels** | suffixe max **0,395069** > 0,35 (2 états sur 16 : `p05`/`p18` position 0) ; prior max **0,04824** ≤ 0,15 ✔. Tenue sur la cellule de référence : suffixe 0,116714 (16 branches) et 0,142105 (33 branches) ≤ 0,35 ✔ |
+| C3 | Exactitude cache vs rejeu (FP32) | **TENU** | cellule de référence **1,1444e-05** ≤ 1e-3 ✔ ; **état réel BF16 rejoué en FP32 : 6,1035e-05** ≤ 1e-3 ✔ ; run CPU FP32 complet : suffixe max **2,7e-05**, prior max **2e-06** ✔ |
+| C4 | Cohérence du prior | **TENU** | `|somme − 1|` max **4,8e-07** ≤ 1e-4 ; aucun NaN/inf |
+| C5 | Chaîne scorer → cible | **TENU** | **12/12** jobs à futur visible : `applied = true`, cible finie, `|somme − 1|` max **1,5e-07** ; les 4 jobs à futur vide activent le fallback causal (`no_visible_future`) |
+| C6 | Latence (cellule de référence J14) | **TENU** | 16 branches : cache **53,2 ms**, rejeu 168,4 ms, gain **3,162×** ≥ 2× (J14 : 51,2 ms / 3,28×) |
+| C7 | Latence (géométrie d-OPD) | **TENU** | cache max **53,29 ms** ≤ 200 ms ; CPU FP32 (hors plafond) : 373,6 ms |
+| C8 | Latence (33 branches) | **TENU** | cache **67,1 ms** ≤ 250 ms (J14 : 65,6 ms) |
+| C9 | Gelé | **TENU** | `requires_grad` de tous les paramètres = `False` ; `model.training = False` ; aucun `backward`/`optimizer`/`step` dans le harnais |
+| C10 | Poids intacts | **TENU** | sha256 des tenseurs **identique** avant/après (runs GPU et CPU) |
+| C11 | Provenance ADR-002 | **TENU** | manifeste `academiia.lineage/1` : `producer.module = "dopd"`, commit, commande exacte, versions, seeds, empreintes des sources, `training.performed = false` |
+| C12 | Règle 9 (cache) | **TENU** | `model_source_in_repo = true` (snapshot sous `_artefact/hf-cache/`) ; `HF_HOME` redirigé dans le dépôt |
+| C13 | Collecte sans torch | **TENU** | venv sans torch : **114 passed, 3 skipped**, 0 erreur |
+| C14 | Non-régression | **TENU** | `target.py`, `diagnostic.py`, `interfaces.py` et `modules/a2d/eval/dream_a2d/` **inchangés** sur la plage J17 |
+
+#### 6.11.3 Écart C2 — diagnostic (exécuté **après** le run, hors protocole)
+
+Le seuil C2 (≤ 0,35) est **échoué** sur les états réels BF16 (max 0,395069) et
+**tenu** sur la cellule de référence. Le seuil n'est pas retouché. Deux
+diagnostics supplémentaires (champs `max_abs_delta_diff`,
+`replay_batch_sensitivity`, `suffix_score_abs_max`) quantifient la cause :
+
+1. **Le chemin cache est exact.** Le même job, rejoué en FP32, tombe à
+   **6,1035e-05** (état réel) et **1,1444e-05** (cellule de référence) — soit
+   trois ordres de grandeur sous le seuil. Le run CPU FP32 complet confirme :
+   suffixe max **2,7e-05** sur les 16 états réels, et
+   `replay_batch_sensitivity = 0,0` (rejeu par lot de 1 et par lot de 16
+   **identiques** en FP32).
+2. **L'écart BF16 vient du chemin de rejeu lui-même, pas du cache.** En BF16,
+   `replay_batch_sensitivity` atteint **0,369659** : rejouer le même contexte
+   par lot de 1 ou par lot de 16 donne déjà des scores différents de ~0,37.
+   L'écart cache/rejeu (0,395069) est donc **presque entièrement** celui du
+   rejeu par rapport à lui-même. La cache n'y contribue que
+   `0,395069 − 0,369659 = 0,025`.
+3. **Amplification par la magnitude.** L'écart absolu est proportionnel à
+   `|s_i(v)|` : les deux états en échec sont ceux dont les log-probabilités de
+   suffixe sont les plus négatives (**|s|max = 20,67** et **27,41**). BF16 a
+   ~8 bits de mantisse ; une erreur relative de ~0,4 % sur un logit de
+   magnitude 20 devient un écart absolu de ~0,08 par token, cumulé sur 3
+   tokens de suffixe.
+
+**Conclusion.** L'écart C2 est un **artefact de précision BF16 du protocole de
+comparaison**, pas un défaut de la mécanique du cache de préfixe. La grandeur
+réellement consommée par la cible est `Δs_i(v) = s_i(v) − s_i(x̂_i)` ; son
+écart cache/rejeu en BF16 est du même ordre (max **0,395436**), et tombe à
+**3,2e-05** en FP32 (run CPU). Le passage en FP32 est donc **gratuit en
+latence** sur cette machine : **52,57 ms** contre **51,89 ms** en BF16
+(géométrie d-OPD, 17 branches, pic mémoire 2 411 MiB contre 1 250 MiB).
+
+#### 6.11.4 Limites de la livraison
+
+- Le cache de préfixe ne paie qu'au-delà d'un préfixe long : sur les états
+  réels (préfixe de 12–14 tokens), le cache est **plus lent** que le rejeu
+  (53,3 ms contre 26,9 ms), car le surcoût fixe par forward domine. Le gain
+  mesuré (3,16× à 16 branches, 5,48× à 33 branches, préfixe 1 024) est le
+  gain de la **cellule de référence J14**, pas celui de la géométrie courte.
+- `V_i` est le **top-16 du professeur** : l'union avec le top-16 de l'élève
+  (§3.4) n'est pas calculable tant que `StudentPolicy` n'existe pas. Le
+  contrat à 33 branches est donc exercé par la cellule de référence.
+- Aucun rollout réel, aucun `StudentPolicy`, aucun entraînement, aucun
+  backward, aucun poids modifié, aucun checkpoint écrit, aucun résultat,
+  seuil ou verdict G1 touché.
+- Les réserves de lecture J15/J16 s'appliquent inchangées : effet future-aware
+  **non uniforme** (médiane nulle, queue nuisible de 13,3 %), 3 prompts sur 20
+  dégradés.
+
+---
 ---
 
 ## 7. Hors scope explicite de J12
