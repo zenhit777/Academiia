@@ -65,19 +65,25 @@
 > **Mise à jour J17 (2026-10-25)** : le **`TeacherScorer` réel** de d-OPD est
 > livré (Qwen3-0.6B, BF16), **isolé sous `modules/dopd/harness/`** : le paquet
 > `academiia.dopd` reste **pur** (aucun import `torch`/`transformers`). Le
-> cache de préfixe de l'App. B est **exact en FP32** : le même job rejoué en
-> FP32 donne un écart de **1,1e-05** (cellule de référence) et **6,1e-05** (état
-> réel), contre **0,395** en BF16 — écart imputé à la précision BF16 du
-> protocole de comparaison, **pas** à la mécanique du cache. Latence : cache
-> **53,2 ms** à 16 branches et **67,1 ms** à 33 (référence J14 : 51,2 / 65,6
-> ms) ; le passage en FP32 est **quasi gratuit** en latence (**+0,68 ms**,
-> mesure complémentaire non versionnée). Sur les 14 critères pré-enregistrés,
+> cache de préfixe de l'App. B est **exact dans la tolérance pré-enregistrée
+> (C3)** : le même job rejoué en FP32 donne un écart de **1,1e-05** (cellule de
+> référence) et **6,1e-05** (état réel), contre **0,395** en BF16 — écart
+> imputé à la précision BF16 du protocole de comparaison, **pas** à la
+> mécanique du cache. Latence : cache **53,2 ms** à 16 branches et **67,1 ms**
+> à 33 (référence J14 : 51,2 / 65,6 ms) ; le passage en FP32 coûte
+> **+0,68 ms** de latence (**+1,3 %**) et **+1 161 MiB** de pic mémoire
+> (mesure complémentaire non versionnée). Sur les 14 critères pré-enregistrés,
 > **13 sont tenus** ; seul **C2** échoue sur les états réels BF16 (seuil 0,35,
-> max 0,395), sans atteindre les conditions de NO-GO. Runs GPU **déclarés**,
-> inférence seule : **aucun entraînement, aucun backward, aucun poids
-> modifié**, et **aucun résultat, seuil ou verdict G1 touché**. Décision J18 :
-> **GO conditionnel**, sous condition de passer le professeur en FP32 et de
-> pré-enregistrer un protocole d'entraînement distinct. Voir
+> max 0,395), sans atteindre les conditions de NO-GO ; C7 est tenu avec une
+> **réserve de géométrie** (16 branches réelles, 17 au protocole). Runs GPU
+> **déclarés**, inférence seule : **aucun entraînement, aucun backward, aucun
+> poids modifié**, et **aucun résultat, seuil ou verdict G1 touché**. Décision
+> J18 : **GO conditionnel** — réserve explicite : §6.10.7 subordonne ce GO à
+> « C1–C14 tenues », clause non littéralement remplie ; la décision est une
+> **interprétation** (un seul critère échoué, hors liste NO-GO) et **J18 doit
+> la trancher explicitement**. Conditions : professeur en FP32, protocole
+> d'entraînement pré-enregistré distinct, référence de comparaison en rejeu
+> intégral FP32, prise en compte du coût du cache aux préfixes courts. Voir
 > `modules/dopd/docs/reports/J17.md`.
 
 Ce document est le **point d'entrée** pour savoir ce qui est démontré, ce qui ne l'est pas, et
