@@ -465,10 +465,47 @@ def _reference_geometry(
             "max_abs_prior_diff": round(
                 float(np.max(np.abs(cache_prior - replay_prior))), 6
             ),
+            # Diagnostic d'explication : part de l'écart imputable au lot
+            # dans le chemin de rejeu lui-même (hors cache).
+            "replay_batch_sensitivity": round(
+                _replay_batch_sensitivity(scorer, prefix_ids, candidate_ids, suffix_ids), 6
+            ),
+            "suffix_score_abs_max": round(float(np.max(np.abs(replay_scores))), 6),
         }
         entries.append(entry)
         del prefix, suffix, candidates
     return entries
+
+
+def _replay_batch_sensitivity(
+    scorer: Qwen3TeacherScorer,
+    prefix: tuple[int, ...],
+    candidates: tuple[int, ...],
+    suffix: tuple[int, ...],
+) -> float:
+    """Sensibilité du chemin de rejeu à la **taille de lot**.
+
+    Le rejeu est rejoué branche par branche (lot de 1) et comparé au rejeu
+    groupé (lot de `n`). L'écart mesuré est **entièrement dû au lot** : il
+    isole la part de l'écart cache/rejeu qui ne vient pas du cache.
+
+    Ce diagnostic ne modifie aucun critère pré-enregistré : il explique le
+    critère C2, il ne le réécrit pas.
+    """
+    _, grouped = scorer.replay_job(prefix, candidates, suffix)
+    singles = np.empty(len(candidates), dtype=np.float64)
+    for index, candidate in enumerate(candidates):
+        _, score = scorer.replay_job(prefix, (candidate,), suffix)
+        singles[index] = float(score[0])
+    return float(np.max(np.abs(grouped - singles)))
+
+
+def _delta_diff(
+    scores: np.ndarray,
+    reference_index: int,
+) -> np.ndarray:
+    """Deltas relatifs `s_i(v) − s_i(x̂_i)` alignés sur les branches."""
+    return scores - scores[reference_index]
 
 
 def _real_states(
@@ -481,13 +518,18 @@ def _real_states(
     positions: int,
     device: torch.device,
     repeats: int,
-) -> list[dict]:
+) -> tuple[list[dict], dict | None]:
     """États réels : prompts J15, bloc de N = 4 tokens, scoring par position.
 
     Les positions `0 .. N-2` ont un **futur visible** ; la position `N-1`
     n'en a pas et exerce le fallback causal (`no_visible_future`).
+
+    Rend les entrées **et** le premier job réel (préfixe, suffixe, branches),
+    réutilisé par le contrôle FP32 : le même job doit être rejoué en FP32
+    pour distinguer l'écart de précision de l'écart de logique.
     """
     entries: list[dict] = []
+    first_job: dict | None = None
     for prompt in prompts:
         encoded = tokenizer(prompt["text"], return_tensors="pt")
         prompt_ids = encoded["input_ids"].to(device)[0]
@@ -537,6 +579,14 @@ def _real_states(
                 visible_future=bool(suffix),
                 arithmetic_dtype=DOPDConfig().arithmetic_dtype,
             )
+            # Diagnostics d'explication (ne modifient aucun critère) :
+            # l'écart dû au lot dans le **rejeu** lui-même, et l'écart sur
+            # les **deltas** `Δs_i(v)`, qui est la grandeur réellement
+            # consommée par la cible (eq. 16-17).
+            batch_sensitivity = _replay_batch_sensitivity(scorer, prefix, branches, suffix)
+            reference_index = branches.index(reference_id)
+            cache_deltas = _delta_diff(cache_scores, reference_index)
+            replay_deltas = _delta_diff(replay_scores, reference_index)
             entries.append(
                 {
                     "prompt_id": prompt["id"],
@@ -556,6 +606,13 @@ def _real_states(
                     "max_abs_prior_diff": round(
                         float(np.max(np.abs(cache_prior - replay_prior))), 6
                     ),
+                    "max_abs_delta_diff": round(
+                        float(np.max(np.abs(cache_deltas - replay_deltas))), 6
+                    ),
+                    "replay_batch_sensitivity": round(batch_sensitivity, 6),
+                    "suffix_score_abs_max": round(
+                        float(np.max(np.abs(replay_scores))), 6
+                    ),
                     "prior_sum": round(float(np.sum(prior)), 8),
                     "prior_finite": bool(np.all(np.isfinite(prior))),
                     "target": {
@@ -568,7 +625,65 @@ def _real_states(
                 }
             )
             del prior, cache_prior, replay_prior, result, target
-    return entries
+            if first_job is None:
+                first_job = {
+                    "prompt_id": prompt["id"],
+                    "position": position,
+                    "prefix_ids": prefix,
+                    "suffix_ids": suffix,
+                    "branch_ids": branches,
+                    "reference_id": reference_id,
+                }
+    return entries, first_job
+
+
+def _fp32_real_job_control(
+    model_id: str,
+    job: dict,
+    *,
+    device: torch.device,
+    local_files_only: bool,
+) -> dict:
+    """Contrôle FP32 du **premier état réel** (proof of the BF16 diagnosis).
+
+    Le même job — même préfixe, même suffixe, mêmes branches — est rejoué avec
+    un modèle FP32. Si l'écart cache/rejeu y tombe à l'ordre de `1e-5`, alors
+    l'écart BF16 observé vient de la précision, pas de la logique du cache.
+    """
+    print("[fp32] chargement du modèle FP32 (etat reel) ...", flush=True)
+    model, source = load_teacher(
+        model_id, device=device, dtype="float32", local_files_only=local_files_only
+    )
+    try:
+        scorer = Qwen3TeacherScorer(model, device=device)
+        prefix = tuple(int(value) for value in job["prefix_ids"])
+        suffix = tuple(int(value) for value in job["suffix_ids"])
+        branches = tuple(int(value) for value in job["branch_ids"])
+        prior = scorer.causal_prior(prefix)
+        cached = scorer.suffix_loglikelihood(prefix, branches, suffix)
+        replay_prior, replayed = scorer.replay_job(prefix, branches, suffix)
+        batch_sensitivity = _replay_batch_sensitivity(scorer, prefix, branches, suffix)
+        return {
+            "dtype": "float32",
+            "model_source": source,
+            "prompt_id": job["prompt_id"],
+            "position": job["position"],
+            "prefix_length": len(prefix),
+            "suffix_length": len(suffix),
+            "branches": len(branches),
+            "max_abs_suffix_score_diff": round(
+                float(np.max(np.abs(cached - replayed))), 9
+            ),
+            "max_abs_prior_diff": round(
+                float(np.max(np.abs(prior - replay_prior))), 9
+            ),
+            "replay_batch_sensitivity": round(batch_sensitivity, 9),
+            "suffix_score_abs_max": round(float(np.max(np.abs(replayed))), 6),
+        }
+    finally:
+        del model
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
 
 
 def _fp32_control(
@@ -678,7 +793,7 @@ def main(argv: list[str] | None = None) -> int:
         f"[2/5] etats reels : {len(prompts)} prompts x {args.positions} positions",
         flush=True,
     )
-    real_states = _real_states(
+    real_states, first_job = _real_states(
         scorer,
         model,
         tokenizer,
@@ -697,6 +812,7 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     fp32_control = None
+    fp32_real_job = None
     if not args.skip_fp32_control:
         print("[4/5] controle FP32 ...", flush=True)
         fp32_control = _fp32_control(
@@ -705,6 +821,13 @@ def main(argv: list[str] | None = None) -> int:
             device=device,
             local_files_only=args.local_files_only,
         )
+        if first_job is not None:
+            fp32_real_job = _fp32_real_job_control(
+                args.model,
+                first_job,
+                device=device,
+                local_files_only=args.local_files_only,
+            )
 
     weights_after = _weights_sha256(model)
     print("[5/5] verification des poids et ecriture ...", flush=True)
@@ -758,6 +881,7 @@ def main(argv: list[str] | None = None) -> int:
         "reference_geometry": reference,
         "real_states": real_states,
         "fp32_control": fp32_control,
+        "fp32_real_job_control": fp32_real_job,
         "training": {
             "performed": False,
             "optimizer": None,
@@ -817,6 +941,7 @@ def main(argv: list[str] | None = None) -> int:
                 "n_real_states": len(real_states),
                 "n_reference_cells": len(reference),
                 "fp32_control_executed": fp32_control is not None,
+                "fp32_real_job_control_executed": fp32_real_job is not None,
                 "weights_unchanged": weights_before == weights_after,
                 "requires_grad_all_false": all(
                     not parameter.requires_grad for parameter in model.parameters()
