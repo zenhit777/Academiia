@@ -959,6 +959,9 @@ def main(argv: list[str] | None = None) -> int:
             min_marginals=MIN_MARGINALS,
             budget_max_gpu_seconds=MAX_GPU_SECONDS,
             budget_max_gpu_bytes=MAX_GPU_BYTES,
+            # Précision de CHARGEMENT du professeur en production (FP32, J17 R1),
+            # distincte de scorer_dtype (= dtype natif du checkpoint, BF16).
+            scorer_load_precision="float32",
         ),
         data={
             "prompt_file": str(args.prompt_file),
