@@ -1,0 +1,69 @@
+{
+  "prompts": [
+    {
+      "id": "p01",
+      "text": "Question: Which planet is closest to the Sun?\nAnswer:",
+      "category": "factual"
+    },
+    {
+      "id": "p02",
+      "text": "Question: What is the chemical symbol for gold?\nAnswer:",
+      "category": "factual"
+    },
+    {
+      "id": "p05",
+      "text": "Question: What is 17 plus 26?\nAnswer:",
+      "category": "arithmetic"
+    },
+    {
+      "id": "p08",
+      "text": "Question: Which Python keyword is used to define a function?\nAnswer:",
+      "category": "code"
+    },
+    {
+      "id": "p09",
+      "text": "Question: Translate the English word \"library\" into French.\nAnswer:",
+      "category": "translation"
+    },
+    {
+      "id": "p10",
+      "text": "Question: Translate the English word \"mountain\" into Spanish.\nAnswer:",
+      "category": "translation"
+    },
+    {
+      "id": "p11",
+      "text": "Question: Is the Pacific Ocean the smallest ocean on Earth? Answer yes or no.\nAnswer:",
+      "category": "negation"
+    },
+    {
+      "id": "p12",
+      "text": "Question: Do all mammals give birth to live young? Answer yes or no.\nAnswer:",
+      "category": "negation"
+    },
+    {
+      "id": "p13",
+      "text": "Question: What household object is used for cutting paper?\nAnswer:",
+      "category": "commonsense"
+    },
+    {
+      "id": "p14",
+      "text": "Question: What object is worn on a wrist to tell the time?\nAnswer:",
+      "category": "commonsense"
+    },
+    {
+      "id": "p15",
+      "text": "Question: What does the term \"photosynthesis\" mean?\nAnswer:",
+      "category": "definition"
+    },
+    {
+      "id": "p16",
+      "text": "Question: In geometry, what is a polygon?\nAnswer:",
+      "category": "definition"
+    },
+    {
+      "id": "p18",
+      "text": "Question: Reply with exactly two words: name the currency used in Japan.\nAnswer:",
+      "category": "instruction"
+    }
+  ]
+}
