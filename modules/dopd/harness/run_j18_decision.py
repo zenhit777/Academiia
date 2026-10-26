@@ -743,8 +743,12 @@ def _run_experiment(
         sequences, log_joint = support.enumerate_joint()
 
         for block_index in range(args.blocks):
-            base = rng.integers(0, sequences.shape[0], size=BLOCK_SIZE)
-            block = tuple(int(token) for token in base.tolist())
+            idx = int(rng.integers(0, sequences.shape[0]))
+            # Une ligne du joint énuméré = un bloc complété x̂ réel (tokens du
+            # support restreint) : c'est ce bloc qui fournit Â_i / Ĉ_i / x̂_i et
+            # dont l'état visible conditionne le posterior exact. Prendre quatre
+            # indices à la place aurait généré des séquences incompatibles.
+            block = tuple(int(token) for token in sequences[idx].tolist())
             for position in MASK_POSITIONS:
                 record = _marginal_for_position(
                     scorer,
