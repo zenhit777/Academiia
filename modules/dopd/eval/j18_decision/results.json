@@ -1,0 +1,345 @@
+{
+  "kind": "dopd_j18_decision",
+  "protocol": {
+    "spec": "modules/dopd/docs/reports/J18_PRE.md",
+    "model": "Qwen/Qwen3-0.6B",
+    "model_source": "/mnt/d/Intelligence_Artificielle/Projects/Academiia/_artefact/hf-cache/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca",
+    "model_source_in_repo": true,
+    "model_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "device": "cuda",
+    "dtype": "float32",
+    "torch_version": "5.10.2",
+    "python_version": "3.12.3",
+    "seed": 20261026,
+    "bootstrap_seed": 20261026,
+    "bootstrap_iterations": 10000,
+    "block_size": 4,
+    "k": 16,
+    "mask_positions": [
+      0,
+      1,
+      2
+    ],
+    "blocks_per_prompt": 120,
+    "prompt_file": "modules/dopd/eval/j18_decision/prompts.json",
+    "prompt_subset_hash": "593c32e5e376e88c37c79e94f1e9ce627229721026c800f0a1dfd8b35b203f35",
+    "n_prompts": 13,
+    "min_blocks_per_configuration": 100,
+    "min_marginals": 2000,
+    "budget": {
+      "max_gpu_seconds": 14400,
+      "max_gpu_bytes": 17179869184
+    },
+    "producer_commit": "30594e3",
+    "source_sha256": {
+      "modules/dopd/harness/run_j18_decision.py": "9393ac15f27df93b094d47676dec517bb834f37b3f2301fb0ef138c7a51e6cdd",
+      "modules/dopd/harness/teacher_scorer_qwen3.py": "091db9dc008abf0df2621be8e16e1cc9e79791f28a15392babb90378b783d0be",
+      "modules/dopd/dopd/diagnostic.py": "e936ca5ada3f217ea3c10bcda751e685c60f285585bc59c010b0de9e232aa6a8",
+      "modules/dopd/dopd/interfaces.py": "1af4b1e441bf54e4b496da1034411b741ec7419ca8022c59c2a0fe4c27f40ce0"
+    }
+  },
+  "runtime": {
+    "wall_seconds": 433.85,
+    "max_rss_mib": 11807.9,
+    "cuda_allocated_peak_mib": 2876.5,
+    "cuda_reserved_peak_mib": 4806.0
+  },
+  "geometry": {
+    "n_prompts": 13,
+    "n_marginals": 4680,
+    "prefix_length_min": 12,
+    "prefix_length_max": 21,
+    "suffix_length_min": 1,
+    "suffix_length_max": 3,
+    "max_sum_error": 4.440892098500626e-16
+  },
+  "numerical_integrity": {
+    "finite": true,
+    "max_distribution_sum_error": 4.440892098500626e-16,
+    "met": true
+  },
+  "statistics": {
+    "n": 4680,
+    "mean_delta_kl": 3.047123908135861,
+    "median_delta_kl": 1.961011746992137,
+    "aggregate_ci95_delta_kl": [
+      2.967942067480076,
+      3.1270651296111733
+    ],
+    "per_prompt": {
+      "p01": {
+        "n": 360,
+        "mean_delta_kl": 2.9398093994912693,
+        "median_delta_kl": 1.645248036140102
+      },
+      "p02": {
+        "n": 360,
+        "mean_delta_kl": 2.6822417935355305,
+        "median_delta_kl": 1.6206016165924204
+      },
+      "p05": {
+        "n": 360,
+        "mean_delta_kl": 3.955389642736411,
+        "median_delta_kl": 3.103580951233977
+      },
+      "p08": {
+        "n": 360,
+        "mean_delta_kl": 2.9685374603063632,
+        "median_delta_kl": 2.331344913016279
+      },
+      "p09": {
+        "n": 360,
+        "mean_delta_kl": 3.7651500798103723,
+        "median_delta_kl": 2.3728343111344543
+      },
+      "p10": {
+        "n": 360,
+        "mean_delta_kl": 2.697717269459987,
+        "median_delta_kl": 1.3261618170830585
+      },
+      "p11": {
+        "n": 360,
+        "mean_delta_kl": 3.4428858680723837,
+        "median_delta_kl": 2.3888797197794407
+      },
+      "p12": {
+        "n": 360,
+        "mean_delta_kl": 3.030313692030537,
+        "median_delta_kl": 2.1136833421133208
+      },
+      "p13": {
+        "n": 360,
+        "mean_delta_kl": 3.404102973088589,
+        "median_delta_kl": 2.6568790458279974
+      },
+      "p14": {
+        "n": 360,
+        "mean_delta_kl": 2.6436140699394963,
+        "median_delta_kl": 1.6754781910970915
+      },
+      "p15": {
+        "n": 360,
+        "mean_delta_kl": 2.5901295496841232,
+        "median_delta_kl": 1.5402066406027153
+      },
+      "p16": {
+        "n": 360,
+        "mean_delta_kl": 2.930348118323958,
+        "median_delta_kl": 1.5905807494423954
+      },
+      "p18": {
+        "n": 360,
+        "mean_delta_kl": 2.5623708892871693,
+        "median_delta_kl": 1.8009112380179413
+      }
+    },
+    "prompt_ci95": {
+      "p01": [
+        2.64144778070096,
+        3.2438765175739896
+      ],
+      "p02": [
+        2.4014964325357897,
+        2.971018728399542
+      ],
+      "p05": [
+        3.7879195781634554,
+        4.135889278769792
+      ],
+      "p08": [
+        2.704086242004503,
+        3.2377021184151578
+      ],
+      "p09": [
+        3.437584109083471,
+        4.093861126323619
+      ],
+      "p10": [
+        2.386475609003918,
+        3.020305304143863
+      ],
+      "p11": [
+        3.086582823622323,
+        3.8055428193391108
+      ],
+      "p12": [
+        2.7336886402215415,
+        3.3355680724535723
+      ],
+      "p13": [
+        3.104739660809536,
+        3.6992230808844364
+      ],
+      "p14": [
+        2.3491256443860036,
+        2.9481180462796304
+      ],
+      "p15": [
+        2.3381491581116673,
+        2.8431810720956725
+      ],
+      "p16": [
+        2.653523846332114,
+        3.2126106710930107
+      ],
+      "p18": [
+        2.328867166394974,
+        2.810307038428514
+      ]
+    },
+    "sign_test": {
+      "n": 4680,
+      "positive": 4680,
+      "negative": 0,
+      "p_value": 0.0
+    },
+    "n_prompts": 13,
+    "n_prompts_ci_excludes_zero": 13,
+    "n_prompts_positive": 13,
+    "n_prompts_negative": 0,
+    "n_prompts_zero_mean": 0,
+    "n_prompts_significant_positive": 13,
+    "n_prompts_significant_negative": 0,
+    "n_prompts_not_significant": 0,
+    "negative_prompt_ids": [],
+    "significant_negative_prompt_ids": [],
+    "proportion_prompts_significant": 1.0,
+    "proportion_prompts_significant_positive": 1.0,
+    "sign_test_exact_binomial": {
+      "p_value": 0.0,
+      "positive": 4680,
+      "negative": 0,
+      "n": 4680
+    }
+  },
+  "decision": {
+    "status": "GO",
+    "criteria": {
+      "C1_aggregate_delta_kl_positive_ci95_excludes_zero": {
+        "met": true,
+        "value": 3.047123908135861,
+        "ci95": [
+          2.967942067480076,
+          3.1270651296111733
+        ]
+      },
+      "C2_median_delta_kl_positive": {
+        "met": true,
+        "value": 1.961011746992137
+      },
+      "C3_proportion_prompts_ci_excludes_zero_ge_0.5": {
+        "met": true,
+        "value": 1.0,
+        "n_prompts_significant": 13,
+        "n_prompts": 13
+      },
+      "C4_binomial_two_sided_p_lt_0.05": {
+        "met": true,
+        "value": 0.0
+      },
+      "C5_blocks_ge_100_and_marginals_ge_2000": {
+        "met": true,
+        "blocks_per_configuration": {
+          "N4_V16": 120
+        },
+        "minimum_blocks_per_configuration": 100,
+        "total_marginals": 4680,
+        "minimum_marginals": 2000
+      }
+    },
+    "process_criteria": {
+      "C6_numerical_integrity": {
+        "met": true
+      },
+      "C7_lineage_manifest_present": {
+        "met": true
+      },
+      "C8_teacher_frozen": {
+        "met": true
+      },
+      "C9_model_source_in_repo": {
+        "met": true
+      },
+      "C10_no_regression": {
+        "met": true
+      }
+    },
+    "rationale": "Critère primaire (C1) TENU ; médiane (C2) TENUE ; proportion de prompts à IC exclut zéro (C3) 13/13 = 1.000 (TENUE) ; test des signes (C4) p = 0 (TENU) ; effectif (C5) TENU. Décision : GO.",
+    "reserves": []
+  },
+  "lineage": {
+    "schema": "academiia.lineage/1",
+    "artifact": {
+      "path": "modules/dopd/eval/j18_decision/results.json",
+      "kind": "eval",
+      "hashes": {}
+    },
+    "parent": {
+      "path": "Qwen/Qwen3-0.6B",
+      "kind": "checkpoint",
+      "hashes": {
+        "model.safetensors": "f47f71177f32bcd101b7573ec9171e6a57f4f4d31148d38e382306f42996874b"
+      }
+    },
+    "producer": {
+      "module": "dopd",
+      "version": "0.1.0",
+      "commit": "30594e3",
+      "command": "'python python3.12' --model Qwen/Qwen3-0.6B --device cuda --dtype float32 --k 16 --blocks 120 --seed 20261026 --bootstrap-seed 20261026 --bootstrap-iterations 10000 --progress-interval 20 --local-files-only --output modules/dopd/eval/j18_decision/results.json"
+    },
+    "config": {
+      "block_size": 4,
+      "candidate_k": 16,
+      "correctness_gate": true,
+      "denoising_steps": 4,
+      "max_response_length": 4000,
+      "scorer_dtype": "bfloat16",
+      "arithmetic_dtype": "float32",
+      "device": "cuda",
+      "dtype": "float32",
+      "k": 16,
+      "vocab_width": 16,
+      "mask_positions": [
+        0,
+        1,
+        2
+      ],
+      "seed": 20261026,
+      "bootstrap_seed": 20261026,
+      "bootstrap_iterations": 10000,
+      "blocks_per_prompt": 120,
+      "min_blocks_per_configuration": 100,
+      "min_marginals": 2000,
+      "budget_max_gpu_seconds": 14400,
+      "budget_max_gpu_bytes": 17179869184,
+      "scorer_load_precision": "float32"
+    },
+    "data": {
+      "prompt_file": "modules/dopd/eval/j18_decision/prompts.json",
+      "prompt_subset_hash": "593c32e5e376e88c37c79e94f1e9ce627229721026c800f0a1dfd8b35b203f35",
+      "n_prompts": 13,
+      "model_source": "/mnt/d/Intelligence_Artificielle/Projects/Academiia/_artefact/hf-cache/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca",
+      "model_source_in_repo": true,
+      "model_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "training.performed": false,
+      "training.backward": false,
+      "training.weights_updated": false,
+      "training.requires_grad_all_false": true
+    },
+    "verification": {
+      "numerical_integrity_met": true,
+      "no_regression": true,
+      "geometry": {
+        "n_prompts": 13,
+        "n_marginals": 4680,
+        "prefix_length_min": 12,
+        "prefix_length_max": 21,
+        "suffix_length_min": 1,
+        "suffix_length_max": 3,
+        "max_sum_error": 4.440892098500626e-16
+      },
+      "wall_seconds": 433.85,
+      "cuda_allocated_peak_bytes": 3016252928
+    }
+  }
+}
