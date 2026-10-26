@@ -1140,6 +1140,9 @@ d'entraînement pré-enregistré **distinct** de J17.
 
 ---
 
+### 6.10.8 Amendement de la règle de décision (R1, 2026-10-26)
+
+> **Décision architecte sur C2 / §6.10.7.** Le professeur est en **FP32** comme précision de production, et le rejeu intégral FP32 est la référence d'exactitude. **On autorise la poursuite** vers J18. La règle §6.10.7 est amendée pour l'avenir : tout critère hors liste NO-GO qui échoue impose une **décision explicite écrite** (ADR ou STATUS) ; le silence n'est pas un GO. Cette décision est **propre à J17** et ne préjuge pas des critères de J18.
 ### 6.11 Livraison J17 — `TeacherScorer` réel (état après exécution)
 
 > Cette section est **postérieure** aux runs : elle **publie** l'état livré.

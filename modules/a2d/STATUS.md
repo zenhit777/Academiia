@@ -105,6 +105,7 @@
 > le contenu poussé est sans secret, et les 8 commits suivants sont **locaux**.
 > Mise à jour du distant : **accord écrit requis**. Voir
 > `modules/dopd/docs/reports/J17.md` §6.3 et §8.1.
+> **R1 (2026-10-26) — Décision architecte sur C2 / §6.10.7.** Le professeur est en **FP32** comme précision de production, et le rejeu intégral FP32 est la référence d'exactitude. **On autorise la poursuite** vers J18. La règle §6.10.7 est amendée pour l'avenir : tout critère hors liste NO-GO qui échoue impose une **décision explicite écrite** (ADR ou STATUS) ; le silence n'est pas un GO. Cette décision est **propre à J17** et ne préjuge pas des critères de J18.
 
 Ce document est le **point d'entrée** pour savoir ce qui est démontré, ce qui ne l'est pas, et
 où se trouve chaque chose. Il remplace les statuts dispersés dans les rapports de mission ;
