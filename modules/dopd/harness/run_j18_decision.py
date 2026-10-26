@@ -57,7 +57,7 @@ import numpy as np  # noqa: E402
 import torch  # noqa: E402
 import transformers  # noqa: E402
 from scipy.stats import binomtest  # noqa: E402
-from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: E402
+from transformers import AutoTokenizer  # noqa: E402
 
 from academiia.core import sha256_file  # noqa: E402
 from academiia.dopd import DOPDConfig  # noqa: E402
@@ -176,6 +176,10 @@ def _gpu_peak_bytes() -> int:
         return int(torch.cuda.max_memory_allocated())
     return 0
 
+
+def _gpu_peak_gib() -> float:
+    """Mémoire GPU allouée cumulée (GiB), 0 si hors CUDA."""
+    return _gpu_peak_bytes() / 1024**3
 
 def _check_budget(started: float) -> None:
     """Arrêt automatique si le plafond temps/mémoire est dépassé (J18_PRE §5).
@@ -769,6 +773,14 @@ def _run_experiment(
                 suffix_lengths.append(record["suffix_length"])
                 max_sum_error = max(max_sum_error, record["max_sum_error"])
                 _check_budget(started)
+                if args.progress_interval > 0 and (block_index + 1) % args.progress_interval == 0:
+                    elapsed = time.monotonic() - started
+                    print(
+                        f"[j18] blocs {block_index + 1}/{args.blocks} | "
+                        f"{len(records)} marginaux | {elapsed:6.1f}s | "
+                        f"VRAM pic {_gpu_peak_gib():.1f} GiB",
+                        flush=True,
+                    )
 
     summary = {
         "n_prompts": len(prompts),
@@ -793,6 +805,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--k", type=int, default=K_CANDIDATES)
     parser.add_argument("--blocks", type=int, default=DEFAULT_BLOCKS_PER_PROMPT)
+    parser.add_argument(
+        "--progress-interval",
+        type=int,
+        default=20,
+        help="impression de progression toutes les N blocs (0 pour désactiver)",
+    )
     parser.add_argument(
         "--prompt-file", type=Path, default=DEFAULT_PROMPT_FILE, help="sous-ensemble de prompts"
     )
