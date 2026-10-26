@@ -107,19 +107,31 @@
 > `modules/dopd/docs/reports/J17.md` §6.3 et §8.1.
 > **R1 (2026-10-26) — Décision architecte sur C2 / §6.10.7.** Le professeur est en **FP32** comme précision de production, et le rejeu intégral FP32 est la référence d'exactitude. **On autorise la poursuite** vers J18. La règle §6.10.7 est amendée pour l'avenir : tout critère hors liste NO-GO qui échoue impose une **décision explicite écrite** (ADR ou STATUS) ; le silence n'est pas un GO. Cette décision est **propre à J17** et ne préjuge pas des critères de J18.
 >
-> **Audit J18 (2026-10-26)** : le rapport `modules/dopd/docs/reports/AUDIT_J18.md`
-> certifie la **décision GO** de J18 (C1–C10 tenus) mais relève **sept écarts** de
-> traçabilité et de communication : référence d'exactitude déclarée « rejeu
-> intégral FP32 » alors que le chemin exécuté est celui du cache de préfixe ;
-> C4 (« test des signes **par prompt** ») mesuré sur les marginaux token ;
+> **Audit J18 (2026-10-26, corrigé le 2026-10-27)** : le journal
+> `modules/dopd/docs/reports/AUDIT_J18.md` **ne certifie pas** la décision GO de
+> J18. L'audit initial (2026-10-26) avait certifié le GO au sens des critères
+> pré-enregistrés ; une revue d'opposition indépendante, puis un contre-test
+> reproduit sur le vrai Qwen3-0.6B, ont établi un **écart critique** : dans la
+> géométrie J18 (un seul masque, toutes les autres positions du bloc visibles),
+> la cible future-aware **coïncide avec la posterior exacte** (4,5e-10 près),
+> donc `future_kl ≡ 0` et `ΔKL ≡ KL(exact‖causal) ≥ 0` **par construction**.
+> Les critères C1–C4 sont des **identités**, non des observations ; l'amplitude
+> ΔKL ≈ 3,05 mesure le désaccord exact/causal sur un bloc atypique (tirage
+> uniforme au lieu de pondéré par `log_joint`), pas un gain de la correction
+> future-aware. **Le GO de J18 n'est pas reportable sur J19** : la mesure doit
+> être reconstruite (futur échantillonné séparément, convention J15) puis
+> re-lancer. S'y ajoutent **onze écarts** de traçabilité et de communication
+> (référence d'exactitude déclarée « rejeu intégral FP32 » alors que le chemin
+> exécuté est celui du cache de préfixe ; C4 mesuré sur les marginaux token ;
 > `producer.command` non rejouable ; « sans réserve » et « 120 blocs/config »
 > non étayés ; `mean_causal_kl`/`mean_future_kl` absents du manifeste
 > (correctif **différé à J19**, `diagnostic.py` étant hors périmètre et protégé
-> par C10) ; suite de tests ne pinne ni la construction future-aware ni
-> l'unité de bootstrap (prouvé par injection de fautes) ; horloges de mesure
-> mélangées. **Aucun résultat, seuil ni verdict G1 n'est modifié** ; le
-> pré-enregistrement J18 reste intact. Voir
-> `modules/dopd/docs/reports/AUDIT_J18.md`.
+> par C10) ; `artifact.hashes` vide et C7 infalsifiable ; `correctness_gate`
+> déclaré actif sans vérificateur ; `arithmetic_dtype` faux (float64) ;
+> suite de tests ne pinne ni la construction future-aware ni l'unité de
+> bootstrap (prouvé par injection de fautes) ; horloges de mesure mélangées).
+> **Aucun résultat, seuil ni verdict G1 n'est modifié** ; le pré-enregistrement
+> J18 reste intact. Voir `modules/dopd/docs/reports/AUDIT_J18.md`.
 
 Ce document est le **point d'entrée** pour savoir ce qui est démontré, ce qui ne l'est pas, et
 où se trouve chaque chose. Il remplace les statuts dispersés dans les rapports de mission ;
