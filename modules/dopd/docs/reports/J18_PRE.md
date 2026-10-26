@@ -15,7 +15,9 @@ Expérience de **décision à budget borné**, pas campagne d'entraînement. Com
 - Un seul passage sur un sous-ensemble réduit de prompts (≤ 50) ;
 - Scoring du `TeacherScorer` réel en FP32 avec rejeu intégral FP32 comme référence ;
 - Mesure de l'effet future-aware (ΔKL, médiane, queue nuisible) sur la géométrie d'entraînement réelle (préfixes courts 12–21 tokens) ;
-- Décision GO / NO-GO pour un `StudentPolicy` réduit.
+
+> **Note N2 :** J18 ne livre **aucun** `StudentPolicy`. Il mesure uniquement l'effet future-aware en inférence (TeacherScorer FP32) et décide si cet effet justifie d'**ouvrir** un `StudentPolicy` réduit en J19. La décision GO/NO-GO porte sur l'ouverture, pas sur la livraison d'un élève.
+- Décision GO / NO-GO pour **ouvrir** un `StudentPolicy` réduit en J19.
 
 **Ce que J18 ne fait pas :**
 - Aucun `StudentPolicy` complet ;
@@ -62,7 +64,8 @@ La géométrie réellement utilisée est **explicitement préfixée** :
 - **Interprétation :** l'effet est réel sur le sous-ensemble réduit.
 
 ### C2 — Médiane de ΔKL > 0
-- **Seuil :** médiane per-marginal `> 0`.
+- **Seuil :** médiane per-marginal `> 0` (restreinte aux marginaux à futur visible). Les marginaux sans futur visible ont ΔKL = 0 par construction (la correction future-aware est structurellement inactive) ; les exclure du calcul de la médiane évite un échec artificiel.
+- **Note N2 :** un échec isolé de C2 alors que C1 est tenu tombe dans le cas **« GO conditionnel »** déjà prévu dans la table §4 (réserve « effet porté par une queue »). Il n'est pas un NO-GO.
 - **Rappel J15/J16 :** la médiane était nulle (42,788 % de marginaux structurellement nuls). Ce critère est conservé pour vérifier que le sous-ensemble réduit ne reproduit pas l'artefact.
 
 ### C3 — Proportion de prompts significatifs ≥ 0,5
@@ -98,9 +101,9 @@ La géométrie réellement utilisée est **explicitement préfixée** :
 
 | Condition | Décision |
 |---|---|
-| C1–C5 tenus, C6–C10 tenus | **GO** pour un `StudentPolicy` réduit (≤ 0,6B) |
+| C1–C5 tenus, C6–C10 tenus | **GO** pour **ouvrir** un `StudentPolicy` réduit (≤ 0,6B) en J19 |
 | C1 non tenu | **NO-GO** : l'effet future-aware n'est pas significatif sur le sous-ensemble ; J18 s'arrête à la documentation |
-| C2 ou C3 fragiles (médiane ≤ 0 ou proportion < 0,5) mais C1 tenu | **GO conditionnel** — réserve explicite : l'effet est porté par une queue ; un `StudentPolicy` doit confirmer sur plus de prompts/échelles avant implémentation |
+| C2 ou C3 fragiles (médiane ≤ 0 ou proportion < 0,5) mais C1 tenu | **GO conditionnel** — réserve explicite : l'effet est porté par une queue ; un `StudentPolicy` doit confirmer sur plus de prompts/échelles avant d'**ouvrir** en J19 |
 | Tout critère hors liste NO-GO (C6–C10) échoue | **Décision explicite écrite** (ADR ou STATUS) requise ; le silence n'est pas un GO. Cette règle est l'amendement R1 (§6.10.8 de DOPD_SPEC.md). |
 
 ---
@@ -113,6 +116,14 @@ La géométrie réellement utilisée est **explicitement préfixée** :
 | Mémoire GPU pic | **≤ 16 GiB** (sur 32 Go total) | `torch.cuda.max_memory_allocated()` vérifié après chaque batch ; dépassement → arrêt immédiat |
 | Nombre de prompts | **≤ 50** (sous-ensemble réduit du jeu J15) | Aucun prompt supplémentaire n'est ajouté a posteriori |
 | Branches par job | **≤ 33** (union ≤ 32 + référence) | §3.6 du papier : le lot est réduit au-delà de 16 GiB de cache étendu |
+### 5b. Sous-ensemble de prompts — fixation déterministe et versionnée
+
+Le sous-ensemble **≤ 50 prompts** doit être fixé **avant le premier run**, de façon **déterministe et reproductible**. Deux options équivalentes :
+
+- **Option A (liste explicite) :** un fichier `modules/dopd/eval/j18_decision/prompts.json` versionné contenant la liste exacte des prompts ;
+- **Option B (graine + source) :** graine figée (§ 1), fichier de prompts source J15 (`modules/dopd/eval/annexe_d_qwen3_0.6b_multiprompt/prompts.json`) et commande de sélection reproductible (ex. `python -c "import json, random; ..."`).
+
+**Aucune sélection post-hoc n'est autorisée.** Le sous-ensemble doit être consigné dans le manifeste ADR-002 (`lineage.data.prompt_subset_hash`).
 
 ---
 
