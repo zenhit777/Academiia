@@ -2,7 +2,8 @@
 
 T1 identité / non-dégénérescence, T2 mutation F4, T3 mutation F3, T4 équivalence
 ligne-à-ligne inline ↔ paquet, T5 branches d'échec et issues §4.5, T6 float32
-réellement appliquée, T7 séparation tests purs / torch.
+réellement appliquée, T7 séparation tests purs / torch, R-J18R-01…04 corrections bloquantes
+(revue N1 sur `c42dab7`).
 
 Aucun `import torch` ici : le harnais est chargé par chemin (il n'importe que NumPy
 et le paquet) et le fixture de scoring est un fake duck-typed. Les tests qui
@@ -14,6 +15,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -312,17 +314,45 @@ def test_t5_incomplete_required_arm_gives_invalide_not_no_go() -> None:
     assert "bras requis incomplet" in decision["failed_criteria"]
 
 
-def test_t5_reserves_are_evaluated_on_decision_publications() -> None:
-    publications = {
-        "median_delta_kl_visible_future": -0.01,
-        "degraded_fraction": 0.6,
-        "per_noise": {"1.0": {"mean_delta_kl": -0.02}, "1.5": {"mean_delta_kl": 0.03}},
+def _reserves(per_noise: dict[str, dict[str, object]]) -> dict[str, bool]:
+    """R_a/R_b fixés, R_c variable : isole la réserve §4.2 du reste."""
+    return j18r.evaluate_reserves(
+        {"median_delta_kl_visible_future": -0.01, "degraded_fraction": 0.6, "per_noise": per_noise}
+    )
+
+
+def test_t5_reserves_a_and_b_use_median_and_degraded_fraction() -> None:
+    reserves = _reserves({"1.0": {"mean_delta_kl": 0.03}, "1.5": {"mean_delta_kl": 0.03}})
+    assert reserves["R_a"] is True and reserves["R_b"] is True
+    assert j18r.evaluate_reserves({"median_delta_kl_visible_future": 0.02, "degraded_fraction": 0.3}) == {
+        "R_a": False,
+        "R_b": False,
+        "R_c": False,
     }
-    reserves = j18r.evaluate_reserves(publications)
-    assert reserves == {"R_a": True, "R_b": True, "R_c": True}
-    assert j18r.evaluate_reserves(
-        {"median_delta_kl_visible_future": 0.02, "degraded_fraction": 0.3, "per_noise": {"1.0": {"mean_delta_kl": 0.05}}}
-    ) == {"R_a": False, "R_b": False, "R_c": False}
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-01 — réserve R_c : quantificateur universel sur les niveaux attendus (§4.2)
+# ---------------------------------------------------------------------------
+
+
+def test_r_j18r_01_reserve_c_is_universal_not_existential() -> None:
+    """PRE §4.2 « pour tout σ ≥ 1,0 » : un seul niveau positif empêche la réserve."""
+    assert _reserves({"1.0": {"mean_delta_kl": -0.02}, "1.5": {"mean_delta_kl": 0.03}})["R_c"] is False
+
+
+def test_r_j18r_01_reserve_c_holds_when_all_expected_levels_are_non_positive() -> None:
+    assert _reserves({"1.0": {"mean_delta_kl": -0.02}, "1.5": {"mean_delta_kl": 0.0}})["R_c"] is True
+
+
+def test_r_j18r_01_reserve_c_does_not_hold_without_non_positive_levels() -> None:
+    assert _reserves({"1.0": {"mean_delta_kl": 0.05}, "1.5": {"mean_delta_kl": 0.02}})["R_c"] is False
+
+
+def test_r_j18r_01_reserve_c_stays_untriggered_on_incomplete_data() -> None:
+    """Niveau attendu absent (grille figée §1.2) : pas de réserve sur données partielles."""
+    assert _reserves({"1.0": {"mean_delta_kl": -0.02}})["R_c"] is False
+    assert _reserves({})["R_c"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -429,4 +459,226 @@ def test_t7_torch_tests_are_isolated_in_a_separate_file() -> None:
     assert torch_file.is_file()
     source = torch_file.read_text(encoding="utf-8")
     assert re.search(r"^torch = pytest\.importorskip\(", source, flags=re.MULTILINE)
+
+# ---------------------------------------------------------------------------
+# R-J18R-02 — C1 : critère agrégé ; les niveaux par σ restent des publications (§4.2)
+# ---------------------------------------------------------------------------
+
+
+def _row(arm: str, prompt: str, config_index: int, block_index: int, noise: float, delta: float) -> dict:
+    """Observation brute sur les champs de `RECORD_FIELDS` (`delta_kl = causal - future`)."""
+    return {
+        "arm": arm,
+        "prompt": prompt,
+        "config_index": config_index,
+        "block_index": block_index,
+        "position": block_index * 4,
+        "noise": float(noise),
+        "visible_future": True,
+        "causal_kl": float(delta),
+        "future_kl": 0.0,
+        "delta_kl": float(delta),
+        "full_kl": float(delta) + 0.02,
+        "prod_kl_teacheron": float(delta) + 0.03,
+        "delta_kl_teacheron": float(delta) + 0.03,
+        "n_candidates": 4,
+        "mass_teacher": 1.0,
+        "mass_student": 0.95,
+    }
+
+
+def test_r_j18r_02_c1_holds_on_the_aggregate_when_one_noise_level_fails() -> None:
+    """PRE §4.2 : C1 = agrégat > 0 et IC excluant zéro ; un σ non significatif ne le durcit pas."""
+    records = [
+        *[_row("decision", f"p{index:02d}", 0, index, 0.0, 0.10) for index in range(40)],
+        *[_row("decision", f"p{index:02d}", 0, index, 1.0, -0.02) for index in range(40)],
+    ]
+    publications = j18r.arm_publications(
+        j18r.observations_from_records(records), arm="decision", bootstrap_seed=11, iterations=300
+    )
+    c1 = j18r.criterion_c1(records, publications, bootstrap_seed=11, iterations=300)
+    # chaque bloc de base (prompt, config, bloc) est positif : l'IC agrégé exclut zéro
+    assert c1["aggregate"]["ci95"][0] > 0.0
+    failing = sorted(key for key, entry in c1["per_noise"].items() if not entry["holds"])
+    assert failing == ["1.0"]
+    assert c1["holds"] is True
+    # la publication par σ et le critère distinct `C1_sigma_positive` restent publiés
+    assert publications.get("c1_by_noise", {}).get("sigma_positive_only")
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-03 — C4 : effectif du contrôle = échantillon figé §1.5, pas la liste des prompts
+# ---------------------------------------------------------------------------
+
+
+def _control_records() -> list[dict]:
+    return [
+        _row("control", prompt, config_index, block_index, 0.0, 0.001)
+        for config_index in range(len(j18r.CONTROL_CONFIGS))
+        for prompt in j18r.CONTROL_PROMPTS
+        for block_index in j18r.CONTROL_BLOCKS
+    ]
+
+
+def _decision_records(n_prompts: int = 20, blocks: int = 100) -> list[dict]:
+    return [
+        _row("decision", f"p{prompt:02d}", config_index, block_index, 0.0, 0.05)
+        for config_index in range(len(j18r.DECISION_CONFIGS))
+        for prompt in range(n_prompts)
+        for block_index in range(blocks)
+    ]
+
+
+def test_r_j18r_03_control_effectif_uses_the_frozen_sample_not_the_prompt_list() -> None:
+    """Une liste complète de 20 prompts ne doit pas faire attendre 60 blocs au contrôle."""
+    publications = {
+        "control": j18r.arm_publications(
+            j18r.observations_from_records(_control_records()), arm="control", bootstrap_seed=5, iterations=25
+        ),
+        "decision": j18r.arm_publications(
+            j18r.observations_from_records(_decision_records()), arm="decision", bootstrap_seed=5, iterations=25
+        ),
+    }
+    c4 = j18r.criterion_c4(publications, blocks=100, n_prompts=20)
+    assert c4["holds"] is True
+    control_entries = [entry for key, entry in c4["per_config"].items() if key.startswith("control/")]
+    decision_entries = [entry for key, entry in c4["per_config"].items() if key.startswith("decision/")]
+    assert len(control_entries) == 2 and len(decision_entries) == 2
+    assert all(
+        entry["expected_blocks_sampled"] == len(j18r.CONTROL_PROMPTS) * len(j18r.CONTROL_BLOCKS)
+        for entry in control_entries
+    )
+    assert all(entry["expected_blocks_sampled"] == 20 * 100 for entry in decision_entries)
+
+
+def test_r_j18r_03_control_c4_still_fails_on_an_incomplete_sample() -> None:
+    """C4 n'est pas devenu permissif : un bloc de contrôle manquant fait échouer le critère."""
+    incomplete = [row for row in _control_records() if not (row["prompt"] == "p03" and row["block_index"] == 2)]
+    publications = {
+        "control": j18r.arm_publications(
+            j18r.observations_from_records(incomplete), arm="control", bootstrap_seed=5, iterations=25
+        )
+    }
+    c4 = j18r.criterion_c4(publications, blocks=100, n_prompts=20)
+    assert c4["holds"] is False
+    entry = c4["per_config"]["control/0"]
+    assert entry["n_blocks_sampled"] == 8 and entry["expected_blocks_sampled"] == 9
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-04 — N6 conditionné par `--n6-chat-template`, dans le plan et dans l'exécution (§6)
+# ---------------------------------------------------------------------------
+
+
+class _FakeTorchModule:
+    __version__ = "2.12.0-fake"
+
+    class cuda:
+        @staticmethod
+        def is_available() -> bool:
+            return False
+
+
+class _FakeTransformersModule:
+    __version__ = "5.10.2-fake"
+
+    class AutoTokenizer:
+        @staticmethod
+        def from_pretrained(name):
+            return "fake-tokenizer"
+
+
+class _FakeModel:
+    training = False
+
+    def parameters(self) -> list:
+        return []
+
+
+class _FakeScorerModule:
+    class Qwen3TeacherScorer:
+        def __init__(self, model, tokenizer) -> None:
+            self.model = model
+            self.tokenizer = tokenizer
+
+    def load_teacher(self, model, device=None, dtype=None):
+        return _FakeModel(), "fake-source"
+
+
+def _fake_execute_environment(monkeypatch) -> list[str]:
+    """Exécution sans torch ni GPU : seules les collaborations externes sont simulées."""
+    called: list[str] = []
+    monkeypatch.setattr(j18r, "_torch", lambda: _FakeTorchModule)
+    monkeypatch.setattr(j18r, "_transformers", lambda: _FakeTransformersModule)
+    monkeypatch.setattr(j18r, "load_scorer_module", lambda: _FakeScorerModule())
+    monkeypatch.setattr(j18r, "verify_model_source_in_repo", lambda model, root: {"model_source_in_repo": True})
+    monkeypatch.setattr(j18r, "run_arm_subprocess", lambda invocation, root: 0)
+
+    def fake_records(arm: str) -> list[dict]:
+        return [
+            _row(arm, f"p{prompt:02d}", 0, block_index, 0.0, 0.05) for prompt in range(2) for block_index in range(3)
+        ]
+
+    def publications_for(arm: str, records: list[dict]) -> dict[str, object]:
+        return j18r.arm_publications(
+            j18r.observations_from_records(records), arm=arm, bootstrap_seed=5, iterations=25
+        )
+
+    def fake_ingest(path, arm):
+        return fake_records(arm)
+
+    def fake_run_arm(**kwargs):
+        arm = str(kwargs["arm"])
+        called.append(arm)
+        records = fake_records(arm)
+        return {"arm": arm, "records": records, "publications": publications_for(arm, records), "complete": True}
+
+    monkeypatch.setattr(j18r, "ingest_arm_shard", fake_ingest)
+    monkeypatch.setattr(j18r, "run_arm", fake_run_arm)
+    return called
+
+
+def _scratch_output_dir(name: str) -> Path:
+    """Sortie de test dans `_artefact/` (règle 9) ; `ArtifactRef` exige un chemin relatif au dépôt."""
+    out = Path("_artefact") / "j18r_decision_tests" / name
+    resolved = j18r._REPO_ROOT / out
+    if resolved.exists():
+        shutil.rmtree(resolved)
+    resolved.mkdir(parents=True, exist_ok=True)
+    return out
+
+
+def test_r_j18r_04_execute_skips_n6_when_the_flag_is_absent(monkeypatch) -> None:
+    called = _fake_execute_environment(monkeypatch)
+    out = _scratch_output_dir("n6_absent")
+    argv = ["--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25"]
+    args = j18r.build_parser().parse_args(argv)
+    outcome = j18r.execute(args, argv)
+    assert called == ["control", "decision"]
+    results = json.loads((j18r._REPO_ROOT / out / "results.json").read_text(encoding="utf-8"))
+    assert "n6_chat_template" not in results["arms"]
+    assert "arm_n6.json" not in outcome["shards"]
+    assert not [key for key in results["criteria"]["C4"]["per_config"] if key.startswith("n6_chat_template/")]
+    # le plan et l'exécution partagent la même sélection, dans le même ordre (délégués puis exécutés)
+    assert list(j18r.dry_run_plan(argv)["arms"]) == ["anchor", "sensitivity_fp32", "control", "decision"]
+
+
+def test_r_j18r_04_execute_runs_n6_when_the_flag_is_present(monkeypatch) -> None:
+    called = _fake_execute_environment(monkeypatch)
+    out = _scratch_output_dir("n6_present")
+    argv = ["--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25", "--n6-chat-template"]
+    args = j18r.build_parser().parse_args(argv)
+    outcome = j18r.execute(args, argv)
+    assert called == ["control", "decision", "n6_chat_template"]
+    results = json.loads((j18r._REPO_ROOT / out / "results.json").read_text(encoding="utf-8"))
+    assert "n6_chat_template" in results["arms"]
+    assert "arm_n6.json" in outcome["shards"]
+    assert [key for key in results["criteria"]["C4"]["per_config"] if key.startswith("n6_chat_template/")]
+    assert list(j18r.dry_run_plan(argv)["arms"]) == [
+        "anchor",
+        "sensitivity_fp32",
+        "control",
+        "decision",
+        "n6_chat_template",
+    ]
 

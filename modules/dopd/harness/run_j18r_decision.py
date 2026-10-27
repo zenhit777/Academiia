@@ -121,6 +121,10 @@ CRITERIA_KEYS: tuple[str, ...] = ("C4", "C5", "C6", "C7", "C8", "C9", "C10")
 RESERVE_KEYS: tuple[str, ...] = ("R_a", "R_b", "R_c")
 DECISION_STATUSES: tuple[str, ...] = ("STOP", "INVALIDE", "GO", "GO conditionnel", "NO-GO")
 
+#: §4.2 R_c — niveaux attendus de la grille figée §1.2 (σ ≥ 1,0) : la réserve est
+#: universelle et ne se lève pas sur des données incomplètes.
+RESERVE_C_NOISE_LEVELS: tuple[float, ...] = tuple(noise for noise in NOISE_LEVELS if noise >= 1.0)
+
 # ---------------------------------------------------------------------------
 # §7 — budgets et gouvernance
 # ---------------------------------------------------------------------------
@@ -1182,11 +1186,19 @@ def decide_j18r_issue(criteria: Mapping[str, object], reserves: Mapping[str, boo
 
 
 def evaluate_reserves(publications: Mapping[str, object]) -> dict[str, bool]:
-    """Réserves §4.2 sur le bras de décision (R_a, R_b, R_c)."""
+    """Réserves §4.2 sur le bras de décision (R_a, R_b, R_c).
+
+    R_c est un quantificateur **universel** : elle n'est levée que si chaque niveau
+    attendu `σ ≥ 1,0` de la grille figée est présent dans `per_noise` **et** y a une
+    moyenne `≤ 0`. Un niveau attendu absent = données incomplètes : pas de réserve.
+    """
     per_noise = publications.get("per_noise") or {}
-    reserve_c = any(
-        noise >= 1.0 and (values.get("mean_delta_kl") is not None and values["mean_delta_kl"] <= 0.0)
-        for noise, values in ((float(key), value) for key, value in per_noise.items())
+    means = {float(key): value for key, value in per_noise.items()}
+    reserve_c = all(
+        level in means
+        and means[level].get("mean_delta_kl") is not None
+        and float(means[level]["mean_delta_kl"]) <= 0.0
+        for level in RESERVE_C_NOISE_LEVELS
     )
     return {
         "R_a": bool(publications.get("median_delta_kl_visible_future", float("nan")) <= 0.0),
@@ -1528,6 +1540,21 @@ ARM_CONFIGS: dict[str, tuple[tuple[int, ...], ...]] = {
     "n6_chat_template": DECISION_CONFIGS,
 }
 
+#: §6 : bras exécutés par `execute` — N6 (non décisionnel) est conditionné par le
+#: drapeau `--n6-chat-template`, dans le plan comme dans l'exécution.
+DELEGATED_ARMS: tuple[str, ...] = ("anchor", "sensitivity_fp32")
+EXECUTED_ARMS: tuple[str, ...] = ("control", "decision", "n6_chat_template")
+
+
+def executed_arms(args: argparse.Namespace) -> tuple[str, ...]:
+    """Bras réellement exécutés : N6 uniquement si `--n6-chat-template` est présent (§6)."""
+    return tuple(arm for arm in EXECUTED_ARMS if arm != "n6_chat_template" or args.n6_chat_template)
+
+
+def planned_arms(args: argparse.Namespace) -> tuple[str, ...]:
+    """Bras du plan : les délégués toujours (§7.3b), les exécutés selon le drapeau N6 (§6)."""
+    return tuple(DELEGATED_ARMS) + executed_arms(args)
+
 
 def arm_dtype(args: argparse.Namespace, arm: str) -> str:
     """dtype effectif d'un bras (§7.3) : choisi par bras, pas par modèle."""
@@ -1647,13 +1674,21 @@ def control_metrics(records: list[dict]) -> dict[str, object]:
     }
 
 
+def expected_blocks_per_config(arm: str, n_prompts: int, blocks: int) -> int:
+    """Effectif attendu d'un bras (§3.2) : le contrôle est l'échantillon déterministe
+    figé §1.5 (3 prompts x 3 blocs), il ne dépend pas de la liste complète des prompts."""
+    if arm == "control":
+        return len(CONTROL_PROMPTS) * len(CONTROL_BLOCKS)
+    return int(n_prompts) * int(blocks)
+
+
 def criterion_c4(publications: Mapping[str, Mapping[str, object]], blocks: int, n_prompts: int) -> dict[str, object]:
     """C4 : effectifs par configuration et blocs de base (§3.2, §4.4)."""
     per_config: dict[str, object] = {}
     holds = True
     for arm, values in publications.items():
         for config, counts in (values.get("block_counts") or {}).items():
-            expected_blocks = n_prompts * (len(CONTROL_BLOCKS) if arm == "control" else blocks)
+            expected_blocks = expected_blocks_per_config(arm, n_prompts, blocks)
             ok = int(counts["n_blocks_sampled"]) == expected_blocks and int(counts["n_distinct_block_indices"]) <= (
                 len(CONTROL_BLOCKS) if arm == "control" else blocks)
             if arm in ("decision", "n6_chat_template"):
@@ -1763,18 +1798,15 @@ def criterion_c1(
     bootstrap_seed: int,
     iterations: int,
 ) -> dict[str, object]:
-    """C1 : effet moyen > 0 avec IC 95 % strictement positif, par niveau de bruit."""
+    """C1 : agrégat (tous σ) > 0 avec IC 95 % excluant zéro ; par σ = publication (§4.2)."""
     aggregate = bootstrap_delta_ci(records, bootstrap_seed, iterations, group_fields=GROUP_FIELDS)
     mean = summarize_marginals(records)["mean_delta_kl"]
     by_noise = {key: value for key, value in (publications.get("c1_by_noise") or {}).items() if key != "sigma_positive_only"}
     sigma_positive = (publications.get("c1_by_noise") or {}).get("sigma_positive_only") or {}
     return {
-        "holds": bool(
-            mean is not None
-            and mean > 0.0
-            and aggregate[0] > 0.0
-            and all(bool(value.get("holds")) for value in by_noise.values())
-        ),
+        # §4.2 et PRE-B5 : C1 est le critère agrégé ; `per_noise` est une publication
+        # obligatoire et `C1_sigma_positive` un critère distinct. Aucun durcissement.
+        "holds": bool(mean is not None and mean > 0.0 and aggregate[0] > 0.0),
         "aggregate": {"mean_delta_kl": mean, "ci95": [float(aggregate[0]), float(aggregate[1])]},
         "per_noise": {key: dict(value) for key, value in sorted(by_noise.items())},
         "sigma_positive_only": dict(sigma_positive),
@@ -1837,7 +1869,7 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
         }
         produced[ARM_SHARDS[arm]] = write_json(output_dir / ARM_SHARDS[arm], arms[arm])
 
-    for arm in ("control", "decision", "n6_chat_template"):
+    for arm in executed_arms(args):
         result = run_arm(
             arm=arm,
             args=args,
@@ -2000,13 +2032,7 @@ def dry_run_plan(argv: Sequence[str]) -> dict[str, object]:
     """Plan exécutable sans torch : bras, configurations, mémoire estimée (§1.1, §7.8)."""
     args = build_parser().parse_args(argv)
     arms: dict[str, object] = {}
-    for arm, configs in (
-        ("anchor", ANCHOR_CONFIGS),
-        ("sensitivity_fp32", SENSITIVITY_CONFIGS),
-        ("decision", DECISION_CONFIGS),
-        ("control", CONTROL_CONFIGS),
-        ("n6_chat_template", DECISION_CONFIGS if args.n6_chat_template else ()),
-    ):
+    for arm, configs in ((arm, ARM_CONFIGS[arm]) for arm in planned_arms(args)):
         estimates = {}
         for config in configs:
             block_size, vocab_width = config[0], config[1]
