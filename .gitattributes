@@ -1,0 +1,13 @@
+# Politique de fins de ligne (audit externe R1, 2026-10-27) : LF imposé.
+# Les empreintes sha256 figées (`J18R_PRE.md` §9.2, `AUDIT_J18.md`) sont calculées
+# sur la représentation LF des objets Git. Une extraction CRLF (archive Windows)
+# peut faire échouer un contrôle d'octets bruts sans altérer le contenu logique.
+# Aucun historique n'est renormalisé : les artefacts scientifiques (results.json
+# J14–J18) restent bit-identiques.
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sh text eol=lf

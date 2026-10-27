@@ -1,0 +1,19 @@
+{
+  "kind": "dopd_superseded_notice",
+  "supersedes": {
+    "path": "modules/dopd/eval/j18_decision/results.json",
+    "sha256": "4e891a3d9cd54b26f351e629e6dc38b13d46525911db275664b2a425d9fa225e"
+  },
+  "reason": "Ecart H (critique) de l'audit J18 : dans la geometrie un-masque, la cible future-aware est la posterior exacte (4,5e-10 pres) ; future_kl = 0 et dKL = KL(exact||causal) par construction ; le GO de J18 n'est pas certifie et n'est pas transferable a J19.",
+  "audit": {
+    "path": "modules/dopd/docs/reports/AUDIT_J18.md",
+    "sha256": "0e211490a2bb99650c3f7226f320206c4287c5a02fb6657f82c3cf45d302eaae",
+    "sections": ["§0 ecart H", "§7.1 verdict corrige (2026-10-27)"]
+  },
+  "replacement": {
+    "preregistration": "modules/dopd/docs/reports/J18R_PRE.md",
+    "results": "modules/dopd/eval/j18r_decision/results.json (livre en phase 2 de J18R)"
+  },
+  "status": "superseded — ne pas s'appuyer sur le GO de J18",
+  "date": "2026-10-27"
+}

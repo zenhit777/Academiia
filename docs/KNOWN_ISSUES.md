@@ -1,5 +1,15 @@
  # KNOWN_ISSUES.md — Anomalies du checkpoint Jainius (rebuild v2 en place, 2026-10-17)
 
+## ℹ️ Fins de ligne — politique LF (2026-10-27, audit externe R1)
+
+- `.gitattributes` impose `eol=lf` sur `*.py`, `*.md`, `*.json`, `*.toml`, `*.yml`,
+  `*.yaml`, `*.sh`. Aucun historique n'est renormalisé : les artefacts scientifiques
+  dont l'empreinte est figée (`J18R_PRE.md` §9.2) ne sont pas réécrits.
+- Conséquence de lecture : ces sha256 sont ceux de la **représentation LF** des objets
+  Git. Une extraction CRLF (archive Windows, `core.autocrlf=true`) peut faire échouer un
+  contrôle d'octets bruts alors que le contenu logique est intact ; vérifier sur
+  `git show HEAD:<chemin> | sha256sum`, pas sur le fichier extrait.
+
 ## 🆕 Mission J8 (2026-10-21) — clôture scientifique de G1, bibliothèque durcie, legacy déplacé
 
 - **Bilan G1** : `modules/a2d/docs/reports/G1_BILAN.md` — verdict **G1 NON FRANCHIE** inchangé (aucun seuil
