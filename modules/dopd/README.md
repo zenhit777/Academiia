@@ -9,14 +9,21 @@ d'interface** (professeur, rollout, vérificateur, lignée), en NumPy pur (CPU).
 Il ne contient **aucun** entraînement, aucun rollout réel, aucun scoring réel
 et n'importe pas `academiia.a2d`.
 
+**J18R phase 1 (2026-10-27)** : le harnais de décision et les tests T1–T8 sont livrés et la CI est
+verte ; **aucun run GPU, aucune décision GO/NO-GO** — la phase 2 reste bloquée jusqu'à l'acceptation
+écrite du pré-enregistrement (§11). `--dry-run` affiche le plan (bras, configurations, shards, estimation
+de pic RAM) sans charger torch.
+
 | Élément | Contenu |
 |---|---|
 | `dopd/` | paquet `academiia.dopd` : `config.py`, `target.py`, `interfaces.py` |
-| `harness/` | scripts **hors paquet** (autorisés à utiliser torch) : `smoke_qwen3.py` |
+| `harness/` | scripts **hors paquet** (autorisés à utiliser torch) : `smoke_qwen3.py`, `diagnostic_annexe_d.py`, `teacher_scorer_qwen3.py`, `run_j18r_decision.py` (harnais de décision J18R — voie NumPy sans torch, refuse tout run sans `--confirm-accepted`) |
 | `docs/DOPD_SPEC.md` | brief de conception (problème, méthode, interfaces, périmètre) |
 | `docs/reports/J12.md` | rapport de mission J12 |
 | `docs/reports/J13.md` | rapport de mission J13 (interfaces + smoke) |
-| `tests/` | tests CPU (import, ADR-001, cible, interfaces) |
+| `docs/reports/J18R_PRE.md` | pré-enregistrement **figé** du protocole J18R (géométrie, cibles, critères, phases) |
+| `docs/reports/J18R.md` | rapport de mission J18R — **phase 1** (harnais + tests), aucune décision |
+| `tests/` | tests CPU (import, ADR-001, cible, interfaces) + tests J18R : T1–T7 **purs** (`test_dopd_harness_j18r_decision.py`, aucun `import torch`) et T8 isolé sous torch (`test_dopd_harness_j18r_torch.py`, `importorskip` au niveau fichier) |
 
 La cible applique le contrat numérique du papier (App. B) : deltas, facteurs
 `exp(Δs)`, poids et normaliseur **plein vocabulaire** sont calculés en
