@@ -3,6 +3,7 @@
 **Date :** 2026-10-27
 **Statut :** figé avant tout code producteur, tout run (GPU ou CPU) et tout résultat. Toute modification après un résultat vaut nouveau protocole, pas correction de rapport.
 **Ancêtre du code producteur :** HEAD `f7f1fcc` (audit J18 corrigé, 2026-10-27).
+**Révision N2 (2026-10-27) :** amendement B1–B4 + S1–S3 intégré **avant tout code producteur et tout run** — ancrage C9 en BF16 aligné J15 (clause agrégée ≤ 5e-3 + contrôle marginal), plafond RAM 24 GiB + construction économe du support, issue `INVALIDE` distincte de `NO-GO`, rôles de revue corrigés (N1 = Grok ; N2 = Claude/Sonnet + acceptation écrite utilisateur), publication par σ / GO conditionnel, masse captée. Chaque amendement est tracé dans §0.4 ; le document reste **figé avant tout code / run** (§11).
 **Aucun code J18R, aucun run, aucun commit de code ne sont autorisés tant que ce pré-enregistrement n'aura pas été accepté par accord écrit explicite de l'utilisateur.**
 
 ---
@@ -28,8 +29,11 @@
    J18R. Le contraste « uniforme vs pondéré » n'est **pas** un critère J18R : il
    relève d'une ablation ultérieure (mission distincte, hors périmètre).
 4. **Écart F de l'audit initial : retiré.** Le support construit sur le mélange
-   pondéré des préfixes restreints (Annexe D.1, eq. 21) est **conforme** ;
-   `_build_restricted_support` est réutilisé tel quel.
+   pondéré des préfixes restreints (Annexe D.1, eq. 21) est **conforme** ; la
+   définition mathématique est inchangée. Le chemin J15 (`_build_restricted_support`)
+   est réutilisé tel quel pour les bras ancrage/sensibilité (§1.1) ; les bras
+   décision/contrôle/N6 utilisent une construction économe numériquement
+   équivalente (B2, §1.1, test T8).
 5. **J14–J17 restent valides** (porte Annexe D franchie avec réserves de lecture,
    `TeacherScorer` réel livré) et **ne sont pas retouchés**. Les réserves J15/J16
    doivent être rappelées dans le rapport J18R (effets non uniformes : médiane nulle,
@@ -46,10 +50,12 @@
    `compute_future_aware_target` (paquet, `target.py`) avec candidats = union
    top-k professeur ∪ top-k « élève », **k < V** pour que la troncature soit
    réellement exercée (N2, N3) (§2).
-3. **Valide le harnais par ancrage** : le bras « support complet » doit reproduire
-   J15 (mêmes prompts, mêmes graines, même géométrie) à l'intérieur de l'IC 95 %
-   publié de J15 ; sinon **dérive du harnais → arrêt, aucune décision** (§4.3).
-4. **Décide GO / NO-GO** pour **ouvrir** un `StudentPolicy` réduit (≤ 0,6B) en J19.
+3. **Valide le harnais par ancrage** : le bras « support complet » charge le
+   professeur en **BF16** et doit reproduire J15 (mêmes prompts, mêmes graines,
+   même géométrie) selon les deux clauses de C9 (§4.1) ; un bras FP32 parallèle
+   est publié à titre informatif (sensibilité à la précision). Sinon **dérive
+   du harnais → STOP, aucune décision** (§4.5).
+4. **Décide GO / GO conditionnel / NO-GO** pour **ouvrir** un `StudentPolicy` réduit (≤ 0,6B) en J19.
    La décision porte sur l'ouverture, pas sur la livraison d'un élève.
 
 ### 0.3 Ce que J18R ne fait pas
@@ -62,8 +68,10 @@
 - Aucune modification de J14–J17, des résultats A2D ou du verdict G1 ;
 - Aucune ablation « uniforme vs pondéré » (reportée), aucune comparaison
   d'amplitude avec le papier (non comparable, J16 M6/M7) ;
-- **Aucun auto-audit** : l'audit de J18R est réalisé par OpenCode (N1) puis par
-  l'utilisateur (N2). Les désaccords éventuels avec l'audit vont dans un **journal
+- **Aucun auto-audit** : la revue de premier niveau (**N1**) est réalisée par
+  **Grok**, la revue de second niveau (**N2**) par **Claude (Sonnet)**, et
+  l'**acceptation écrite finale** par **l'utilisateur**. Les désaccords
+  éventuels avec l'audit vont dans un **journal
   d'audit séparé**, jamais dans le rapport de mission (règle 12, ADR-005 §4).
 
 ### 0.4 Divergences traitées par ce pré-enregistrement
@@ -74,7 +82,7 @@
 | **J** (audit) | blocs tirés uniformément | tirage pondéré par le joint (`sample_compatible_index`) | §1.1 |
 | **A** (audit) | « rejeu intégral » déclaré mais non exécuté | chemin de mesure **déclaré** (cache) + rejeu intégral FP32 sur ≥ 5 % des jobs comme référence | §5.1–5.2 |
 | **E** (audit) | `mean_causal_kl`/`mean_future_kl` non publiés | dégélation **contrôlée** de `diagnostic.py` (2 lignes) + publication obligatoire | §4.4, §7.10 |
-| **F** (audit) | support « mélange » | **retirée** — conforme (Annexe D.1) ; support J15 réutilisé tel quel | §0.1.4 |
+| **F** (audit) | support « mélange » | **retirée** — conforme (Annexe D.1) ; chemin J15 pour ancrage/sensibilité, construction économe équivalente sinon (B2) | §0.1.4, §1.1 |
 | **G** (audit) | arithmétique float64 déclarée float32 | float32 **réellement appliquée** via `target.py` (App. B) + test de distinction | §5.3 |
 | **I** (audit) | `correctness_gate: true` sans vérificateur | `correctness_gate = false` déclaré | §7.1 |
 | **K** (audit) | empreinte d'artefact absente, C7 infalsifiable | `lineage.json` sidecar + hash de `results.json` ; critère falsifiable | §7.2 |
@@ -90,6 +98,13 @@
 | **N5** | `bootstrap_seed == seed` (J18) | graines distinctes figées | §3.3 |
 | **N6** | aucun template de chat (J14–J18) | bras secondaire non décisionnel | §6 |
 | **N7** | `results.json` J18 `GO` sans pointeur | `SUPERSEDED.json` (pointeur audit + J18R) | §7.12 |
+| **PRE-B1** (revue N2) | ancrage C9 en FP32 alors que J15 est BF16 → marginaux non comparables (~17 % de faux STOP sur l'IC) | ancrage décisionnel **BF16** via le harnais J15 tel quel ; C9 = écart moyen ≤ 5e-3 + contrôle marginal (2 % @ 0,4, couverture ≥ 90 %) ; bras FP32 informatif | §0.2, §2.5, §4.1 C9, §5.4, §7.3b |
+| **PRE-B2** (revue N2) | « RAM sans plafond » — pic ≈ 35 Go du build J15 pour V=24 → OOM tardif possible sur la VM (30 GiB) | pics chiffrés ; plafond RSS **24 GiB** + arrêt immédiat ; construction économe + test d'équivalence T8 ; sorties par shards, un bras partiel ne produit jamais GO | §1.1, §7.2, §7.3, §7.8, §8 T8 |
+| **PRE-B3** (revue N2) | échec C5–C8/C10 étiqueté NO-GO → J19 fermé comme si l'effet était négatif | issue **INVALIDE** (« corriger et relancer ») ; `NO-GO` réservé à C1 non tenu sur run valide ; `STOP` réservé à C9 | §4.2, §4.5, §8 T5 |
+| **PRE-B4** (revue N2) | rôles de revue erronés (OpenCode = N1 / utilisateur = N2) | N1 = **Grok** ; N2 = **Claude (Sonnet)** + acceptation écrite finale **utilisateur** | §0.3, §7.13, §10 |
+| **PRE-S1** (revue N2) | fuite oracle à σ=0 non isolée ; C1 poolé seulement | variante « candidats professeur seul » ; C1 publié **par σ** ; réserve R_c si ΔKL_prod ≤ 0 pour tout σ ≥ 1,0 | §2.3, §2.4, §4.2, §4.4 |
+| **PRE-S2** (revue N2) | GO conditionnel retiré alors que J15 présentait médiane nulle / 13,30 % de dégradés | **GO conditionnel** défini (§4.2) : J19 ouvert uniquement avec `TaskVerifier` + porte de correction pré-enregistrés | §4.2, §4.3 C2, §4.5 |
+| **PRE-S3** (revue N2) | régime « k dans support V » non opposable à la Table 3 du papier (k=16 sur vocabulaire plein) | masse T0 / marginale élève captées par l'union top-k publiée ; note de régime explicite, aucune comparaison numérique directe | §2.5, §4.4 |
 
 ---
 
@@ -99,9 +114,32 @@ Pour chaque prompt et chaque configuration `(N, V[, k])` :
 
 ### 1.1 Blocs de base — tirage pondéré (écart J)
 
-- Support restreint construit **tel quel** par `_build_restricted_support`
-  (Annexe D.1 : mélange pondéré par les préfixes restreints, top-`V` par position) —
-  code J15 inchangé (écart F retiré).
+- Support restreint (Annexe D.1 : mélange pondéré par les préfixes restreints,
+  top-`V` par position ; eq. 21–22) — **deux chemins de construction** :
+  - **Bras ancrage et sensibilité (B1)** : `_build_restricted_support` du
+    harnais J15 (`diagnostic_annexe_d.py`, gelé §9.2), **tel quel**, via une
+    invocation directe du harnais J15 (§7.3b) — mêmes lots de forward, même ordre
+    d'accumulation : alignement strict sur J15. Le bras sensibilité ne diffère
+    que par `--dtype float32`. RAM : grille V ≤ 12 → pic ≈ 4,5 Go.
+  - **Bras décision, contrôle et N6** : construction économe dans
+    `run_j18r_decision.py` (B2), numériquement équivalente à J15 — soit deux
+    passes float64 (mélange+sélection, puis extraction des colonnes sélectionnées)
+    sans matrice plein vocabulaire persistée (**bit-identique** pour un même jeu
+    de forwards ; ~2× le temps de build du support), soit buffers de
+    conditionnelles en **float32** (`max |Δ log-prob| ≤ 1e-4` vs J15) ;
+    l'équivalence sur `V = 12` est un test obligatoire (T8, §8). L'écart F reste
+    retiré : seule la construction mémoire diffère de l'implémentation J15.
+- **RAM chiffrée du build de support (B2)** — stockage dominant : matrice des
+  conditionnelles plein vocabulaire aux préfixes, `Σ_d V^d × 151 936 × 8 o` en
+  float64, + double copie de concaténation dans le chemin J15 :
+  - `(4,12)` : ≈ 2,3 Go en stockage, pic ≈ 4,5 Go ;
+  - `(4,24)` : ≈ 17,5 Go (dont ≈ 16,8 Go à la dernière profondeur
+    `V^(N−1) = 24³`), **pic ≈ 35 Go** avec la double copie — au-dessus de la VM
+    (30 GiB).
+La construction économe ramène le pic à ≈ 9–12 GiB ; le plafond RSS est fixé
+à **24 GiB** (§7.8) : entre les deux régimes, il laisse la marge à la
+construction économe et fait échouer vite toute régression vers le chemin J15
+sur `V = 24`.
 - Joint énuméré `enumerate_joint()` → `V^N` séquences, log-probabilités
   normalisées (eq. 22), arithmétique float64 (J14/J15, inchangée).
 - Chaque bloc de base est tiré par
@@ -157,9 +195,12 @@ C'est le test qui aurait détecté l'écart H :
   (Reproductions de l'audit : 5,6e-11 en moyenne, 4,5e-10 au pire écart — float64 ;
   modèle jouet 6,6e-15. Le seuil est ~4 ordres au-dessus du résidu d'identité
   attendu et ~5 ordres en dessous du plus petit effet réel attendu, ≈ 0,08.)
-- **Échec du contrôle** = défaut de validité du harnais → **STOP, aucune décision**
-  (ni GO ni NO-GO sur l'effet), diagnostic consigné. Ce n'est **pas** un NO-GO
-  scientifique.
+- **Échec du contrôle** = défaut de validité du harnais (C5e) → **INVALIDE** :
+  corriger et relancer ; **aucune décision** sur l'effet (ni GO, ni NO-GO),
+  diagnostic consigné (§4.5). Ce n'est pas un NO-GO scientifique. Le bras de
+  contrôle est exécuté en FP32 (§5.4) : les seuils ci-dessus sont calibrés sur
+  les reproductions de l'audit (arithmétique float64, professeur FP32 —
+  `AUDIT_J18.md` §0).
 - Les 18 valeurs sont publiées (`arms.control`).
 
 ### 1.6 Définitions `V` et `k` — interdiction absolue de confusion (N2)
@@ -189,6 +230,8 @@ dans le record du bras de décision **est** `prod_kl` — §4.4).
 Chaque marginal du bras de décision porte **trois** cibles ; chaque marginal du
 bras d'ancrage porte les deux cibles de la référence J15 (la règle de production
 n'est pas définie sans `k`).
+Le bras de décision calcule en outre la variante S1 « candidats professeur seul »
+(§2.3) — publication informative, hors C1 et hors table de décision.
 
 ### 2.1 T0 — cible causale (référence de mesure, eq. 25)
 
@@ -234,6 +277,16 @@ les deux bras. `causal_kl = KL(exact ‖ T0)`.
 - `full_kl` est **également** calculé sur chaque marginal du bras de décision
   (champ informatif `full_kl` du record) : il permet de publier la part de la
   correction perdue par la troncature (`full_kl − future_kl`).
+- **Variante S1 « candidats professeur seul »** (informatif, gratuit) : même T2
+  avec `candidate_indices` = top-`k` **professeur uniquement** (sans marginale
+  élève) — les scores des `V` tokens existent déjà ; produit
+  `prod_kl_teacheron` et `ΔKL_prod_teacheron = causal_kl − prod_kl_teacheron`.
+  N'entre **pas** dans C1 ni dans la table de décision (§4.2).
+- **Fuite oracle à σ = 0 (S1)** : à `σ = 0`, la marginale « élève » coïncide avec
+  le posterior exact de référence — l'inclure dans les candidats y fait entrer
+  la réponse elle-même. La publication par σ (§4.2, §4.4) isole cette
+  contribution ; la réserve R_c (§4.2) s'applique si `ΔKL_prod ≤ 0` pour tout
+  `σ ≥ 1,0`.
 - **Fallback (App. B)** : `TargetResult` porte `applied` et `reason` ; la
   publication des compteurs `reason` est **obligatoire** (`applied` /
   `no_visible_future` / `empty_candidate_set` / `non_finite_scores` /
@@ -247,18 +300,22 @@ les deux bras. `causal_kl = KL(exact ‖ T0)`.
   `['arm', 'block_index', 'causal_kl', 'config_index', 'delta_kl', 'future_kl',
   'noise', 'position', 'prompt', 'visible_future']` avec `future_kl = full_kl`,
   `delta_kl = ΔKL_full`.
-- Bras de décision : schéma ci-dessus + `full_kl` (informatif, §2.3) ;
+- Bras de décision : schéma ci-dessus + `full_kl` (informatif, §2.3) +
+  `prod_kl_teacheron` / `delta_kl_teacheron` (variante S1, informatif, §2.3) ;
   `future_kl = prod_kl`, `delta_kl = ΔKL_prod`.
 - Bras de contrôle (§1.5) : `arm = "control"`, mêmes champs, `future_kl` = KL de la
   cible un-masque.
-- `noise` ∈ {`0.0`, `0.5`, `1.0`, `1.5`} ; `config_index` = index dans la liste
-  des configurations du bras (ordre figé §2.5) ; `block_index` ∈ [0, 100[.
+- `noise` ∈ {`0.0`, `0.5`, `1.0`, `1.5`} ; `config_index` : **bras ancrage** —
+  encodage chaîne de J15 (`N4_V6`, `N4_V12`, `N6_V6`) pour le matching des clés
+  partagées C9(b) ; autres bras — index dans la liste des configurations du
+  bras (ordre figé §2.5) ; `block_index` ∈ [0, 100[.
 
 ### 2.5 Grille de configurations (figée)
 
 | Bras | Configurations `(N, V[, k])` | `σ` | Rôle |
 |---|---|---|---|
 | **ancrage** | `(4,6)`, `(4,12)`, `(6,6)` | `0 ; 0,5 ; 1,0 ; 1,5` | **12 configurations** — grille et définition J15 ; T0 + T1 ; reproduit J15 (C9) |
+| **sensibilité** | `(4,6)`, `(4,12)`, `(6,6)` | `0 ; 0,5 ; 1,0 ; 1,5` | **12 configurations** — même grille que l'ancrage (B1), professeur **FP32**, mêmes graines 20261023/20261024 ; T0 + T1 ; bras **informatif** : quantifie le décalage de précision BF16↔FP32, n'entre pas dans C9 ni dans la table §4.5 |
 | **décision** | `(4,12,4)`, `(4,24,8)` | `0 ; 0,5 ; 1,0 ; 1,5` | **8 configurations** — T0 + T1 + T2 ; `k < V` (§1.6) ; cible de la décision (C1) |
 | **contrôle** | `(4,12)`, `(4,24)` | `0` | 18 marginaux — contrôle négatif (§1.5) |
 
@@ -272,9 +329,14 @@ les deux bras. `causal_kl = KL(exact ‖ T0)`.
 - `(4,24,8)` : support plus large que toute la grille J14–J15, `k = 8` intermédiaire
   (Table 3 du papier : 99,45 % / 99,44 % à `k = 16`) ;
 - `N = 4` partout : défaut du papier (§6.1 du spec), cohérent J14–J18.
+- **Régime vs papier (S3)** : ici `k` opère **dans** un support de largeur
+  `V ∈ {12, 24}` ; dans le papier, `k = 16` sur le vocabulaire plein (151 936).
+  Les pourcentages de couverture cités ci-dessus sont indicatifs : **aucune
+  comparaison numérique directe avec la Table 3** du papier n'est autorisée
+  (non comparable — J16 M6/M7, §0.3).
 
 Les 20 prompts de J15 (§3.1) × 100 blocs (§3.2) s'appliquent à chaque
-configuration des trois bras.
+configuration des quatre bras.
 
 ---
 
@@ -299,7 +361,8 @@ configuration des trois bras.
   `n_blocks_sampled` (blocs échantillonnés, = 2000 par configuration) et
   `n_distinct_block_indices` (= 100).
 - Marginaux : comptés après tirage (positions masquées variables par bloc) ;
-  ≥ 2000 marginaux au total par bras (C4).
+  ≥ 2000 marginaux au total par bras de mesure (ancrage et décision, C4) — le
+  bras sensibilité est informatif : son effectif ne bloque pas (§2.5).
 
 ### 3.3 Graines (N5)
 
@@ -307,6 +370,7 @@ configuration des trois bras.
 |---|---|---|---|
 | ancrage | **20261023** | **20261024** | valeurs J15 — **obligatoires** pour reproduire J15 (C9) |
 | décision + contrôle + N6 | **20261027** | **20261028** | distinctes **entre elles** (J18 les posait égales — N5), distinctes de 20261023/20261024 (ancrage) et de 20261026 (J18) |
+| sensibilité (FP32, B1) | **20261023** | **20261024** | mêmes graines que l'ancrage : le décalage mesuré est attribuable au dtype seul, pas aux tirages |
 
 **Dérivation figée** (même schéma que J15, `diagnostic_annexe_d.py` — toute autre
 dérivation = dérive de harnais détectable par C9) :
@@ -338,31 +402,48 @@ dérivation = dérive de harnais détectable par C9) :
 
 ## 4. Critères et règle de décision (pré-enregistrés)
 
-### 4.1 Critères de validité (C5–C10) — tout échec bloque la décision
+### 4.1 Critères de validité (C4–C10) — tout échec bloque la décision (INVALIDE / STOP, §4.5)
 
 | # | Critère | Seuil figé |
 |---|---|---|
-| **C4** | Effectif | 100 blocs de base par (prompt, config) ; ≥ 2000 marginaux par bras de mesure (ancrage et décision) ; `n_blocks_sampled` et `n_distinct_block_indices` publiés |
+| **C4** | Effectif | 100 blocs de base par (prompt, config) ; ≥ 2000 marginaux par bras de mesure (ancrage et décision ; le bras sensibilité est informatif — §3.2) ; `n_blocks_sampled` et `n_distinct_block_indices` publiés |
 | **C5** | Intégrité numérique | (a) aucun NaN/Inf ; (b) somme de chaque distribution = 1 ± 1e-5 ; (c) rejeu §5.2 : ≥ 5 % des jobs, max \|Δ log-prob\| ≤ 1e-3 ; (d) float32 réellement appliqué sur T2 (T6) ; (e) contrôle négatif §1.5 : max ≤ 1e-3, médiane ≤ 1e-5 |
 | **C6** | Traceabilité (ADR-002, **falsifiable**) | manifeste `academiia.lineage/1` + `lineage.json` sidecar ; `producer.module = "dopd"` ; commande exacte rejouable (§7.3) ; `lineage.json.artifact.hashes["results.json"]` = sha256 recalculé et égal ; `torch_version` et `transformers_version` distinctes et correctes (§7.4) ; `correctness_gate = false` (§7.1) ; `training.*` dérivés (§7.5) ; horloge unique monotone (§7.6) |
 | **C7** | Professeur gelé | `requires_grad` faux partout, `model.training = False`, compteur `backward` = 0, aucun optimizer |
 | **C8** | Provenance du modèle (règle 9) | garde-fou **avant** `load_teacher` (§7.7) ; snapshot dans `_artefact/hf-cache/` (dans le dépôt) ; `model_source_in_repo = true` ; sha256 de `model.safetensors` au manifeste ; violation → refus **avant** tout chargement |
-| **C9** | **Ancrage J15** | `ΔKL_full` du bras d'ancrage ∈ **[0,06381534237632878 ; 0,09617038274240884]** — IC 95 % publié de J15 (agrégat `0,0801905853381537`). Hors intervalle → **dérive du harnais → STOP, aucune décision** (R1) |
+| **C9** | **Ancrage J15 — BF16 (B1)** | Le bras d'ancrage charge le professeur en **BF16** (§5.4, §7.3b) : alignement strict sur J15 (`protocol.dtype: bfloat16`), mêmes graines 20261023/20261024, même dérivation §3.3, même géométrie §1. C9 est tenu **si et seulement si** les deux clauses sont tenues : **(a)** `|mean(ΔKL_full_J18R) − mean(ΔKL_full_J15)| ≤ 5e-3` avec `mean(ΔKL_full_J15) = 0,0801905853381537` ; **(b)** les clés partagées `(prompt, config_index, block_index, position, σ)` — `config_index` à l'encodage chaîne de J15 (`N4_V6`, `N4_V12`, `N6_V6`) — couvrent **≥ 90 %** des lignes de J15 et au plus **2 %** des marginaux partagés ont `|ΔKL_J18R − ΔKL_J15| > 0,4`. Tolérance (b) : enveloppe du résidu BF16 documenté (`J17.md` §4.4 : max `0,395069` sur les log-probs, ~0,08/token). Clause (a) ⇒ appartenance à l'IC 95 % publié de J15 `[0,06381534237632878 ; 0,09617038274240884]` (`[0,0752 ; 0,0852] ⊂ IC`). Échec → **dérive du harnais → STOP** (priorité 1, §4.5) |
 | **C10** | Non-régression | `target.py` bit-identique (hash §9.2) ; `diagnostic.py` modifié **uniquement** par les 2 lignes de §7.10 ; `config.py`, `interfaces.py`, `__init__.py` inchangés ; artefacts J14–J17 immuables ; `results.json` J18 immuable (`4e891a3d…`) ; `modules/a2d/` inchangé sur la plage de commits |
 
-### 4.2 Décision primaire (C1) — NO-GO explicitement légitime
+### 4.2 Décision primaire (C1) — NO-GO et GO conditionnel explicitement légitimes
 
 **C1 — effet de la règle de production** : `ΔKL_prod` agrégé (moyenne
-arithmétique des marginaux du bras de décision) `> 0` **et** l'IC 95 %
-(bootstrap §3.4) **exclut** zéro.
+arithmétique des marginaux du bras de décision, tous σ confondus) `> 0` **et**
+l'IC 95 % (bootstrap §3.4) **exclut** zéro.
 
-Règle :
+**C1 par σ (S1)** : en plus de l'agrégat poolé, C1 est publié et évalué
+**par niveau σ** — `n`, moyenne, médiane, IC 95 %, par configuration et agrégés
+— pour le bras de décision (publication obligatoire quelle que soit l'issue, §4.4).
 
-- C1 tenu **et** C4–C10 tenus → **GO** : ouvrir un `StudentPolicy` réduit (≤ 0,6B)
+Règle (sur un run valide : C4–C10 tenus) :
+
+- C1 tenu **sans** réserve → **GO** : ouvrir un `StudentPolicy` réduit (≤ 0,6B)
   en J19 (protocole d'entraînement pré-enregistré distinct — §6.10.7 du spec) ;
+- C1 tenu **avec** au moins une des réserves ci-dessous → **GO conditionnel** :
+  l'ouverture de J19 est **autorisée uniquement** avec un protocole
+  d'entraînement qui inclut un **vérificateur (`TaskVerifier`)** et une **porte
+  de correction** pré-enregistrés — pas un `StudentPolicy` « nu » :
+  - **R_a** : médiane(`ΔKL_prod`) sur le sous-ensemble **futur visible** ≤ 0 ;
+  - **R_b** : proportion de marginaux dégradés (`ΔKL_prod < 0`) ≥ 0,5 ;
+  - **R_c** (S1) : moyenne par σ de `ΔKL_prod` ≤ 0 pour **tout** `σ ≥ 1,0` —
+    l'agrégat positif serait porté par la fuite oracle de σ = 0 (§2.3).
 - C1 non tenu (`ΔKL_prod ≤ 0` **ou** IC contenant 0) → **NO-GO** : pas
   d'ouverture de `StudentPolicy`. **Le NO-GO est un résultat légitime, pas un
   échec de mission.**
+
+Antécédent (S2) : J15 présentait médiane nulle et 13,30 % de marginaux
+dégradés — profil qui aurait dû produire un GO conditionnel ; celui-ci est
+restauré ici. Une réserve seule **n'impose pas** NO-GO tant que l'agrégat C1
+est tenu (leçons J15/J16, §9.3).
 
 **Aucune hypothèse de signe positif n'est autorisée** (§0.1.3) : le contre-test
 « variante papier » de l'audit (ΔKL ≈ −3,49) n'est pas réconcilié avec J15
@@ -372,7 +453,7 @@ Règle :
 
 | # | Statistique | Définition figée |
 |---|---|---|
-| **C2** | Médianes (N4) | `médiane(ΔKL)` sur **tous** les marginaux **et** sur le sous-ensemble **futur visible** (champ `visible_future = true`) — les **deux** sous-ensembles doivent être non vides (`n_all > 0` et `n_visible_future > 0`, sinon le run est invalide). Une médiane ≤ 0 ou une proportion de dégradés ≥ 0,5 **alors que C1 est tenu** est signalée en rapport comme réserve « effet porté par une queue » (leçons J15/J16) ; elle **ne renverse pas** la décision figée en §4.2 |
+| **C2** | Médianes (N4) | `médiane(ΔKL)` sur **tous** les marginaux **et** sur le sous-ensemble **futur visible** (champ `visible_future = true`) — les **deux** sous-ensembles doivent être non vides (`n_all > 0` et `n_visible_future > 0`, sinon le run est invalide). Ces deux grandeurs sont les entrées **R_a / R_b** de la règle GO conditionnel (§4.2) : avec C1 tenu, elles basculent l'issue vers **GO conditionnel**, non plus une simple réserve signalée (leçons J15/J16) |
 | **C3** | Degradation | `frac(ΔKL < 0)` sur les marginaux du bras de décision, publiée avec `mean(ΔKL | ΔKL < 0)` et le pire cas (convention J15 : 13,30 %, −1,1863, −28,7094) |
 
 ### 4.4 Publications obligatoires (quel que soit l'issue)
@@ -388,29 +469,40 @@ Par bras (ancrage et décision), sur tous les marginaux du bras :
 - **statistiques par-prompt** : `n`, `mean_delta_kl`, `median_delta_kl`, IC 95 %
   per-prompt, signe de la moyenne, significativité ;
 - **statistiques par-σ** (par configuration et par niveau) : `n`,
-  `mean_causal_kl`, `mean_future_kl`, `mean_delta_kl`, `median_delta_kl` ;
+  `mean_causal_kl`, `mean_future_kl`, `mean_delta_kl`, `median_delta_kl` — et,
+  pour le bras de décision, C1 par σ : moyenne/IC 95 % de `ΔKL_prod` **et**
+  `ΔKL_prod_teacheron` (S1) ;
 - tests des signes (unités déclarées, §3.4) ;
 - bras de décision : distribution de `full_kl − future_kl` (coût de la
-  troncature, §1.7) et `|candidats|` par marginal (min/max/moyenne) ;
-- bras d'ancrage : `max |ΔKL_J18R − ΔKL_J15|` sur les marginaux partagés
-  (clé `prompt, config, block, position, σ`) — diagnostic de dérive (C9) ;
+  troncature, §1.7), `|candidats|` par marginal (min/max/moyenne) et **masse
+  captée (S3)** : par marginal, masse de T0 `Σ_{v∈candidats} r_i(v)` et masse de
+  la marginale élève `Σ_{v∈candidats} m_i(v)` (`m_i` = posterior exacte
+  conditionnée au joint perturbé, §2.3) captées par l'union top-k — min/moyenne/
+  max par configuration et agrégés (régime k-dans-V, §2.5 : aucune comparaison
+  numérique directe avec la Table 3 du papier) ;
+- bras d'ancrage : diagnostic de dérive C9 sur les marginaux partagés (clé
+  `prompt, config_index, block_index, position, σ`) — écart moyen, fraction et
+  max des `|ΔKL_J18R − ΔKL_J15| > 0,4`, nombre de tirages divergents ;
+- bras de sensibilité : agrégat + par σ de `ΔKL_full` (FP32) et écart vs ancrage
+  BF16 (moyenne/max) — informatif, hors C9 ;
 - bras de contrôle : les 18 valeurs `future_kl` (C5e) ;
 - décision : statut, règle appliquée, réserves J15/J16 rappelées (§0.1.5),
   budget consommé, versions, graine(s).
 
-### 4.5 Table de décision (priorité décroissante, figée)
+### 4.5 Table de décision (priorité décroissante, figée — B3)
 
 | Priorité | Condition | Issue |
 |---|---|---|
-| 1 | C10 (non-régression) échoue | **NO-GO** + décision explicite écrite (R1) |
-| 2 | C7 (professeur gelé) ou C8 (provenance) échoue | **NO-GO** + décision explicite écrite (R1) |
-| 3 | **C9 (ancrage) échoue** | **STOP** — dérive du harnais, **aucune** GO/NO-GO, diagnostic de dérive publié |
-| 4 | C5 (intégrité) ou C6 (traceabilité) échoue | **NO-GO** + décision explicite écrite (R1) |
-| 5 | C1 tenu (et C4 tenu) | **GO** — ouvrir un `StudentPolicy` réduit (≤ 0,6B) en J19 |
-| 6 | C1 non tenu (`ΔKL_prod ≤ 0` ou IC ∋ 0) | **NO-GO** — résultat légitime |
+| 1 | **C9 (ancrage) échoue** (clause a ou b) | **STOP** — dérive du harnais, **aucune** GO/NO-GO, diagnostic de dérive publié (§4.4) |
+| 2 | C4–C8 ou C10 échoue, ou un bras requis (`control` / `anchor` / `decision`) incomplet (arrêt budget/crash/OOM avant complétion du shard) | **INVALIDE** — « corriger et relancer » : défaut de validité du run, **aucune décision sur l'effet** ; rejeu sous le présent PRE sans amendement. Le bras `n6` est non décisionnel : sa partialité ne bloque pas (§6) |
+| 3 | C1 tenu (C4–C10 tenus), aucune réserve R_a/R_b/R_c | **GO** — ouvrir un `StudentPolicy` réduit (≤ 0,6B) en J19 |
+| 4 | C1 tenu (C4–C10 tenus), ≥ 1 réserve R_a/R_b/R_c (§4.2) | **GO conditionnel** — ouverture de J19 autorisée uniquement avec `TaskVerifier` + porte de correction pré-enregistrés |
+| 5 | C1 non tenu (`ΔKL_prod ≤ 0` ou IC ∋ 0), run valide (C4–C10 tenus, C9 tenu) | **NO-GO** — résultat légitime sur l'effet scientifique |
 
 **R1** (`DOPD_SPEC.md` §6.10.8) : le silence n'est pas un GO. Toute issue est
-consignée dans un rapport de mission avec la règle appliquée.
+consignée dans un rapport de mission avec la règle appliquée. `STOP` et
+`INVALIDE` ne sont **pas** des décisions sur l'effet : ils clôturent le run, pas
+la question scientifique ; `NO-GO` n'est prononcé que sur un **run valide**.
 
 ---
 
@@ -444,17 +536,26 @@ la référence **échantillonnée** de §5.2.
 - Le champ `arithmetic_dtype` du manifeste ne peut plus être une description
   déconnectée du code (écart G).
 
-### 5.4 Professeur
+### 5.4 Professeur — dtypes par bras (B1)
 
-- Chargé en **FP32** (`load_teacher(dtype=float32)` — continuité J17 R1 / J18) ;
-  dtype natif du checkpoint (bfloat16) déclaré séparément (`scorer_dtype`).
+- **Ancrage (C9)** : chargé en **BF16** (`load_teacher(dtype=bfloat16)`) via le
+  harnais J15 (§7.3b) — alignement strict sur J15 (`protocol.dtype: bfloat16`,
+  §9.3). C'est ce dtype qui rend les marginaux comparables à la référence ; un
+  ancrage FP32 décalerait les logits de 0,1–0,4 (J17) et rendrait l'ancrage non
+  comparable (~17 % de faux STOP sur l'IC J15 — estimation revue N1/N2).
+- **Décision, contrôle, N6** : chargé en **FP32** (`load_teacher(dtype=float32)`
+  — continuité J17 R1 / J18 ; coût mesuré +1,3 % latence, +1 161 MiB — `J17.md` §4.5).
+- **Sensibilité (informatif)** : FP32 sur la grille J15 (§7.3b) — le décalage
+  BF16↔FP32 qu'il mesure est publié (§4.4), n'entre pas dans C9 ni dans la table §4.5.
+- Le dtype natif du checkpoint (bfloat16) est déclaré séparément (`scorer_dtype`) ;
+  le dtype **par bras** figure au manifeste et doit être exact (§5.3).
 - Arithmétique du scorer float32 (`teacher_scorer_qwen3.py`, inchangée).
 - Professeur gelé (C7) ; aucun `backward`.
 
 ### 5.5 `target.py` gelé
 
 Zéro diff sur la plage de commits (hash §9.2). Toute modification de `target.py`
-= violation C10 = NO-GO (priorité 1).
+= violation C10 = **INVALIDE** (§4.5, priorité 2).
 
 ### 5.6 Intégrité des distributions
 
@@ -474,7 +575,7 @@ Zéro diff sur la plage de commits (hash §9.2). Toute modification de `target.p
   `tokenizer.apply_chat_template([{"role": "user", "content": <texte>}],
   add_generation_prompt=True, enable_thinking=False)` ; même grille de décision
   (`(4,12,4)`, `(4,24,8)` × 4 σ), mêmes graines (20261027/20261028), 100 blocs de
-  base par (prompt, config) ; cibles T0/T1/T2 comme le bras de décision.
+  base par (prompt, config) ; cibles T0/T1/T2 (+ variante S1) comme le bras de décision.
 - **Statut** : **non décisionnel** — ne participe **pas** à C1 ni à la table §4.5.
   Publication : `arms.n6_chat_template` avec `ΔKL_prod` agrégé + IC 95 % +
   per-prompt + comparaison chiffrée au bras de décision (même géométrie, même
@@ -504,10 +605,19 @@ causal documenté »).
 - **Sidecar `lineage.json`** écrit **à côté** de l'artefact
   (`modules/dopd/eval/j18r_decision/lineage.json`) — règle ADR-002 (« écrit à
   côté de l'artefact ») non appliquée en J18.
-- **Hash de l'artefact produit** : `lineage.json.artifact.hashes["results.json"]`
-  = sha256 de `results.json` (calculé **après** écriture de `results.json`, avant
-  écriture du sidecar). C6 est **falsifiable** : un vérificateur recalcule le
-  digest et compare (écart K : `hashes = {}` et C7 infalsifiable en J18).
+- **Sorties par shards par bras (B2)** : `modules/dopd/eval/j18r_decision/`
+  contient un fichier JSON par bras — `arm_control.json`, `arm_anchor_raw.json`,
+  `arm_sensitivity_raw.json`, `arm_anchor.json`, `arm_decision.json`,
+  `arm_n6.json` — plus `results.json` (synthèse + décision). Chaque shard est
+  écrit **à la fin de son bras** ; un arrêt intermédiaire (budget, OOM, crash)
+  conserve les shards complets et n'écrit **jamais** `results.json` pour un run
+  dont un bras requis (`control`/`anchor`/`decision`) est incomplet (§4.5).
+- **Hash des artefacts produits (B2)** : `lineage.json.artifact.hashes` porte le
+  sha256 de **chaque** sortie (`arm_control.json`, `arm_anchor_raw.json`,
+  `arm_sensitivity_raw.json`, `arm_anchor.json`, `arm_decision.json`,
+  `arm_n6.json`, `results.json`), calculé **après** écriture de chaque fichier,
+  avant écriture du sidecar. C6 est **falsifiable** : un vérificateur recalcule
+  les digests et compare (écart K : `hashes = {}` et C7 infalsifiable en J18).
 - `lineage.json` est lui aussi commité ; son sha256 figure dans le rapport.
 
 ### 7.3 Commande exacte, rejouable (écart C)
@@ -518,12 +628,30 @@ spéciale — la redirection de cache HF est imposée **par le harnais** avant t
 chargement, §7.7) :
 
 ```
-python modules/dopd/harness/run_j18r_decision.py --model Qwen/Qwen3-0.6B --device cuda --dtype float32 --prompt-file modules/dopd/eval/annexe_d_qwen3_0.6b_multiprompt/prompts.json --blocks 100 --seed 20261027 --bootstrap-seed 20261028 --bootstrap-iterations 10000 --anchor-seed 20261023 --anchor-bootstrap-seed 20261024 --replay-fraction 0.05 --replay-tolerance 1e-3 --n6-chat-template --n6-max-seconds 1800 --max-seconds 14400 --max-gpu-mib 16384 --output modules/dopd/eval/j18r_decision/results.json
+python modules/dopd/harness/run_j18r_decision.py --model Qwen/Qwen3-0.6B --device cuda --dtype-anchor bfloat16 --dtype-decision float32 --dtype-control float32 --dtype-sensitivity float32 --prompt-file modules/dopd/eval/annexe_d_qwen3_0.6b_multiprompt/prompts.json --blocks 100 --seed 20261027 --bootstrap-seed 20261028 --bootstrap-iterations 10000 --anchor-seed 20261023 --anchor-bootstrap-seed 20261024 --replay-fraction 0.05 --replay-tolerance 1e-3 --n6-chat-template --n6-max-seconds 1800 --max-seconds 14400 --max-gpu-mib 16384 --max-rss-gib 24 --output-dir modules/dopd/eval/j18r_decision
 ```
 
 Tout écart entre `producer.command` et la commande réellement exécutée =
 violation C6. La rejeuabilité est testée en Phase 1 (parse de la commande +
 `--help` + exécution sèche des drapeaux).
+
+### 7.3b Invocations d'ancrage (B1) — chaînes figées
+
+Le harnais J18R exécute **deux** invocations du harnais J15 gelé
+(`diagnostic_annexe_d.py`, §9.2), en sous-processus, racine du dépôt :
+
+- **ancrage (BF16)** :
+  `python modules/dopd/harness/diagnostic_annexe_d.py --model Qwen/Qwen3-0.6B --device cuda --dtype bfloat16 --prompt-file modules/dopd/eval/annexe_d_qwen3_0.6b_multiprompt/prompts.json --blocks 100 --seed 20261023 --bootstrap-seed 20261024 --local-files-only --output modules/dopd/eval/j18r_decision/arm_anchor_raw.json --top-k 16`
+  — `producer.command` du `results.json` J15 **à l'identique** sauf le chemin de
+  sortie (l'artefact J15 reste immuable, §7.11).
+- **sensibilité (FP32)** : même chaîne avec
+  `--dtype float32 --output modules/dopd/eval/j18r_decision/arm_sensitivity_raw.json`.
+
+Tout écart entre les chaînes ci-dessus et celles réellement exécutées =
+violation C6. Le harnais J18R ingère les deux fichiers bruts, étiquette les
+lignes (`arm = "anchor"` / `arm = "sensitivity_fp32"`) et écrit les shards §7.2 ;
+les lignes d'ancrage sont comparées aux lignes de `results.json` J15 (clés
+partagées, C9).
 
 ### 7.4 Versions séparées (écart M)
 
@@ -565,7 +693,7 @@ Phase 1 : aucune occurrence dans `run_j18r_decision.py`).
 | Mémoire GPU pic | **≤ 16 GiB** (`torch.cuda.max_memory_allocated`) | arrêt immédiat, idem |
 | Bras N6 | ≤ 1800 s | arrêt du bras N6 seul, publication partielle explicite (§6) |
 | Échelle | Qwen3-0.6B uniquement | — |
-| RAM process | consignée (`max_rss_mib`), sans plafond | — |
+| RAM process (RSS) | **≤ 24 GiB** (`--max-rss-gib`, contrôle 1 Hz ; pics chiffrés §1.1 : économe ≈ 9–12 GiB, non économe ≈ 35 Go) | arrêt immédiat, idem ; shards complets conservés (§7.2), run **INVALIDE** si un bras requis est incomplet (§4.5) |
 
 Avant tout run GPU : `nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free
 --format=csv` ; besoin ≈ 16 GiB ; si un modèle LM Studio est chargé **et**
@@ -635,8 +763,8 @@ Fichier **nouveau**, livré dans `modules/dopd/eval/j18_decision/` (à côté du
 
 ### 7.13 Audit de J18R
 
-- Réalisé par **OpenCode (N1)** puis par **l'utilisateur (N2)** — **pas
-  d'auto-audit** par le producteur.
+- Réalisé par **Grok (N1)** puis par **Claude/Sonnet (N2)** ; acceptation écrite
+  finale : **l'utilisateur** — **pas d'auto-audit** par le producteur.
 - Les désaccords éventuels avec l'audit vont dans un **journal d'audit séparé**
   (`AUDIT_J18R.md` ou équivalent), **jamais** dans le rapport de mission
   (règle 12, ADR-005 §4.3).
@@ -654,9 +782,10 @@ Fichier **nouveau**, livré dans `modules/dopd/eval/j18_decision/` (à côté du
 | **T2** | Mutation **F4** (`future := causal`) | sur le fixture T1(a), le remplacement de T1/T2 par T0 donne `ΔKL ≡ 0` : la suite **doit échouer** (assertion `ΔKL > 0`) | faute non pincée en J18 (audit §O) |
 | **T3** | Mutation **F3** (bootstrap par marginaux) | fixture à corrélation intra-bloc : l'IC par blocs ≠ l'IC par marginaux ; assertion sur l'unité de rééchantillonnage et la clé `(prompt, config_index, block_index)` | faute non pincée en J18 (audit §O) |
 | **T4** | **Équivalence ligne-à-ligne** T1 inline (support complet, tous les `V` tokens scorés) ↔ `compute_future_aware_target` avec `candidate_indices` = tout le support, **dans le régime fini** (normaliseurs finis des deux côtés ; fixture choisi en conséquence) | comparaison étape par étape : deltas égaux, facteurs et normaliseur au relatif ≤ 1e-6, cible finale `max |p_inline − p_paquet| ≤ 1e-5` (float64 inline vs float32 paquet) | N1 : les deux chemins de construction doivent coïncider ; la règle de production est bien l'eq. 18 tronquée |
-| **T5** | **Branches d'échec C4–C10** de la table §4.5 | chaque branche produit le statut figé (synthétiques) : `ΔKL ≤ 0` → NO-GO ; IC ∋ 0 → NO-GO ; ancrage hors IC → STOP ; rejeu > 1e-3 → C5 ; `hashes` vide → C6 ; professeur non gelé → C7 ; modèle hors dépôt → C8 ; hash `target.py` modifié → C10 → NO-GO priorité 1 ; effectif < 2000 marginaux → C4 | branches jamais testées en J18 (audit §O) |
+| **T5** | **Branches d'échec C4–C10 et issues de la table §4.5** | chaque branche produit l'issue figée (synthétiques) : `ΔKL ≤ 0` → NO-GO ; IC ∋ 0 → NO-GO ; ancrage hors clause C9(a) ou C9(b) → STOP ; rejeu > 1e-3 → INVALIDE (C5) ; `hashes` incomplet → INVALIDE (C6) ; professeur non gelé → INVALIDE (C7) ; modèle hors dépôt → INVALIDE (C8) ; hash `target.py` modifié → INVALIDE (C10) ; effectif < 2000 marginaux → INVALIDE (C4) ; shard de bras requis incomplet → INVALIDE | branches jamais testées en J18 (audit §O) + B3 : échec de validité ≠ NO-GO |
 | **T6** | **float32 réellement appliquée** | fixture où float32 et float64 donnent des cibles distinctes : `compute_future_aware_target(arithmetic_dtype="float32")` reproduit la référence float32 et **s'écarte** de la référence float64 au-delà du seuil de distinction | écart G (déclaration déconnectée du code) |
-| **T7** | **Séparation tests purs / torch** | les tests T1–T6 s'exécutent **sans torch** (NumPy + fixtures figés) ; les tests qui nécessitent torch sont isolés dans des fichiers distincts (`pytest.importorskip("torch")` au niveau fichier, jamais module global de tests purs) — collecte sans torch verte (convention J15 P3) | audit §O (fichier entièrement sauté sans torch) |
+| **T7** | **Séparation tests purs / torch** | les tests T1–T6 s'exécutent **sans torch** (NumPy + fixtures figés) ; les tests qui nécessitent torch (dont **T8**) sont isolés dans des fichiers distincts (`pytest.importorskip("torch")` au niveau fichier, jamais module global de tests purs) — collecte sans torch verte (convention J15 P3) | audit §O (fichier entièrement sauté sans torch) |
+| **T8** | **Équivalence de la construction économe du support (B2)** | fixture `V = 12` déterministe : sortie de la construction J18R comparée à `_build_restricted_support` (J15, importé en lecture seule) — option A (deux passes float64) : **bit-identique** pour un même jeu de forwards ; option B (buffers float32) : `max |Δ log-prob| ≤ 1e-4` sur toutes les conditionnelles restreintes et supports | OOM tardif / double copie du build J15 pour V=24 (§1.1, §7.8) |
 
 **Régressions conservées** (déjà vertes) : F1 (signe de `delta_kl`) et F2 (axe
 KL) par `test_dopd_diagnostic.py` — non supprimées, non affaiblies.
@@ -705,6 +834,9 @@ KL) par `test_dopd_diagnostic.py` — non supprimées, non affaiblies.
 | Papier (Table 4, Qwen3-8B) | KL causale `0,4444` → `0,1249` (−71,9 %) | `DOPD_SPEC.md` §5.4 (non comparable — J16 M6/M7) |
 | J17 — écart cache/rejeu (FP32, états réels) | ≤ `6,2e-05` | J17 (marge de la tolérance §5.2) |
 | Audit — identité H (float64, Qwen3-0.6B réel) | `future_kl` moy. `5,6e-11`, pire écart `4,5e-10` | `AUDIT_J18.md` §0 (base des seuils §1.5) |
+| J15 — dtype de protocole | `bfloat16` (`protocol.dtype`, `results.json` J15) | base de l'ancrage BF16 (B1, §5.4) |
+| J17 — résidu BF16 log-probs / FP32 | max `0,395069` (~0,08/token) ; 3,3e-05 en FP32 | `J17.md` §4.4 (base de la tolérance C9(b) = 0,4) |
+| J17 — coût BF16→FP32 | +1,3 % latence, +1 161 MiB | `J17.md` §4.5 (bras sensibilité FP32, §2.5) |
 
 ---
 
@@ -715,22 +847,27 @@ KL) par `test_dopd_diagnostic.py` — non supprimées, non affaiblies.
 **Phase 1 (code — débloquée par l'acceptation écrite du PRE)** :
 
 - `modules/dopd/harness/run_j18r_decision.py` (nouveau, hors paquet, ADR-001 :
-  torch/transformers autorisés ici) — géométrie §1, cibles §2, bras §2.5,
-  rejeu §5.2, gouvernance §7 ;
+  torch/transformers autorisés ici) — géométrie §1, cibles §2 (+ variante S1),
+  bras §2.5 (dont sensibilité FP32), dtypes par bras §5.4, construction
+  économe du support §1.1, rejeu §5.2, sorties par shards §7.2, invocations
+  d'ancrage §7.3b, gouvernance §7 ;
 - les 2 lignes de `diagnostic.py` (§7.10) — **seule** modification de paquet ;
-- tests T1–T7 (§8) + régressions F1/F2 conservées ;
+- tests T1–T8 (§8) + régressions F1/F2 conservées ;
 - CI verte : `ruff check` + `pytest modules/a2d/tests modules/dopd/tests tests
   infra/vllm/scripts/tests -q` (hors mutation, convention existante).
 
-**Phase 2 (run)** : commande canonique §7.3 ; budget §7.8 ; artefacts :
-`modules/dopd/eval/j18r_decision/results.json` + `lineage.json`.
+**Phase 2 (run)** : commande canonique §7.3 (+ invocations d'ancrage §7.3b) ;
+budget §7.8 ; artefacts dans `modules/dopd/eval/j18r_decision/` :
+`arm_control.json`, `arm_anchor_raw.json`, `arm_sensitivity_raw.json`,
+`arm_anchor.json`, `arm_decision.json`, `arm_n6.json`, `results.json` +
+`lineage.json` (sha256 de chaque shard, §7.2).
 
 **Phase 3 (rapport)** : `modules/dopd/docs/reports/J18R.md` (statut, preuves,
 publications §4.4, réserves J15/J16, budget, versions) +
 `modules/dopd/eval/j18_decision/SUPERSEDED.json` (§7.12) + bandeau de statut sur
 les documents concernés (J18.md porte déjà le bandeau de renvoi).
 
-**Audit** : OpenCode (N1) → utilisateur (N2) (§7.13).
+**Audit / revue** : Grok (N1) → Claude/Sonnet (N2) → acceptation écrite utilisateur (§7.13).
 
 ---
 
