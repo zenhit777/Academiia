@@ -4,6 +4,7 @@
 **Statut :** figé avant tout code producteur, tout run (GPU ou CPU) et tout résultat. Toute modification après un résultat vaut nouveau protocole, pas correction de rapport.
 **Ancêtre du code producteur :** HEAD `f7f1fcc` (audit J18 corrigé, 2026-10-27).
 **Révision N2 (2026-10-27) :** amendement B1–B4 + S1–S3 intégré **avant tout code producteur et tout run** — ancrage C9 en BF16 aligné J15 (clause agrégée ≤ 5e-3 + contrôle marginal), plafond RAM 24 GiB + construction économe du support, issue `INVALIDE` distincte de `NO-GO`, rôles de revue corrigés (N1 = Grok ; N2 = Claude/Sonnet + acceptation écrite utilisateur), publication par σ / GO conditionnel, masse captée. Chaque amendement est tracé dans §0.4 ; le document reste **figé avant tout code / run** (§11).
+**Amendements de la revue N1 — audit externe (2026-10-27) :** `PRE-B5 (audit externe R2) | GO non conditionnel exige C1 sur σ>0 | §4.2, §4.5` ; `PRE-B6 (audit externe R3) | estimand marginal + IC non-généralisation prompts | §3.4, §4.2, §4.4`. Integrés **avant tout code producteur et tout run** ; le document reste **figé avant tout code / run** (§11).
 **Aucun code J18R, aucun run, aucun commit de code ne sont autorisés tant que ce pré-enregistrement n'aura pas été accepté par accord écrit explicite de l'utilisateur.**
 
 ---
@@ -105,6 +106,8 @@
 | **PRE-S1** (revue N2) | fuite oracle à σ=0 non isolée ; C1 poolé seulement | variante « candidats professeur seul » ; C1 publié **par σ** ; réserve R_c si ΔKL_prod ≤ 0 pour tout σ ≥ 1,0 | §2.3, §2.4, §4.2, §4.4 |
 | **PRE-S2** (revue N2) | GO conditionnel retiré alors que J15 présentait médiane nulle / 13,30 % de dégradés | **GO conditionnel** défini (§4.2) : J19 ouvert uniquement avec `TaskVerifier` + porte de correction pré-enregistrés | §4.2, §4.3 C2, §4.5 |
 | **PRE-S3** (revue N2) | régime « k dans support V » non opposable à la Table 3 du papier (k=16 sur vocabulaire plein) | masse T0 / marginale élève captées par l'union top-k publiée ; note de régime explicite, aucune comparaison numérique directe | §2.5, §4.4 |
+| **PRE-B5** (audit externe R2) | GO non conditionnel atteignable alors que l'agrégat poolé peut être porté par la fuite oracle de σ = 0 ; C1 poolé seul suffisait | **GO non conditionnel** exige C1 (tous σ) **et** C1_{σ>0} tenus : `ΔKL_prod` agrégé sur les records σ > 0 `> 0` **et** IC 95 % exclut 0 ; sinon GO conditionnel | §4.2, §4.5 |
+| **PRE-B6** (audit externe R3) | estimand de C1 implicite ; IC lu comme intervalle de généralisation aux prompts | estimand primaire figé = moyenne arithmétique des **marginaux**, unité de rééchantillonnage = **bloc de base** `(prompt, config_index, block_index)` ; IC = précision d'échantillonnage sous le plan de tirage figé, **pas** généralisation aux prompts ni aux perturbations non observées ; analyses par prompt / configuration / σ = publications obligatoires hors critère binaire | §3.4, §4.2, §4.4 |
 
 ---
 
@@ -391,6 +394,15 @@ dérivation = dérive de harnais détectable par C9) :
   per-prompt (unité déclarée) — leçon écarts B (J18) et M8 (J15) : l'unité est
   toujours publiée.
 
+**Estimand (PRE-B6 — audit externe R3)** : le bootstrap estime la moyenne arithmétique des
+**marginaux** (estimand primaire de C1, §4.2) ; l'unité de rééchantillonnage est le **bloc de
+base** `(prompt, config_index, block_index)`. L'IC 95 % qui en résulte est un intervalle de
+**précision d'échantillonnage sous le plan de tirage figé** (§1.1, §3.1, §3.2) : il **n'est
+pas** un intervalle de généralisation aux prompts ni aux perturbations non observées (les
+prompts sont la liste figée §3.1, `σ` la grille finie §2.5). Les analyses par prompt /
+configuration / σ (§4.4) sont des publications obligatoires **hors critère binaire de porte** :
+elles ne peuvent pas faire passer un critère non tenu à tenu.
+
 ### 3.5 Échantillon de rejeu (figé)
 
 - **Job** = une demande de scoring d'un marginal (prior causal + scores des
@@ -420,25 +432,38 @@ dérivation = dérive de harnais détectable par C9) :
 arithmétique des marginaux du bras de décision, tous σ confondus) `> 0` **et**
 l'IC 95 % (bootstrap §3.4) **exclut** zéro.
 
+Estimand et portée de l'IC (PRE-B6) : moyenne arithmétique des marginaux, unité de
+rééchantillonnage = bloc de base `(prompt, config_index, block_index)` (§3.4). L'IC est un IC
+de **précision d'échantillonnage** sous le plan de tirage figé — **pas** un intervalle de
+généralisation aux prompts ni aux perturbations non observées.
+
 **C1 par σ (S1)** : en plus de l'agrégat poolé, C1 est publié et évalué
 **par niveau σ** — `n`, moyenne, médiane, IC 95 %, par configuration et agrégés
 — pour le bras de décision (publication obligatoire quelle que soit l'issue, §4.4).
 
+**C1_{σ>0} (PRE-B5 — audit externe R2, obligatoire pour l'issue GO)** : même définition sur le
+sous-ensemble des records du bras de décision avec **σ > 0** (champ `noise` ∈ {0,5 ; 1,0 ; 1,5},
+§2.4) : `ΔKL_prod` agrégé σ>0 `> 0` **et** IC 95 % (bootstrap §3.4, mêmes `group_fields`, mêmes
+graines et itérations, records filtrés σ > 0) **exclut** zéro. C1_{σ>0} est un critère de
+décision ; il est publié avec `n`, la moyenne et l'IC quelle que soit l'issue (§4.4).
+
 Règle (sur un run valide : C4–C10 tenus) :
 
-- C1 tenu **sans** réserve → **GO** : ouvrir un `StudentPolicy` réduit (≤ 0,6B)
-  en J19 (protocole d'entraînement pré-enregistré distinct — §6.10.7 du spec) ;
-- C1 tenu **avec** au moins une des réserves ci-dessous → **GO conditionnel** :
-  l'ouverture de J19 est **autorisée uniquement** avec un protocole
-  d'entraînement qui inclut un **vérificateur (`TaskVerifier`)** et une **porte
-  de correction** pré-enregistrés — pas un `StudentPolicy` « nu » :
+- **GO** (non conditionnel) **ssi** C1 (tous σ) **et** C1_{σ>0} sont tenus **et** aucune réserve
+  R_a / R_b / R_c : ouvrir un `StudentPolicy` réduit (≤ 0,6B) en J19 (protocole d'entraînement
+  pré-enregistré distinct — §6.10.7 du spec) ;
+- **GO conditionnel** si C1 (tous σ) est tenu **mais** (C1_{σ>0} échoue **ou** ≥ 1 réserve
+  R_a / R_b / R_c) : l'ouverture de J19 est **autorisée uniquement** avec un protocole
+  d'entraînement qui inclut un **vérificateur (`TaskVerifier`)** et une **porte de
+  correction** pré-enregistrés — pas un `StudentPolicy` « nu » :
   - **R_a** : médiane(`ΔKL_prod`) sur le sous-ensemble **futur visible** ≤ 0 ;
   - **R_b** : proportion de marginaux dégradés (`ΔKL_prod < 0`) ≥ 0,5 ;
   - **R_c** (S1) : moyenne par σ de `ΔKL_prod` ≤ 0 pour **tout** `σ ≥ 1,0` —
     l'agrégat positif serait porté par la fuite oracle de σ = 0 (§2.3).
-- C1 non tenu (`ΔKL_prod ≤ 0` **ou** IC contenant 0) → **NO-GO** : pas
-  d'ouverture de `StudentPolicy`. **Le NO-GO est un résultat légitime, pas un
-  échec de mission.**
+- **NO-GO** si C1 (tous σ) n'est **pas** tenu (`ΔKL_prod ≤ 0` **ou** IC contenant 0), run
+  valide : pas d'ouverture de `StudentPolicy`. **Le NO-GO est un résultat légitime, pas un
+  échec de mission.** L'échec de C1_{σ>0} seul ne produit **jamais** NO-GO : il abaisse l'issue
+  au GO conditionnel (PRE-B5).
 
 Antécédent (S2) : J15 présentait médiane nulle et 13,30 % de marginaux
 dégradés — profil qui aurait dû produire un GO conditionnel ; celui-ci est
@@ -472,6 +497,13 @@ Par bras (ancrage et décision), sur tous les marginaux du bras :
   `mean_causal_kl`, `mean_future_kl`, `mean_delta_kl`, `median_delta_kl` — et,
   pour le bras de décision, C1 par σ : moyenne/IC 95 % de `ΔKL_prod` **et**
   `ΔKL_prod_teacheron` (S1) ;
+- **C1_{σ>0} (PRE-B5)** : `n` des records filtrés σ > 0, moyenne de `ΔKL_prod` et IC 95 %
+  (§3.4, mêmes `group_fields`, même graine bootstrap) — publié avec le statut du critère,
+  quelle que soit l'issue ;
+- **portée des IC (PRE-B6)** : les IC publiés sont des IC de **précision d'échantillonnage**
+  sous le plan de tirage figé (§3.4), **pas** des intervalles de généralisation aux prompts ni
+  aux perturbations non observées ; les statistiques par prompt / configuration / σ ci-dessus
+  restent des publications obligatoires, **hors critère binaire de porte**.
 - tests des signes (unités déclarées, §3.4) ;
 - bras de décision : distribution de `full_kl − future_kl` (coût de la
   troncature, §1.7), `|candidats|` par marginal (min/max/moyenne) et **masse
@@ -495,9 +527,9 @@ Par bras (ancrage et décision), sur tous les marginaux du bras :
 |---|---|---|
 | 1 | **C9 (ancrage) échoue** (clause a ou b) | **STOP** — dérive du harnais, **aucune** GO/NO-GO, diagnostic de dérive publié (§4.4) |
 | 2 | C4–C8 ou C10 échoue, ou un bras requis (`control` / `anchor` / `decision`) incomplet (arrêt budget/crash/OOM avant complétion du shard) | **INVALIDE** — « corriger et relancer » : défaut de validité du run, **aucune décision sur l'effet** ; rejeu sous le présent PRE sans amendement. Le bras `n6` est non décisionnel : sa partialité ne bloque pas (§6) |
-| 3 | C1 tenu (C4–C10 tenus), aucune réserve R_a/R_b/R_c | **GO** — ouvrir un `StudentPolicy` réduit (≤ 0,6B) en J19 |
-| 4 | C1 tenu (C4–C10 tenus), ≥ 1 réserve R_a/R_b/R_c (§4.2) | **GO conditionnel** — ouverture de J19 autorisée uniquement avec `TaskVerifier` + porte de correction pré-enregistrés |
-| 5 | C1 non tenu (`ΔKL_prod ≤ 0` ou IC ∋ 0), run valide (C4–C10 tenus, C9 tenu) | **NO-GO** — résultat légitime sur l'effet scientifique |
+| 3 | C1 (tous σ) **et** C1_{σ>0} tenus (C4–C10 tenus, C9 tenu), aucune réserve R_a/R_b/R_c | **GO** — ouvrir un `StudentPolicy` réduit (≤ 0,6B) en J19 ; **GO non conditionnel impossible si C1_{σ>0} échoue** (PRE-B5) |
+| 4 | C1 (tous σ) tenu (C4–C10 tenus, C9 tenu) mais C1_{σ>0} échoue (§4.2, PRE-B5) **ou** ≥ 1 réserve R_a/R_b/R_c | **GO conditionnel** — ouverture de J19 autorisée uniquement avec `TaskVerifier` + porte de correction pré-enregistrés |
+| 5 | C1 (tous σ) non tenu (`ΔKL_prod ≤ 0` ou IC ∋ 0), run valide (C4–C10 tenus, C9 tenu) | **NO-GO** — résultat légitime sur l'effet scientifique |
 
 **R1** (`DOPD_SPEC.md` §6.10.8) : le silence n'est pas un GO. Toute issue est
 consignée dans un rapport de mission avec la règle appliquée. `STOP` et
