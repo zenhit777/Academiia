@@ -895,6 +895,8 @@ def evaluate_multiprompt(
     return {
         "n": int(summary["n"]),
         "mean_delta_kl": summary["mean_delta_kl"],
+        "mean_causal_kl": summary["mean_causal_kl"],
+        "mean_future_kl": summary["mean_future_kl"],
         "median_delta_kl": float(np.median(deltas)) if deltas.size else float("nan"),
         "aggregate_ci95_delta_kl": list(aggregate_ci),
         "per_prompt": per_prompt,
