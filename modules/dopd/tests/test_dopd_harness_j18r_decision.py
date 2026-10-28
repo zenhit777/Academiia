@@ -3,7 +3,7 @@
 T1 identité / non-dégénérescence, T2 mutation F4, T3 mutation F3, T4 équivalence
 ligne-à-ligne inline ↔ paquet, T5 branches d'échec et issues §4.5, T6 float32
 réellement appliquée, T7 séparation tests purs / torch, R-J18R-01…04 corrections bloquantes
-(revue N1 sur `c42dab7`).
+(revue N1 sur `c42dab7`), R-J18R-05 gate T1 + troncature, R-J18R-06 hash §9.2 (revues N1/N2).
 
 Aucun `import torch` ici : le harnais est chargé par chemin (il n'importe que NumPy
 et le paquet) et le fixture de scoring est un fake duck-typed. Les tests qui
@@ -23,8 +23,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from academiia.core import sha256_file
 from academiia.dopd.diagnostic import bootstrap_delta_ci
-from academiia.dopd.target import REASON_APPLIED, compute_future_aware_target
+from academiia.dopd.target import REASON_APPLIED, REASON_NO_VISIBLE_FUTURE, compute_future_aware_target
 
 _HARNESS_PATH = Path(__file__).resolve().parents[1] / "harness" / "run_j18r_decision.py"
 _SPEC = importlib.util.spec_from_file_location("dopd_harness_j18r_decision", _HARNESS_PATH)
@@ -104,12 +105,23 @@ class FixtureScorer:
         return prior[list(candidates)], scores
 
 
-def _run_arm(arm: str, block_size: int, vocab_width: int, blocks: int, table, integrity=None, k=None) -> list:
-    support = j18r.build_economical_support(
+def _run_arm(
+    arm: str,
+    block_size: int,
+    vocab_width: int,
+    blocks: int,
+    table,
+    integrity=None,
+    k=None,
+    module=None,
+) -> list:
+    """Exécute un bras sur la fixture ; `module` permet d'injecter un harnais muté."""
+    mod = module if module is not None else j18r
+    support = mod.build_economical_support(
         lambda prefixes: np.stack([table(prefix) for prefix in prefixes]), block_size, vocab_width, option="A"
     )
     sequences, log_joint = support.enumerate_joint()
-    return j18r.process_configuration(
+    return mod.process_configuration(
         arm=arm,
         prompt="p01",
         config_index=f"N{block_size}_V{vocab_width}",
@@ -117,10 +129,10 @@ def _run_arm(arm: str, block_size: int, vocab_width: int, blocks: int, table, in
         sequences=sequences,
         log_joint=log_joint,
         provider=FixtureScorer(table),
-        seed=j18r.SEED_DECISION,
+        seed=mod.SEED_DECISION,
         blocks=blocks,
-        integrity=integrity if integrity is not None else j18r.IntegrityStats(),
-        replay_stats=j18r.ReplayStats(),
+        integrity=integrity if integrity is not None else mod.IntegrityStats(),
+        replay_stats=mod.ReplayStats(),
         block_sample=list(range(blocks)),
         future_is_state=(arm == "control"),
         k=k,
@@ -682,3 +694,124 @@ def test_r_j18r_04_execute_runs_n6_when_the_flag_is_present(monkeypatch) -> None
         "n6_chat_template",
     ]
 
+
+# ---------------------------------------------------------------------------
+# R-J18R-05 — gate T1 (§1.4) et publication de la troncature (§4.4, revue N2)
+# ---------------------------------------------------------------------------
+
+
+def _load_mutated_harness(name: str, old: str, new: str):
+    """Copie mutée du harnais (mutation au niveau source) dans un module frais."""
+    source = _HARNESS_PATH.read_text(encoding="utf-8")
+    mutated = source.replace(old, new)
+    assert mutated != source, f"le motif de mutation est absent de la source : {old!r}"
+    spec = importlib.util.spec_from_file_location(name, _HARNESS_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    exec(compile(mutated, str(_HARNESS_PATH), "exec"), module.__dict__)
+    return module
+
+
+_GATE_REMOVAL = (
+    "    if visible_future:\n        full_result = inline_full_target(causal, scores, reference_score)",
+    "    if True:\n        full_result = inline_full_target(causal, scores, reference_score)",
+)
+
+
+def _decision_with_k(blocks: int = 10) -> list:
+    return _run_arm("decision", 4, VOCAB, blocks=blocks, table=fixture_table(), k=4)
+
+
+def test_r_j18r_05_full_target_is_gated_to_causal_without_visible_future() -> None:
+    """(a) bras décision, `k` défini : sans futur visible, T1 := T0, troncature nulle."""
+    observations = _decision_with_k()
+    invisible = [o for o in observations if not o.visible_future]
+    assert invisible, "la fixture doit produire des marginaux sans futur visible"
+    for observation in invisible:
+        record = observation.record()
+        # T1 est la cible causale elle-même : même KL sur la même cible, égalité bit à bit.
+        assert observation.full_kl == observation.causal_kl
+        # la ligne publiée `full_kl - future_kl` est nulle (T2 = prior renormalisé, §2.3)
+        assert abs(float(record["full_kl"]) - float(record["future_kl"])) <= 1e-12
+        assert abs(observation.delta_kl) <= 1e-12
+        assert observation.reason == REASON_NO_VISIBLE_FUTURE
+
+
+def test_r_j18r_05_anchor_arm_applies_the_same_gate_as_j15() -> None:
+    """Bras ancrage (T1 seul, sans k) : la règle J15 (`future := causal`) est respectée."""
+    observations = _run_arm("anchor", 4, VOCAB, blocks=6, table=fixture_table())
+    invisible = [o for o in observations if not o.visible_future]
+    assert invisible
+    for observation in invisible:
+        assert observation.future_kl == observation.causal_kl
+        assert observation.delta_kl == 0.0
+        assert observation.reason == REASON_NO_VISIBLE_FUTURE
+
+
+def test_r_j18r_05_gate_removal_mutation_breaks_the_full_target_property() -> None:
+    """(b) retirer le gate T1 casse la propriété (a) : la suite est sensible au gate."""
+    mutated = _load_mutated_harness("dopd_harness_j18r_decision_gate_removed", *_GATE_REMOVAL)
+    observations = _run_arm("decision", 4, VOCAB, blocks=10, table=fixture_table(), k=4, module=mutated)
+    broken = [o for o in observations if not o.visible_future and o.full_kl != o.causal_kl]
+    assert broken, "sans le gate, T1 applique à tort les scores d'un futur échantillonné"
+    for observation in broken:
+        # sonde N2 : la troncature de ces lignes devient fausse (non nulle)
+        assert abs(float(observation.full_kl) - float(observation.future_kl)) > 1e-9
+    # T2 reste gated par le paquet : la dérive vient de T1 seul
+    assert all(abs(o.future_kl - o.causal_kl) <= 1e-12 for o in observations if not o.visible_future)
+
+
+def test_r_j18r_05_t1_and_t2_agree_with_the_causal_target_without_visible_future() -> None:
+    """(c) cohérence T1/T2 sur les marginaux sans futur visible : cible causale des deux côtés."""
+    observations = _decision_with_k()
+    invisible = [o for o in observations if not o.visible_future]
+    assert invisible
+    for observation in invisible:
+        assert observation.full_kl == observation.causal_kl
+        assert abs(observation.future_kl - observation.causal_kl) <= 1e-12
+    # le gate du paquet rend la causale renormalisée, pas une correction (ligne type)
+    table = fixture_table()
+    support = j18r.build_economical_support(
+        lambda prefixes: np.stack([table(prefix) for prefix in prefixes]), 4, VOCAB, option="A"
+    )
+    causal = support.causal_prior((1, 2, 3), 3)
+    result = j18r.production_target(causal, list(range(VOCAB)), np.zeros(VOCAB), 0.0, visible_future=False)
+    assert result.reason == REASON_NO_VISIBLE_FUTURE
+    assert not result.applied
+    assert np.max(np.abs(result.target - causal / causal.sum())) <= 1e-12
+
+
+def test_r_j18r_05_truncation_cost_is_published_on_all_and_on_the_visible_subset() -> None:
+    """§4.4 : troncature sur tous les marginaux du bras décision ET sur le sous-ensemble visible."""
+    observations = _decision_with_k()
+    publications = j18r.arm_publications(
+        observations, arm="decision", bootstrap_seed=j18r.BOOTSTRAP_SEED_DECISION, iterations=200
+    )
+    all_cost = publications["truncation_cost"]
+    visible_cost = publications["truncation_cost_visible_future"]
+    visible = [o for o in observations if o.visible_future]
+    assert all_cost["n"] == len(observations)
+    assert visible_cost["n"] == len(visible)
+    visible_trunc = [float(o.full_kl) - float(o.future_kl) for o in visible]
+    invisible_trunc = [float(o.full_kl) - float(o.future_kl) for o in observations if not o.visible_future]
+    # la moyenne sur les lignes sans futur visible est nulle : l'agrégat « tous » n'est pas
+    # porté par elles (c'est la sonde de la revue N2, moyenne fausse avant correction)
+    assert abs(float(np.mean(invisible_trunc))) <= 1e-12
+    assert abs(visible_cost["mean"] - float(np.mean(visible_trunc))) <= 1e-12
+    assert abs(all_cost["mean"] - float(np.mean(visible_trunc + invisible_trunc))) <= 1e-12
+    assert visible_cost["min"] <= visible_cost["mean"] <= visible_cost["max"]
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-06 — hash figé §9.2 de l'artefact J18 (C10 falsifiable)
+# ---------------------------------------------------------------------------
+
+
+def test_r_j18r_06_frozen_hash_of_j18_decision_artifact_matches_the_file() -> None:
+    """Le hash épinglé est le hash réel de `j18_decision/results.json` (constat R2)."""
+    relative = "modules/dopd/eval/j18_decision/results.json"
+    assert j18r.FROZEN_HASHES[relative] == sha256_file(str(j18r._REPO_ROOT / relative))
+    result = j18r.criterion_c10(repo_root=j18r._REPO_ROOT)
+    assert result["frozen_files"][relative] is True
+    assert result["holds"] is True

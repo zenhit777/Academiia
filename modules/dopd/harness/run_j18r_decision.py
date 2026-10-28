@@ -53,6 +53,7 @@ from academiia.dopd.interfaces import ArtifactRef, LineageWriter
 from academiia.dopd.target import (
     REASON_APPLIED,
     REASON_FALLBACK,
+    REASON_NO_VISIBLE_FUTURE,
     candidate_union,
     compute_future_aware_target,
 )
@@ -146,7 +147,7 @@ FROZEN_HASHES: dict[str, str] = {
     "modules/dopd/harness/diagnostic_annexe_d.py": "8132c775ca455e95b6443e47e3e46cf0de7955227ff06a0f656b2f4faacd1afd",
     "modules/dopd/eval/annexe_d_qwen3_0.6b_multiprompt/prompts.json": "87aa12c9b48a479b0709d7de01912cc00ce77b4ff679fc1f89cfeccb641ba3e5",
     "modules/dopd/eval/annexe_d_qwen3_0.6b_multiprompt/results.json": "ed41ed7e4aee15c66289ae0d3865efcdaf4e0327761d735a62da2f26e742c5f5",
-    "modules/dopd/eval/j18_decision/results.json": "4e891a3d9cd54b26f351e629e6dc38b13d46525911db275a62da2f26e742c5f5",
+    "modules/dopd/eval/j18_decision/results.json": "4e891a3d9cd54b26f351e629e6dc38b13d46525911db275664b2a425d9fa225e",
     "modules/dopd/docs/reports/AUDIT_J18.md": "0e211490a2bb99650c3f7226f320206c4287c5a02fb6657f82c3cf45d302eaae",
 }
 
@@ -781,12 +782,25 @@ def marginal_for_position(
     exact_posterior = np.asarray(exact[position], dtype=np.float64)
     integrity.observe_distribution(exact_posterior)
 
-    full_result = inline_full_target(causal, scores, reference_score)
+    # §1.4 : sans futur visible, la cible future-aware est inopérante — T1 := T0
+    # (cas limite eq. 12), comme le gate `visible_future` de T2 (§2.3). Sans ce
+    # gate, T1 appliquerait les scores d'un futur échantillonné à une position
+    # dont l'état visible ne contient aucun futur : la cible n'est pas la causale
+    # et la troncature `full_kl - future_kl` y est fausse (R-J18R-05).
+    visible_future = has_visible_future(position, masked, block_size)
+    if visible_future:
+        full_result = inline_full_target(causal, scores, reference_score)
+    else:
+        full_result = {
+            "target": np.asarray(causal, dtype=np.float64).copy(),
+            "applied": False,
+            "reason": REASON_NO_VISIBLE_FUTURE,
+            "n_candidates": int(causal.size),
+        }
     integrity.count_reason(str(full_result["reason"]))
     if not np.all(np.isfinite(np.asarray(full_result["target"], dtype=np.float64))):
         integrity.finite = False
 
-    visible_future = has_visible_future(position, masked, block_size)
     causal_kl = kl_exact_to_target(exact_posterior, causal)
     full_kl = kl_exact_to_target(exact_posterior, np.asarray(full_result["target"], dtype=np.float64))
 
@@ -1082,11 +1096,26 @@ def arm_publications(
             for row in records
             if row.get("full_kl") is not None
         ]
+        # §1.4 (R-J18R-05) : sur les marginaux sans futur visible, T1 := T0 et
+        # T2 := T0, donc la troncature y est nulle. L'agrégat « tous » est donc
+        # tiré par les seules lignes à futur visible ; le sous-ensemble visible
+        # isole la part réellement perdue par la troncature du support.
+        truncation_visible = [
+            float(row["full_kl"]) - float(row["future_kl"])
+            for row in records
+            if row.get("full_kl") is not None and row.get("visible_future")
+        ]
         publications["truncation_cost"] = {
             "n": len(truncation),
             "min": float(min(truncation)) if truncation else float("nan"),
             "mean": float(np.mean(truncation)) if truncation else float("nan"),
             "max": float(max(truncation)) if truncation else float("nan"),
+        }
+        publications["truncation_cost_visible_future"] = {
+            "n": len(truncation_visible),
+            "min": float(min(truncation_visible)) if truncation_visible else float("nan"),
+            "mean": float(np.mean(truncation_visible)) if truncation_visible else float("nan"),
+            "max": float(max(truncation_visible)) if truncation_visible else float("nan"),
         }
         candidates = [observation.n_candidates for observation in observations]
         publications["candidates_per_marginal"] = {
