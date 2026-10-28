@@ -32,6 +32,11 @@ eval = [
   # épinglé (4.46.2) et n'installe pas cet extra.
   "transformers>=4.56.2",
   "pyyaml",
+  # J18 : le harnais de decision run_j18_decision.py importe
+  # `scipy.stats.binomtest` au niveau module (test de signe). Declare ici :
+  # la cause de la CI rouge #47..#52 etait ce manque (le harnais et son test
+  # ont ete pousse avec f7f1fcc, la suite echoue a la collection, exit 2).
+  "scipy>=1.7",
 ]
 peft = [
   "peft",
