@@ -31,6 +31,13 @@ la lire avant toute modification du pipeline de fusion. Pour d-OPD, lire
 ## Dossiers temporaires
 - `_artefact/` → dossier temporaire agents (non partagé). Tous les fichiers générés par les agents sans vocation de partage doivent y être placés.
 
+## Règles de session — run GPU d'évaluation (miroir d'`AGENTS.md` règles 13–17)
+- **Vol d'essai obligatoire avant tout run GPU complet** (ex. `modules/dopd/docs/reports/J18R.md` §7.3, `--blocks 100`) : vol réduit (ex. `--blocks 2`), sorties dans `_artefact/` (jamais `modules/*/eval/`), puis **autorisation demandée à l'utilisateur** avant le run complet.
+- **Seuil VRAM mesuré** (`nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free --format=csv`) : en dessous du seuil chiffré de la mission (ex. ≈ 17 GiB libres pour J18R, `modules/dopd/docs/BUDGET_RTX5090.md`), STOP et **demander l'autorisation** ; ne jamais forcer, cibler une application, décharger un modèle ni tuer un processus.
+- **Garde de temps** : extrapolation du vol d'essai au-dessus du plafond de la mission (ex. 14 400 s) → STOP et report ; un amendement de budget est une **décision utilisateur/architecte**.
+- **Le vol d'essai mesure** : temps par bras, extrapolation au `--blocks` complet, pic de RSS (config la plus coûteuse, ex. support `V=24`) et pic GPU.
+- **Aucun correctif non revisé** : tout défaut nouveau constaté au vol d'essai → STOP + constat écrit ; pas de correction sans la revue en cours.
+
 ## Fichiers de référence
 - [`docs/CHECKLIST.md`](docs/CHECKLIST.md) → vérifications obligatoires avant "prêt" (portes G1/G2/G3)
 - [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) → anomalies connues (blocage mmap/RAM, J5 non conforme)
