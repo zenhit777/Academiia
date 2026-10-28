@@ -655,6 +655,17 @@ def _fake_execute_environment(monkeypatch, *, returncode: int = 0, write_raw: bo
     scorer_devices: list[str] = []
     raw_payloads: dict[str, str] = {}
     monkeypatch.setattr(j18r, "_torch", lambda: _FakeTorchModule)
+    # `execute` charge le module de scoring **réel** (torch) et `transformers` : les deux
+    # sont simulés ici, sinon la suite pure exigerait torch (absent en CI).
+    monkeypatch.setattr(j18r, "_transformers", lambda: _FakeTransformersModule)
+    monkeypatch.setattr(j18r, "load_scorer_module", lambda: _make_scorer_module(scorer_devices))
+    # Le garde-fou §7.7 résout un snapshot HF réel : hors CI (pas de cache), refus sortie 2.
+    monkeypatch.setattr(
+        j18r,
+        "verify_model_source_in_repo",
+        lambda model, root: {"model_source_in_repo": True, "model_snapshot": "fake", "model_revision": "fake"},
+    )
+
     def raw_rows(arm: str) -> list[dict]:
         rows = [_row(arm, f"p{p + 1:02d}", "N4_V6", b, 0.0, 0.05) for p in range(2) for b in range(3)]
         for row in rows:
@@ -696,7 +707,8 @@ def _fake_execute_environment(monkeypatch, *, returncode: int = 0, write_raw: bo
         # le provider porte le `device` lié par mot-cle (R-J18R-07).
         provider = kwargs["provider_factory"]((7, 8, 9))
         assert isinstance(provider, j18r.ProductionScoreProvider)
-        scorer_devices.append(str(provider._scorer.device))
+        # le `device` est lié par mot-clé au constructeur : le miroir l'enregistre (§R-J18R-07)
+        assert str(provider._scorer.device) == str(kwargs["args"].device)
         records = fake_records(arm)
         return {"arm": arm, "records": records, "publications": publications_for(arm, records), "complete": True}
 
@@ -894,6 +906,7 @@ def test_r_j18r_07_execute_passes_the_device_keyword_to_the_scorer(monkeypatch) 
     j18r.execute(j18r.build_parser().parse_args(argv), argv)
     # un provider par bras exécuté (control, decision), chacun lié au `device` demandé
     assert env["scorer_devices"] == ["cpu", "cpu"]
+    assert env["arms"] == ["control", "decision"]
 
 
 # ---------------------------------------------------------------------------
