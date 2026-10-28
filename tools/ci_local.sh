@@ -14,6 +14,9 @@
 # (note d'inventaire 2026-10-21 dans modules/a2d/docs/reports/OUT_OF_WORKSPACE.md
 # §1.3). Avec `--capture=sys`, les temporaires restent dans le depot et la
 # suite est vert.
+# Chaque bloc `bash -c` porte `set -e` : le shell par defaut d'un step Actions
+# est `bash --noprofile --norc -eo pipefail`, donc une commande echouee arrete
+# le step. Sans `set -e`, le miroir enchainerait sur un merge refuse.
 set -u
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
@@ -21,6 +24,10 @@ TMPDIR="$REPO/_artefact/ci_local_tmp"
 PIP_CACHE_DIR="$REPO/_artefact/ci_pip_cache"
 export TMPDIR PIP_CACHE_DIR
 mkdir -p "$TMPDIR" "$PIP_CACHE_DIR"
+# Le miroir cree ses propres fixtures : un shard deja present ferait refuser le
+# merge par le garde-fou de la bibliotheque -> reinitialisation a chaque passe.
+rm -rf "$TMPDIR/dummy_dg" "$TMPDIR/dummy_tau" "$TMPDIR/dummy_out" "$TMPDIR/a2d"
+rm -f "$TMPDIR/measure.json"
 
 STEP=0
 fail() { echo "### ETAPE $STEP echouee : $1 (sortie $2)"; exit 1; }
@@ -39,6 +46,7 @@ run 1 "Imports des paquets installes" \
   python3 -c "import academiia.core, academiia.a2d, academiia.dopd; print('OK')"
 
 run 2 "Entry-points CLI (--help)" bash -c '
+  set -e
   for cli in merge-a2d verify-merge measure-geometry verify-checkpoint download-models; do
     echo "--- ${cli} --help"
     "${cli}" --help > /dev/null || exit 1
@@ -64,6 +72,7 @@ run 5 "Compilation du correctif B1 (verify_checkpoint.py)" \
   python3 -m py_compile modules/a2d/cli/verify_checkpoint.py
 
 run 6 "Merge legacy (merge_jainius.py) sur mini-checkpoint" bash -c '
+set -e
 python3 - <<EOF
 import json, os
 import torch
@@ -90,6 +99,7 @@ python3 modules/a2d/cli/verify_checkpoint.py --checkpoint "${TMPDIR}/dummy_out"
 python3 modules/a2d/legacy/scripts/measure_effect.py --diffusiongemma "${TMPDIR}/dummy_dg" --tau-dir "${TMPDIR}/dummy_tau" --alphas 0.3 --output "${TMPDIR}/measure.json"'
 
 run 7 "Merge A2D conforme (merge_a2d.py) + verification (verify_merge.py)" bash -c '
+set -e
 python3 - <<EOF
 import json, os
 import torch
@@ -147,6 +157,7 @@ run 9 "Tests adversariaux (mutations) de la bibliotheque A2D" \
   python3 -m pytest modules/a2d/tests/test_a2d_mutation.py -v --capture=sys
 
 run 10 "Modes A2D non couverts par le test unitaire (CLI)" bash -c '
+set -e
 # 1. ablation-dp-minus-tau-d : doit FUSIONNER tau_D (BLK-01)
 python3 modules/a2d/cli/merge_a2d.py --mode ablation-dp-minus-tau-d \
   --diffusion "${TMPDIR}/a2d/d_post" \
@@ -206,6 +217,7 @@ run 11 "Liens relatifs des fichiers Markdown" \
   python3 tools/check_links.py
 
 run 12 "Syntaxe shell de l'infra + compilation smoke_chat.py" bash -c '
+  set -e
   bash -n infra/vllm/diagnose_image.sh infra/vllm/smoke.sh
   python3 -m py_compile infra/vllm/smoke_chat.py'
 
