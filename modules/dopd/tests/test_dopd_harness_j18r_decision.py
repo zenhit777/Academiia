@@ -437,6 +437,10 @@ def test_t7_pure_test_file_never_imports_torch() -> None:
 
 def test_t7_harness_loads_and_collects_without_torch_in_a_fresh_process() -> None:
     """La voie NumPy se charge et se collecte sans `torch` (convention J15 P3)."""
+    # `--capture=sys` dans la sous-invocation : la capture par défaut crée une
+    # tmpfile sous `TMPDIR`, et DrvFs (`/mnt/d`) ne supporte pas `O_TMPFILE` —
+    # la sous-collection échouerait en `FileNotFoundError` au truncate de fin de
+    # session quand `TMPDIR` est redirigé dans le dépôt (règle 9).
     code = (
         "import importlib.util, json, sys\n"
         "class Blocker:\n"
@@ -455,7 +459,7 @@ def test_t7_harness_loads_and_collects_without_torch_in_a_fresh_process() -> Non
         "except ImportError:\n"
         "    imported = False\n"
         "import pytest\n"
-        f"collected = pytest.main(['--collect-only', '-q', {str(Path(__file__))!r}])\n"
+        f"collected = pytest.main(['--collect-only', '-q', '--capture=sys', {str(Path(__file__))!r}])\n"
         "print(json.dumps({'torch_imported': imported, 'torch_absent': 'torch' not in sys.modules, "
         "'collection_ok': collected == 0, 'control_ok': module.control_metrics([]) is not None}))\n"
     )
