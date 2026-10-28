@@ -90,6 +90,7 @@ n'est donc plus une source unique.
 | `/tmp/dummy_dg/`, `/tmp/dummy_tau/`, `/tmp/dummy_out/` | 422 + 534 + 3 306 | `sjteb:sjteb` | 2026-10-20 12:5x | fixtures de test CI (J6bis) |
 | `/tmp/measure.json` | 1 240 | `sjteb:sjteb` | | mesure J6 |
 | `/tmp/torchinductor_sjteb/` | 0 | `sjteb:sjteb` | 2026-10-19 | cache du compilateur torch (vide) |
+| `/tmp/academiia_ci_local/` | **4 934 549** (4,70 Mo) | `sjteb:sjteb` | 2026-10-28 03:56 | fixtures de la **première** passe du miroir local CI (étapes mini-checkpoint, merge A2D, modes CLI) : écritures **hors dépôt** — **écart à la règle 9 déclaré** ; la passe versionnée (`tools/ci_local.sh`) écrit dans `_artefact/ci_local_tmp/` |
 | `/tmp/systemd-private-*`, `/tmp/snap-private-tmp` | 0 | — | | sockets systemd : **illisibles** (permission denied) |
 
 **Note d'inventaire (transparence sur l'outillage)** : la croissance de
@@ -124,6 +125,17 @@ préexistante n'a été supprimée.
 >
 > `--capture=fd` échoue comme la capture par défaut sur DrvFs ; le `TMPDIR` par défaut
 > (`/tmp`, ext4) fonctionne mais écrit hors dépôt.
+
+**Complément 2026-10-28 (miroir local du job CI).** La recette ci-dessus est
+**appliquée** par `tools/ci_local.sh` : `TMPDIR="$REPO/_artefact/ci_local_tmp"`,
+`PIP_CACHE_DIR="$REPO/_artefact/ci_pip_cache"` et `--capture=sys` sur les deux
+passes pytest. La **première** passe, antérieure à cette mise en œuvre, a écrit
+`/tmp/academiia_ci_local/` (4 934 549 o, mesuré) et écrit dans
+`/tmp/pytest-of-sjteb/`, mesuré à **2 914 187 o** le 2026-10-28 03:54 — **moins**
+que les 13 095 569 o inventoriés le 2026-10-21 : la zone n'est pas cumulative
+(pytest y purge ses runs temporaires), la mesure est donc un instantané.
+**Écart à la règle 9 déclaré ici ; aucune suppression** : ce sont des fixtures
+recréées à chaque passe, aucune donnée de campagne.
 
 ### 1.4 Docker
 

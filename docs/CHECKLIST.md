@@ -39,6 +39,12 @@
 - [ ] `modules/a2d/legacy/scripts/merge_jainius.py --help` : défaut `--alpha 0.3`, `--on-shape-mismatch error`, manifeste `merge_config.json` écrit
 - [ ] `pytest modules/a2d/tests modules/dopd/tests tests infra/vllm/scripts/tests -q` → tout vert (suite pytest du
       dépôt ; le nombre de tests n'est pas figé dans la prose)
+- [ ] `bash tools/ci_local.sh` → **CI locale verte** : miroir des 12 étapes du job `checks` de
+      `.github/workflows/ci.yml` (l'installation pip est sautée). Prérequis : `ruff` présent dans
+      l'environnement (`python3 -m ruff --version`). `TMPDIR` et `PIP_CACHE_DIR` sont dans
+      `_artefact/` (règle 9) ; la capture de pytest est `--capture=sys`, seule capture qui
+      fonctionne sur DrvFs (`/mnt/d`) — note du 2026-10-21 dans
+      `modules/a2d/docs/reports/OUT_OF_WORKSPACE.md` §1.3.
 - [ ] `python -c "import academiia.core, academiia.a2d, academiia.dopd; print('OK')"` → OK
 - [ ] `modules/dopd/dopd/` n'importe **pas** `academiia.a2d` ni torch (test
       `modules/dopd/tests/test_dopd_package.py`) ; le squelette d-OPD reste CPU
@@ -68,6 +74,13 @@
 ### 4. État du repo git
 - [ ] `git status --short` est vide (working tree clean — `.gitignore` couvre `__pycache__/`, `*.pyc`, `.venv/`, `*.npy`)
 - [ ] `checkpoints/` et `_artefact/` sont bien dans `.gitignore`
+- [ ] Avant push : `git fetch` puis `git rev-list --left-right --count origin/main...main` → `0 0`
+      (aucune divergence ; commits atomiques, jamais de `--force`). Le verdict CI est lu via l'API
+      GitHub : `curl -s -H "Accept: application/vnd.github+json"
+      https://api.github.com/repos/zenhit777/Academiia/actions/runs?per_page=5` — `gh` n'est pas
+      installé sur cette machine. Transport : clé SSH personnelle via
+      `/mnt/c/Windows/System32/OpenSSH/ssh.exe` (accord **par mission**, `AGENTS.md` règle 11 et
+      ADR-005 §6 ; commits poussés, tags touchés et transport consignés dans le rapport).
 
 ### 5. Structure HuggingFace
 - [ ] `checkpoints/Jainius/README.md` existe (model card)
