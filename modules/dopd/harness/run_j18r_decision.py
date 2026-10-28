@@ -157,16 +157,33 @@ CONTROLLED_DIAGNOSTIC_LINES: tuple[str, ...] = (
     '        "mean_future_kl": summary["mean_future_kl"],',
 )
 
-#: §7.2 — shards par bras ; `results.json` n'est jamais écrit si un bras requis est
-#: incomplet.
+#: §7.2 — shards **étiquetés** par bras ; `results.json` n'est jamais écrit si un bras requis est
+#: incomplet. Le bras de sensibilité n'a pas de shard étiqueté : son brut est ingéré tel quel et
+#: ses publications vivent dans `results.json` (§4.4) — R-J18R-08.
 ARM_SHARDS: dict[str, str] = {
     "control": "arm_control.json",
     "anchor": "arm_anchor.json",
-    "sensitivity_fp32": "arm_sensitivity_raw.json",
     "decision": "arm_decision.json",
     "n6_chat_template": "arm_n6.json",
 }
+#: §7.3b — shards **bruts** écrits par les sous-invocations J15. J18R les lit et ne les écrit
+#: jamais : les réécrire casserait le hash et la chaîne figée (D2, R-J18R-08).
+RAW_SHARDS: dict[str, str] = {
+    "anchor": "arm_anchor_raw.json",
+    "sensitivity_fp32": "arm_sensitivity_raw.json",
+}
 REQUIRED_ARMS: tuple[str, ...] = ("control", "anchor", "decision")
+
+
+def arm_shard_names(arm: str) -> list[str]:
+    """Shards §7.2 d'un bras : le brut produit par J15 (bras délégués), puis le shard étiqueté."""
+    names = []
+    if arm in RAW_SHARDS:
+        names.append(RAW_SHARDS[arm])
+    if arm in ARM_SHARDS:
+        names.append(ARM_SHARDS[arm])
+    return names
+
 
 #: §7.3 — commande canonique rejouable ; écart avec la commande réellement exécutée
 #: = violation C6.
@@ -181,18 +198,49 @@ CANONICAL_COMMAND = (
     f"--max-rss-gib 24 --output-dir {DEFAULT_OUTPUT_DIR}"
 )
 
-#: §7.3b — invocations d'ancrage, chaînes figées (harnais J15 gelé, importé en
-#: lecture seule).
+#: §7.3b — invocations d'ancrage, chaînes figées (harnais J15 gelé, importé en lecture seule).
+#: Le chemin de sortie suit `--output-dir` (D3, R-J18R-09) : au répertoire canonique, la chaîne
+#: recopiée dans le PRE est reproduite **à l'identique**, `--blocks` canonique compris.
 J15_HARNESS = "modules/dopd/harness/diagnostic_annexe_d.py"
-ANCHOR_INVOCATION = (
-    f"python {J15_HARNESS} --model Qwen/Qwen3-0.6B --device cuda --dtype bfloat16 "
-    f"--prompt-file {DEFAULT_PROMPT_FILE} --blocks 100 --seed 20261023 "
-    "--bootstrap-seed 20261024 --local-files-only "
-    f"--output {DEFAULT_OUTPUT_DIR}/arm_anchor_raw.json --top-k 16"
-)
-SENSITIVITY_INVOCATION = ANCHOR_INVOCATION.replace("--dtype bfloat16", "--dtype float32").replace(
-    "arm_anchor_raw.json", "arm_sensitivity_raw.json"
-)
+CANONICAL_BLOCKS = 100
+
+
+def _j15_invocation(dtype: str, raw_name: str, output_dir: str, blocks: int) -> str:
+    tokens = [
+        "python",
+        J15_HARNESS,
+        "--model",
+        DEFAULT_TEACHER_MODEL,
+        "--device",
+        "cuda",
+        "--dtype",
+        dtype,
+        "--prompt-file",
+        DEFAULT_PROMPT_FILE,
+        "--blocks",
+        str(blocks),
+        "--seed",
+        str(SEED_ANCHOR),
+        "--bootstrap-seed",
+        str(BOOTSTRAP_SEED_ANCHOR),
+        "--local-files-only",
+        "--output",
+        f"{output_dir}/{raw_name}",
+        "--top-k",
+        "16",
+    ]
+    return " ".join(tokens)
+
+
+def anchor_invocation(output_dir: str = DEFAULT_OUTPUT_DIR, blocks: int = CANONICAL_BLOCKS) -> str:
+    """§7.3b — ancrage BF16 : harnais J15 gelé, `--output` propagé à `--output-dir`."""
+    return _j15_invocation("bfloat16", RAW_SHARDS["anchor"], output_dir, blocks)
+
+
+def sensitivity_invocation(output_dir: str = DEFAULT_OUTPUT_DIR, blocks: int = CANONICAL_BLOCKS) -> str:
+    """§7.3b — sensibilité FP32 : même chaîne, `--dtype` et nom de sortie seuls écartés."""
+    return _j15_invocation("float32", RAW_SHARDS["sensitivity_fp32"], output_dir, blocks)
+
 
 #: §9.3 — références d'ancrage et de tolérance (rappel obligatoire, jamais recalculées).
 REFERENCE_J15 = {
@@ -1168,10 +1216,14 @@ def arm_publications(
 def decide_j18r_issue(criteria: Mapping[str, object], reserves: Mapping[str, bool]) -> dict[str, object]:
     """Issue figée §4.5 : STOP > INVALIDE > GO > GO conditionnel > NO-GO.
 
-    `criteria` porte les booléens `C4`..`C10`, `arms_complete`, `C1` (tous σ) et
-    `C1_sigma_positive`. `STOP` et `INVALIDE` ne sont pas des décisions sur l'effet.
+    `criteria` porte les booléens `C4`..`C10`, `arms_complete`, `C1` (tous σ),
+    `C1_sigma_positive` et `C9_evaluable` : cette dernière clé est `False` quand **aucune**
+    ligne n'est partagée avec l'artefact J15 (bras d'ancrage absent). L'écart n'est alors pas
+    mesuré : la priorité 1 (`STOP`, dérive du harnais) est réservée à un ancrage mesuré en
+    échec ; l'absence de données tombe en `INVALIDE` (R-J18R-10). `STOP` et `INVALIDE` ne sont
+    pas des décisions sur l'effet.
     """
-    if not criteria.get("C9"):
+    if not criteria.get("C9") and criteria.get("C9_evaluable", True):
         return {
             "status": "STOP",
             "priority": 1,
@@ -1242,7 +1294,11 @@ def evaluate_reserves(publications: Mapping[str, object]) -> dict[str, bool]:
 
 
 def criterion_c9(anchor_records: list[dict], j15_reference: Mapping[str, object]) -> dict[str, object]:
-    """Ancrage C9 : clause (a) écart moyen ≤ 5e-3 ; clause (b) couverture et 2 %."""
+    """Ancrage C9 : clause (a) écart moyen ≤ 5e-3 ; clause (b) couverture et 2 %.
+
+    `evaluable` est vrai quand au moins une ligne du bras d'ancrage est partagée avec
+    l'artefact J15 : sans ligne comparable, l'écart n'est **pas mesuré** (R-J18R-10).
+    """
     reference_rows = list(j15_reference.get("rows") or [])
     aggregate = summarize_marginals(anchor_records)["mean_delta_kl"]
     reference_by_key = {
@@ -1263,6 +1319,7 @@ def criterion_c9(anchor_records: list[dict], j15_reference: Mapping[str, object]
     outliers = [key for key, (observed, reference) in shared.items() if abs(observed - reference) > C9_OUTLIER_THRESHOLD]
     coverage = len(shared) / len(reference_rows) if reference_rows else float("nan")
     publications = {
+        "evaluable": bool(shared),
         "holds": bool(
             aggregate is not None and abs(aggregate - C9_MEAN_REFERENCE) <= C9_MEAN_TOLERANCE
             and shared
@@ -1510,11 +1567,28 @@ def model_forward(
     return forwards
 
 
-class ProductionScoreProvider:
-    """Adapter du `TeacherScorer` de production sur le contrat §5.1."""
+#: plafond du cache de préfixe du scorer de production ; miroir de
+#: `teacher_scorer_qwen3.py:122` (`MAX_PREFIX_CACHE_BYTES = 16 * 1024**3`).
+MAX_PREFIX_CACHE_BYTES = 16 * 1024**3
 
-    def __init__(self, scorer) -> None:
+
+class ProductionScoreProvider:
+    """Adapter du `TeacherScorer` de production sur le contrat §5.1.
+
+    Le contrat §5.1 s'exprime en préfixe **relatif** du bloc (`future[:position]`) ; le scorer
+    de production conditionne ses probabilités sur la séquence complète `q + z` (eq. 14), comme
+    le support J15 (`model_forward` forward `prompt_ids + prefix`). À `position = 0` le préfixe
+    relatif est vide et `Qwen3TeacherScorer` le refuse (`teacher_scorer_qwen3.py:288-289` et
+    `:380-381`) : le provider porte donc les identifiants du prompt (D4, R-J18R-12).
+    """
+
+    def __init__(self, scorer, prompt_ids: Sequence[int]) -> None:
         self._scorer = scorer
+        self._prompt_ids = tuple(int(token) for token in prompt_ids)
+
+    def _conditioned(self, prefix: Sequence[int]) -> tuple[int, ...]:
+        """`q + z_i` : les identifiants du prompt précèdent le préfixe relatif du bloc."""
+        return self._prompt_ids + tuple(int(token) for token in prefix)
 
     def job(
         self,
@@ -1527,7 +1601,7 @@ class ProductionScoreProvider:
         from academiia.dopd.interfaces import ScoringRequest
 
         request = ScoringRequest(
-            prefix_ids=tuple(int(token) for token in prefix),
+            prefix_ids=self._conditioned(prefix),
             suffix_ids=tuple(int(token) for token in suffix),
             candidate_ids=tuple(int(token) for token in tokens),
             reference_id=int(reference_token),
@@ -1543,9 +1617,37 @@ class ProductionScoreProvider:
         suffix: Sequence[int],
     ) -> tuple[np.ndarray, np.ndarray]:
         prior, scores = self._scorer.replay_job(
-            [int(token) for token in prefix], [int(token) for token in candidates], [int(token) for token in suffix]
+            list(self._conditioned(prefix)),
+            [int(token) for token in candidates],
+            [int(token) for token in suffix],
         )
-        return np.asarray(prior, dtype=np.float64), np.asarray(scores, dtype=np.float64)
+        # Le contrat §5.2 attend le prior **aux candidats** ; le scorer de production rend le
+        # prior plein vocabulaire (eq. 14) : il faut donc le restreindre (R-J18R-12).
+        prior_array = np.asarray(prior, dtype=np.float64)
+        ids = np.asarray([int(token) for token in candidates], dtype=np.int64)
+        restricted = prior_array[ids] if prior_array.ndim == 1 and prior_array.size > ids.max(initial=-1) else prior_array
+        return restricted, np.asarray(scores, dtype=np.float64)
+
+
+def production_provider_factory(
+    scorer_class: Callable[..., object],
+    model: object,
+    device: str,
+    max_prefix_cache_bytes: int = MAX_PREFIX_CACHE_BYTES,
+) -> Callable[[Sequence[int]], ScoreProvider]:
+    """Fabrique **un provider par prompt** (un scorer, un cache de préfixe par séquence).
+
+    Constructeur de production : `Qwen3TeacherScorer(model, *, device=..., ...)` — le tokenizer
+    est hors du contrat `TeacherScorer` et `device` est lié par mot-cle (D1, R-J18R-07).
+    """
+
+    def factory(prompt_ids: Sequence[int]) -> ScoreProvider:
+        return ProductionScoreProvider(
+            scorer_class(model, device=device, max_prefix_cache_bytes=max_prefix_cache_bytes),
+            prompt_ids,
+        )
+
+    return factory
 
 
 def load_prompt_set(path: Path) -> list[tuple[str, str]]:
@@ -1626,19 +1728,24 @@ def run_arm(
     args: argparse.Namespace,
     prompts: list[tuple[str, str]],
     model: object,
-    provider: ScoreProvider,
+    provider_factory: Callable[[Sequence[int]], ScoreProvider],
     tokenizer: object,
     device: object,
     budget: BudgetGuard,
     integrity: IntegrityStats,
     replay_stats: ReplayStats,
 ) -> dict[str, object]:
-    """Bras exécuté par J18R : construction économe, arithmétique FP32, boucle figée."""
+    """Bras exécuté par J18R : construction économe, arithmétique FP32, boucle figée.
+
+    Le provider est construit **par prompt** (D4, R-J18R-12) : ses scores sont conditionnés
+    sur `q + z_i`, et `position = 0` donne un préfixe relatif vide, que le scorer refuse.
+    """
     observations: list[MarginalObservation] = []
     for prompt_id, text in prompts:
         if arm == "control" and prompt_id not in CONTROL_PROMPTS:
             continue
         prompt_ids = prompt_token_ids(tokenizer, text, device, chat_template=(arm == "n6_chat_template"))
+        provider = provider_factory(prompt_ids)
         for config in ARM_CONFIGS[arm]:
             block_size, vocab_width = int(config[0]), int(config[1])
             k = int(config[2]) if len(config) > 2 else None
@@ -1854,7 +1961,10 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
     scorer_module = load_scorer_module()
     model, source = scorer_module.load_teacher(args.model, device=args.device, dtype=args.dtype_decision)
     tokenizer = transformers.AutoTokenizer.from_pretrained(source)
-    provider = ProductionScoreProvider(scorer_module.Qwen3TeacherScorer(model, tokenizer))
+    # D1 + D4 (R-J18R-07, R-J18R-12) : le constructeur de production prend `model` et le
+    # `device` par mot-cle, jamais le tokenizer ; le provider est construit par prompt, son
+    # préfixe est conditionné sur `q + z_i` (eq. 14).
+    provider_factory = production_provider_factory(scorer_module.Qwen3TeacherScorer, model, device=args.device)
     counter = BackwardCounter()
     integrity = IntegrityStats()
     fraction = float(args.replay_fraction)
@@ -1883,11 +1993,24 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
     produced: dict[str, str] = {}
 
     # §7.3b : ancrage et sensibilité rendus par le harnais J15 gelé, ingérés tels quels.
-    for arm, invocation in (("anchor", ANCHOR_INVOCATION), ("sensitivity_fp32", SENSITIVITY_INVOCATION)):
+    # `--output` suit `--output-dir` (D3, R-J18R-09) ; les bruts ne sont **jamais** réécrits
+    # et leur hash est relevé avant ingestion (D2, R-J18R-08). Un sous-processus défaillant
+    # rend le bras incomplet : `arms_complete` est faux, `results.json` n'est pas écrit (§7.2).
+    for arm in ("anchor", "sensitivity_fp32"):
+        invocation = (
+            anchor_invocation(str(args.output_dir), args.blocks)
+            if arm == "anchor"
+            else sensitivity_invocation(str(args.output_dir), args.blocks)
+        )
         returncode = run_arm_subprocess(invocation, _REPO_ROOT)
-        raw_path = output_dir / ARM_SHARDS[arm].replace(".json", "_raw.json")
-        records = ingest_arm_shard(raw_path, arm)
-        publications = arm_publications(observations_from_records(records), arm=arm, bootstrap_seed=args.anchor_bootstrap_seed)
+        raw_path = output_dir / RAW_SHARDS[arm]
+        # R-J18R-10 : un sous-processus J15 défaillant ne produit pas son brut ; le bras est
+        # incomplet (`arms_complete` faux, `results.json` non écrit), cela ne fait pas-crasher le run.
+        raw_hash = sha256_file(str(raw_path)) if raw_path.exists() else None
+        records = ingest_arm_shard(raw_path, arm) if raw_path.exists() else []
+        publications = arm_publications(
+            observations_from_records(records), arm=arm, bootstrap_seed=args.anchor_bootstrap_seed
+        )
         arms[arm] = {
             "arm": arm,
             "invocation": invocation,
@@ -1896,7 +2019,12 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             "publications": publications,
             "complete": bool(records) and returncode == 0,
         }
-        produced[ARM_SHARDS[arm]] = write_json(output_dir / ARM_SHARDS[arm], arms[arm])
+        if raw_hash is not None:
+            produced[RAW_SHARDS[arm]] = raw_hash
+        if arm in ARM_SHARDS:
+            # §7.2 : seul l'ancrage a un shard étiqueté ; la sensibilité publie dans `results.json`.
+            arms[arm]["raw_sha256_before_ingestion"] = raw_hash
+            produced[ARM_SHARDS[arm]] = write_json(output_dir / ARM_SHARDS[arm], arms[arm])
 
     for arm in executed_arms(args):
         result = run_arm(
@@ -1904,7 +2032,7 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             args=args,
             prompts=prompts,
             model=model,
-            provider=provider,
+            provider_factory=provider_factory,
             tokenizer=tokenizer,
             device=args.device,
             budget=n6_budget if arm == "n6_chat_template" else budget,
@@ -1931,6 +2059,9 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
     flags["C1"] = bool(c1["holds"])
     flags["C1_sigma_positive"] = bool((c1.get("sigma_positive_only") or {}).get("holds"))
     flags["arms_complete"] = all(bool(arms[arm]["complete"]) for arm in REQUIRED_ARMS)
+    # R-J18R-10 : sans ligne partagée avec l'artefact J15, l'écart n'est pas mesuré ;
+    # la priorité 1 (`STOP`) est réservée à un ancrage mesuré en échec.
+    flags["C9_evaluable"] = bool(criteria_shell["C9"]["evaluable"])
     decision = decide_j18r_issue(flags, reserves)
 
     runtime = {
@@ -2072,7 +2203,7 @@ def dry_run_plan(argv: Sequence[str]) -> dict[str, object]:
         arms[arm] = {
             "configs": [list(config) for config in configs],
             "noise_levels": list(NOISE_LEVELS),
-            "shard": ARM_SHARDS[arm],
+            "shards": arm_shard_names(arm),
             "memory_estimates": estimates,
         }
     return {

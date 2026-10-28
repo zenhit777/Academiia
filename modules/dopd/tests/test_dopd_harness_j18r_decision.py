@@ -3,7 +3,9 @@
 T1 identité / non-dégénérescence, T2 mutation F4, T3 mutation F3, T4 équivalence
 ligne-à-ligne inline ↔ paquet, T5 branches d'échec et issues §4.5, T6 float32
 réellement appliquée, T7 séparation tests purs / torch, R-J18R-01…04 corrections bloquantes
-(revue N1 sur `c42dab7`), R-J18R-05 gate T1 + troncature, R-J18R-06 hash §9.2 (revues N1/N2).
+(revue N1 sur `c42dab7`), R-J18R-05 gate T1 + troncature, R-J18R-06 hash §9.2, R-J18R-07…12 corrections
+bloquantes de la revue N2 (ancrage, bruts, invocation canonique, C9 non mesurable,
+préfixe conditionné sur le prompt).
 
 Aucun `import torch` ici : le harnais est chargé par chemin (il n'importe que NumPy
 et le paquet) et le fixture de scoring est un fake duck-typed. Les tests qui
@@ -13,11 +15,14 @@ nécessitent torch (T8) vivent dans `test_dopd_harness_j18r_torch.py`.
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import json
 import re
+import shlex
 import shutil
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 import numpy as np
@@ -611,28 +616,72 @@ class _FakeModel:
         return []
 
 
-class _FakeScorerModule:
-    class Qwen3TeacherScorer:
-        def __init__(self, model, tokenizer) -> None:
-            self.model = model
-            self.tokenizer = tokenizer
+_MAX_PREFIX_CACHE_BYTES = 16 * 1024**3
 
-    def load_teacher(self, model, device=None, dtype=None):
+
+class _MirrorScorer:
+    """Miroir exact de la signature de production (`teacher_scorer_qwen3.py:253-259`) :
+    `Qwen3TeacherScorer(model, *, device=…, max_prefix_cache_bytes=…)` ; le tokenizer n'y
+    figure pas — il est hors du contrat `TeacherScorer` (D1 du constat §9.5)."""
+
+    def __init__(self, model, *, device="cpu", max_prefix_cache_bytes=_MAX_PREFIX_CACHE_BYTES) -> None:
+        self.model = model
+        self.device = device
+        self.max_prefix_cache_bytes = max_prefix_cache_bytes
+
+
+def _make_scorer_module(recorder: list[str]):
+    """Module de scoring simulé portant la signature réelle ; enregistre le `device` reçu."""
+
+    class MirrorScorer(_MirrorScorer):
+        def __init__(self, model, **kwargs) -> None:
+            super().__init__(model, **kwargs)
+            recorder.append(str(self.device))
+
+    def load_teacher(model, device=None, dtype=None):
         return _FakeModel(), "fake-source"
 
+    return types.SimpleNamespace(Qwen3TeacherScorer=MirrorScorer, load_teacher=load_teacher)
 
-def _fake_execute_environment(monkeypatch) -> list[str]:
-    """Exécution sans torch ni GPU : seules les collaborations externes sont simulées."""
-    called: list[str] = []
+
+def _fake_execute_environment(monkeypatch, *, returncode: int = 0, write_raw: bool = True) -> dict[str, object]:
+    """Exécution sans torch ni GPU : seules les collaborations externes sont simulées.
+
+    La sous-invocation J15 écrit son shard brut sous le `--output` de son invocation, comme
+    le harnais gelé §7.3b ; `ingest_arm_shard`, `write_json` et le sidecar restent **réels**
+    (R-J18R-11 : le chemin complet de `execute` est exercé, pas sa seule sélection d'arms).
+    """
+    arms: list[str] = []
+    scorer_devices: list[str] = []
+    raw_payloads: dict[str, str] = {}
     monkeypatch.setattr(j18r, "_torch", lambda: _FakeTorchModule)
-    monkeypatch.setattr(j18r, "_transformers", lambda: _FakeTransformersModule)
-    monkeypatch.setattr(j18r, "load_scorer_module", lambda: _FakeScorerModule())
-    monkeypatch.setattr(j18r, "verify_model_source_in_repo", lambda model, root: {"model_source_in_repo": True})
-    monkeypatch.setattr(j18r, "run_arm_subprocess", lambda invocation, root: 0)
+    def raw_rows(arm: str) -> list[dict]:
+        rows = [_row(arm, f"p{p + 1:02d}", "N4_V6", b, 0.0, 0.05) for p in range(2) for b in range(3)]
+        for row in rows:
+            row.pop("arm")  # J15 n'étiquette pas : J18R étiquette à l'ingestion
+        return rows
+
+    def fake_subprocess(invocation, root):
+        tokens = shlex.split(invocation)
+        output = root / Path(tokens[tokens.index("--output") + 1])
+        arm = {
+            j18r.RAW_SHARDS["anchor"]: "anchor",
+            j18r.RAW_SHARDS["sensitivity_fp32"]: "sensitivity_fp32",
+        }[output.name]
+        if write_raw:
+            payload = json.dumps({"rows": raw_rows(arm)}, indent=2) + "\n"
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(payload, encoding="utf-8")
+            raw_payloads[str(output.relative_to(root))] = payload
+        return returncode
+
+    monkeypatch.setattr(j18r, "run_arm_subprocess", fake_subprocess)
 
     def fake_records(arm: str) -> list[dict]:
         return [
-            _row(arm, f"p{prompt:02d}", 0, block_index, 0.0, 0.05) for prompt in range(2) for block_index in range(3)
+            _row(arm, f"p{prompt:02d}", "N4_V6", block_index, 0.0, 0.05)
+            for prompt in range(2)
+            for block_index in range(3)
         ]
 
     def publications_for(arm: str, records: list[dict]) -> dict[str, object]:
@@ -640,18 +689,19 @@ def _fake_execute_environment(monkeypatch) -> list[str]:
             j18r.observations_from_records(records), arm=arm, bootstrap_seed=5, iterations=25
         )
 
-    def fake_ingest(path, arm):
-        return fake_records(arm)
-
     def fake_run_arm(**kwargs):
         arm = str(kwargs["arm"])
-        called.append(arm)
+        arms.append(arm)
+        # le contrat de `run_arm` est un fabricant de provider par prompt (R-J18R-12) ;
+        # le provider porte le `device` lié par mot-cle (R-J18R-07).
+        provider = kwargs["provider_factory"]((7, 8, 9))
+        assert isinstance(provider, j18r.ProductionScoreProvider)
+        scorer_devices.append(str(provider._scorer.device))
         records = fake_records(arm)
         return {"arm": arm, "records": records, "publications": publications_for(arm, records), "complete": True}
 
-    monkeypatch.setattr(j18r, "ingest_arm_shard", fake_ingest)
     monkeypatch.setattr(j18r, "run_arm", fake_run_arm)
-    return called
+    return {"arms": arms, "scorer_devices": scorer_devices, "raw_payloads": raw_payloads}
 
 
 def _scratch_output_dir(name: str) -> Path:
@@ -665,12 +715,12 @@ def _scratch_output_dir(name: str) -> Path:
 
 
 def test_r_j18r_04_execute_skips_n6_when_the_flag_is_absent(monkeypatch) -> None:
-    called = _fake_execute_environment(monkeypatch)
+    env = _fake_execute_environment(monkeypatch)
     out = _scratch_output_dir("n6_absent")
     argv = ["--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25"]
     args = j18r.build_parser().parse_args(argv)
     outcome = j18r.execute(args, argv)
-    assert called == ["control", "decision"]
+    assert env["arms"] == ["control", "decision"]
     results = json.loads((j18r._REPO_ROOT / out / "results.json").read_text(encoding="utf-8"))
     assert "n6_chat_template" not in results["arms"]
     assert "arm_n6.json" not in outcome["shards"]
@@ -680,12 +730,12 @@ def test_r_j18r_04_execute_skips_n6_when_the_flag_is_absent(monkeypatch) -> None
 
 
 def test_r_j18r_04_execute_runs_n6_when_the_flag_is_present(monkeypatch) -> None:
-    called = _fake_execute_environment(monkeypatch)
+    env = _fake_execute_environment(monkeypatch)
     out = _scratch_output_dir("n6_present")
     argv = ["--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25", "--n6-chat-template"]
     args = j18r.build_parser().parse_args(argv)
     outcome = j18r.execute(args, argv)
-    assert called == ["control", "decision", "n6_chat_template"]
+    assert env["arms"] == ["control", "decision", "n6_chat_template"]
     results = json.loads((j18r._REPO_ROOT / out / "results.json").read_text(encoding="utf-8"))
     assert "n6_chat_template" in results["arms"]
     assert "arm_n6.json" in outcome["shards"]
@@ -819,3 +869,272 @@ def test_r_j18r_06_frozen_hash_of_j18_decision_artifact_matches_the_file() -> No
     result = j18r.criterion_c10(repo_root=j18r._REPO_ROOT)
     assert result["frozen_files"][relative] is True
     assert result["holds"] is True
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-07 — constructeur du scorer de production (`model` + `device`, pas de tokenizer)
+# ---------------------------------------------------------------------------
+
+
+def test_r_j18r_07_scorer_signature_is_model_plus_device_keyword() -> None:
+    """D1 : le constructeur de production n'accepte pas de tokenizer positionnel ; le harnais
+    doit lier `device` par mot-cle (`teacher_scorer_qwen3.py:253-259`)."""
+    signature = inspect.signature(_MirrorScorer)
+    bound = signature.bind(_FakeModel(), device="cuda")
+    bound.apply_defaults()
+    assert bound.arguments["device"] == "cuda"
+    with pytest.raises(TypeError):
+        signature.bind(_FakeModel(), "fake-tokenizer")
+
+
+def test_r_j18r_07_execute_passes_the_device_keyword_to_the_scorer(monkeypatch) -> None:
+    env = _fake_execute_environment(monkeypatch)
+    out = _scratch_output_dir("scorer_device")
+    argv = ["--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25", "--device", "cpu"]
+    j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    # un provider par bras exécuté (control, decision), chacun lié au `device` demandé
+    assert env["scorer_devices"] == ["cpu", "cpu"]
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-08 — shard brut ingéré = fichier écrit par J15, jamais réécrit par J18R
+# ---------------------------------------------------------------------------
+
+
+def test_r_j18r_08_raw_shards_stay_untouched_and_are_hashed_before_ingestion(monkeypatch) -> None:
+    """D2 : `ARM_SHARDS["sensitivity_fp32"]` est le nom du brut ; le `.replace(".json",
+    "_raw.json")` d'ingestion inventait `arm_sensitivity_raw_raw.json`, jamais produit."""
+    env = _fake_execute_environment(monkeypatch)
+    out = _scratch_output_dir("raw_intact")
+    argv = ["--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25"]
+    outcome = j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    base = j18r._REPO_ROOT / out
+    for relative in ("arm_anchor_raw.json", "arm_sensitivity_raw.json"):
+        path = base / relative
+        # le brut ingéré reste l'octet écrit par la sous-invocation J15 : J18R ne le réécrit pas
+        assert path.read_text(encoding="utf-8") == env["raw_payloads"][f"{out}/{relative}"]
+        assert outcome["shards"][relative] == sha256_file(str(path)), relative
+        rows = json.loads(path.read_text(encoding="utf-8"))["rows"]
+        assert not [row for row in rows if "arm" in row]  # l'étiquette naît à l'ingestion
+    assert not (base / "arm_sensitivity_raw_raw.json").exists()
+    assert "arm_sensitivity_raw_raw.json" not in outcome["shards"]
+    # publications de la sensibilité : dans `results.json` (§4.4), pas dans un shard séparé
+    results = json.loads((base / "results.json").read_text(encoding="utf-8"))
+    assert results["arms"]["sensitivity_fp32"]["arm"] == "sensitivity_fp32"
+    assert results["arms"]["sensitivity_fp32"]["n"] == 6
+    assert not (base / "arm_sensitivity.json").exists()
+    # l'ancrage garde son shard étiqueté §7.2, avec le hash du brut relevé avant ingestion
+    labeled = json.loads((base / "arm_anchor.json").read_text(encoding="utf-8"))
+    assert labeled["arm"] == "anchor"
+    assert labeled["raw_sha256_before_ingestion"] == outcome["shards"]["arm_anchor_raw.json"]
+    assert all(row["arm"] == "anchor" for row in labeled["records"])
+
+
+def test_r_j18r_08_dry_run_plan_declares_the_shards_of_each_arm() -> None:
+    plan = j18r.dry_run_plan(
+        ["--output-dir", "_artefact/j18r_decision_tests/plan", "--blocks", "2", "--bootstrap-iterations", "25"]
+    )
+    arms = plan["arms"]
+    assert arms["anchor"]["shards"] == ["arm_anchor_raw.json", "arm_anchor.json"]
+    assert arms["sensitivity_fp32"]["shards"] == ["arm_sensitivity_raw.json"]
+    assert arms["control"]["shards"] == ["arm_control.json"]
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-09 — propagation de `--output-dir` aux bras délégués, chaîne figée au canonique
+# ---------------------------------------------------------------------------
+
+#: §7.3b du PRE, chaîne d'ancrage figée (recopiée littéralement, non reconstruite).
+PRE_ANCHOR_INVOCATION = (
+    "python modules/dopd/harness/diagnostic_annexe_d.py --model Qwen/Qwen3-0.6B --device cuda "
+    "--dtype bfloat16 --prompt-file modules/dopd/eval/annexe_d_qwen3_0.6b_multiprompt/prompts.json "
+    "--blocks 100 --seed 20261023 --bootstrap-seed 20261024 --local-files-only "
+    "--output modules/dopd/eval/j18r_decision/arm_anchor_raw.json --top-k 16"
+)
+
+
+def test_r_j18r_09_canonical_invocations_stay_frozen_at_the_default_output() -> None:
+    """D3 : au `--output-dir` canonique, la chaîne d'ancrage reste celle du PRE §7.3b à
+    l'identique ; la sensibilité n'en diffère que par `--dtype float32` et le nom de sortie."""
+    assert j18r.anchor_invocation(j18r.DEFAULT_OUTPUT_DIR) == PRE_ANCHOR_INVOCATION
+    sensitivity = j18r.sensitivity_invocation(j18r.DEFAULT_OUTPUT_DIR)
+    assert sensitivity == PRE_ANCHOR_INVOCATION.replace("--dtype bfloat16", "--dtype float32").replace(
+        "arm_anchor_raw.json", "arm_sensitivity_raw.json"
+    )
+
+
+def test_r_j18r_09_delegated_invocations_write_under_the_requested_output_dir() -> None:
+    """D3 : un vol d'essai hors du chemin canonique écrit ses bruts sous son `--output-dir`."""
+    out = str(_scratch_output_dir("invocations"))
+    anchor_tokens = shlex.split(j18r.anchor_invocation(out, blocks=2))
+    sensitivity_tokens = shlex.split(j18r.sensitivity_invocation(out, blocks=2))
+    for tokens, raw in ((anchor_tokens, "arm_anchor_raw.json"), (sensitivity_tokens, "arm_sensitivity_raw.json")):
+        output = tokens[tokens.index("--output") + 1]
+        assert output == f"{out}/{raw}"
+        assert j18r._REPO_ROOT / output == j18r._REPO_ROOT / out / raw
+    assert anchor_tokens[anchor_tokens.index("--blocks") + 1] == "2"
+    assert "modules/dopd/eval/j18r_decision" not in " ".join(anchor_tokens)
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-10 — bras délégué défaillant : INVALIDE, pas de crash, pas de STOP sur un C9 inévaluable
+# ---------------------------------------------------------------------------
+
+
+def test_r_j18r_10_missing_raw_shard_degrades_to_invalide_without_crash(monkeypatch) -> None:
+    """Un sous-processus J15 qui ne produit pas son shard : `execute` ne lève pas, ne publie
+    pas `results.json` (§7.2), l'issue est INVALIDE ; les bras exécutés vont au bout."""
+    env = _fake_execute_environment(monkeypatch, returncode=1, write_raw=False)
+    out = _scratch_output_dir("anchor_failed")
+    argv = ["--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25"]
+    outcome = j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    assert outcome["results_written"] is False
+    assert not (j18r._REPO_ROOT / out / "results.json").exists()
+    assert outcome["decision"]["status"] == "INVALIDE"
+    assert "bras requis incomplet" in outcome["decision"]["failed_criteria"]
+    assert "C9" in outcome["decision"]["failed_criteria"]
+    assert env["arms"] == ["control", "decision"]
+    assert (j18r._REPO_ROOT / out / "arm_control.json").exists()
+
+
+def test_r_j18r_10_unevaluable_c9_is_invalide_not_stop() -> None:
+    """Aucune ligne partagée avec J15 n'est une dérive mesurée : INVALIDE (corriger et
+    relancer), pas STOP — la priorité 1 est réservée à un ancrage mesuré en échec (§4.5)."""
+    criteria = {key: True for key in j18r.CRITERIA_KEYS}
+    criteria["C9"] = False
+    criteria["C9_evaluable"] = False
+    criteria["arms_complete"] = True
+    criteria["C1"] = True
+    decision = j18r.decide_j18r_issue(criteria, {"R_a": False, "R_b": False, "R_c": False})
+    assert decision["status"] == "INVALIDE"
+    assert decision["priority"] == 2
+    assert "C9" in decision["failed_criteria"]
+
+
+def test_r_j18r_10_measured_c9_failure_still_is_stop() -> None:
+    criteria = {key: True for key in j18r.CRITERIA_KEYS}
+    criteria["C9"] = False
+    criteria["arms_complete"] = True
+    decision = j18r.decide_j18r_issue(criteria, {"R_a": False, "R_b": False, "R_c": False})
+    assert decision["status"] == "STOP"
+    assert decision["priority"] == 1
+
+
+def test_r_j18r_10_c9_and_publications_survive_an_empty_anchor() -> None:
+    reference = {
+        "rows": [{"prompt": "p01", "config_index": "N4_V6", "block_index": 0, "position": 1, "noise": 0.0, "delta_kl": 0.08}]
+    }
+    empty = j18r.criterion_c9([], reference)
+    assert empty["holds"] is False
+    assert empty["clause_b"]["n_shared_keys"] == 0
+    publications = j18r.arm_publications([], arm="anchor", bootstrap_seed=5, iterations=25)
+    assert publications == {"arm": "anchor", "n": 0}
+    c4 = j18r.criterion_c4({"anchor": publications, "control": publications, "decision": publications}, 2, 20)
+    assert c4["per_config"] == {}
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-11 — chemin complet de `execute` exercé : ingestion, shards, sidecar, hashes
+# ---------------------------------------------------------------------------
+
+
+def test_r_j18r_11_execute_writes_every_produced_file_and_the_sidecar_hashes_them(monkeypatch) -> None:
+    """§7.2 : `lineage.json` porte le sha256 de chaque sortie, recalculable fichier par fichier."""
+    env = _fake_execute_environment(monkeypatch)
+    out = _scratch_output_dir("execute_end_to_end")
+    argv = ["--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25", "--device", "cpu"]
+    outcome = j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    base = j18r._REPO_ROOT / out
+    produced = sorted(
+        [
+            "arm_anchor_raw.json",
+            "arm_sensitivity_raw.json",
+            "arm_anchor.json",
+            "arm_control.json",
+            "arm_decision.json",
+            "results.json",
+        ]
+    )
+    sidecar = json.loads((base / "lineage.json").read_text(encoding="utf-8"))
+    assert sorted(sidecar["artifact"]["hashes"]) == produced
+    for name in produced:
+        assert sidecar["artifact"]["hashes"][name] == sha256_file(str(base / name)), name
+    assert outcome["shards"]["lineage.json"] == sha256_file(str(base / "lineage.json"))
+    assert outcome["results_written"] is True
+    assert env["arms"] == ["control", "decision"]
+    # le brut d'ancrage ingéré n'est pas réécrit par J18R
+    assert (base / "arm_anchor_raw.json").read_text(encoding="utf-8") == env["raw_payloads"][f"{out}/arm_anchor_raw.json"]
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-12 — préfixe du marginal conditionné sur les identifiants du prompt (eq. 14)
+# ---------------------------------------------------------------------------
+
+
+class _SpyScorer:
+    """Spy du contrat `TeacherScorer` : enregistre les préfixes reçus et refuse le préfixe vide,
+    comme le scorer de production (`teacher_scorer_qwen3.py:288-289` et `:380-381`)."""
+
+    def __init__(self, vocab: int = 12) -> None:
+        self.vocab = vocab
+        self.job_prefixes: list[tuple[int, ...]] = []
+        self.replay_prefixes: list[tuple[int, ...]] = []
+
+    def score(self, request) -> object:
+        prefix = tuple(int(token) for token in request.prefix_ids)
+        self.job_prefixes.append(prefix)
+        if not prefix:
+            raise ValueError("prefix_ids est vide : le prior causal exige au moins un token")
+        return types.SimpleNamespace(
+            prior=np.full(self.vocab, -6.0, dtype=np.float64),
+            candidate_loglikelihoods=np.full((len(request.candidate_ids), len(request.suffix_ids)), -6.0),
+            reference_loglikelihood=-6.0,
+        )
+
+    def replay_job(self, prefix_ids, candidate_ids, suffix_ids):
+        prefix = tuple(int(token) for token in prefix_ids)
+        self.replay_prefixes.append(prefix)
+        if not prefix:
+            raise ValueError("prefix_ids est vide")
+        return np.full(self.vocab, -6.0, dtype=np.float64), np.full((len(candidate_ids), len(suffix_ids)), -6.0)
+
+
+def test_r_j18r_12_provider_conditions_the_block_prefix_on_prompt_ids() -> None:
+    """D4 : `marginal_for_position` passe le préfixe **relatif** du bloc ; à `position = 0` il est
+    vide et le scorer de production le refuse. Le provider conditionne sur `q` (eq. 14), comme le
+    support J15 (`model_forward` forward `prompt_ids + prefix`)."""
+    spy = _SpyScorer()
+    provider = j18r.ProductionScoreProvider(spy, prompt_ids=(7, 8, 9))
+    prior, scores, reference = provider.job(prefix=(), position=0, tokens=[3, 4], suffix=(5,), reference_token=3)
+    assert spy.job_prefixes == [(7, 8, 9)]
+    assert prior.shape == (spy.vocab,)
+    assert scores.shape == (2, 1)
+    assert reference == -6.0
+    replayed_prior, replayed_scores = provider.replay_job(prefix=(), candidates=[3, 4], suffix=(5,))
+    assert spy.replay_prefixes == [(7, 8, 9)]
+    # §5.2 : le contrat du provider rend le prior **aux candidats** (le scorer de production
+    # rend le prior plein vocabulaire, eq. 14).
+    assert replayed_prior.shape == (2,)
+    assert replayed_prior.tolist() == [-6.0, -6.0]
+    provider.job(prefix=(1,), position=1, tokens=[3], suffix=(5,), reference_token=3)
+    assert spy.job_prefixes[-1] == (7, 8, 9, 1)
+
+
+def test_r_j18r_12_provider_factory_is_per_prompt_and_binds_device_by_keyword() -> None:
+    devices: list[str] = []
+    spies: list[_SpyScorer] = []
+
+    def scorer_class(model, **kwargs) -> _SpyScorer:
+        devices.append(str(kwargs["device"]))
+        spy = _SpyScorer()
+        spies.append(spy)
+        return spy
+
+    factory = j18r.production_provider_factory(scorer_class, _FakeModel(), device="cpu")
+    first = factory((7, 8, 9))
+    second = factory((10, 11))
+    first.job(prefix=(1,), position=1, tokens=[3], suffix=(5,), reference_token=3)
+    second.job(prefix=(), position=0, tokens=[3], suffix=(5,), reference_token=3)
+    assert devices == ["cpu", "cpu"]
+    assert spies[0].job_prefixes == [(7, 8, 9, 1)]
+    assert spies[1].job_prefixes == [(10, 11)]
