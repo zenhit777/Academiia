@@ -44,7 +44,8 @@
       l'environnement (`python3 -m ruff --version`). `TMPDIR` et `PIP_CACHE_DIR` sont dans
       `_artefact/` (règle 9) ; la capture de pytest est `--capture=sys`, seule capture qui
       fonctionne sur DrvFs (`/mnt/d`) — note du 2026-10-21 dans
-      `modules/a2d/docs/reports/OUT_OF_WORKSPACE.md` §1.3.
+      `modules/a2d/docs/reports/OUT_OF_WORKSPACE.md` §1.3 ; la sous-invocation `pytest.main`
+      du test T7 d-OPD porte la même capture (`--capture=sys`), sinon elle échoue sur DrvFs.
 - [ ] `python -c "import academiia.core, academiia.a2d, academiia.dopd; print('OK')"` → OK
 - [ ] `modules/dopd/dopd/` n'importe **pas** `academiia.a2d` ni torch (test
       `modules/dopd/tests/test_dopd_package.py`) ; le squelette d-OPD reste CPU

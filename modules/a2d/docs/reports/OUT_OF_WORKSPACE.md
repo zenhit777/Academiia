@@ -137,6 +137,13 @@ que les 13 095 569 o inventoriés le 2026-10-21 : la zone n'est pas cumulative
 **Écart à la règle 9 déclaré ici ; aucune suppression** : ce sont des fixtures
 recréées à chaque passe, aucune donnée de campagne.
 
+La sous-invocation `pytest.main` de
+`modules/dopd/tests/test_dopd_harness_j18r_decision.py`
+(test T7, « séparation tests purs / torch ») portait la capture par défaut et
+**échouait** en `FileNotFoundError` dès que `TMPDIR` était sur DrvFs : la
+capture `--capture=sys` y est appliquée depuis le 2026-10-28, ce qui rend la
+suite jouable avec `TMPDIR` dans le dépôt.
+
 ### 1.4 Docker
 
 `docker system df` (lecture seule) :
