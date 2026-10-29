@@ -31,6 +31,16 @@ la lire avant toute modification du pipeline de fusion. Pour d-OPD, lire
 ## Dossiers temporaires
 - `_artefact/` → dossier temporaire agents (non partagé). Tous les fichiers générés par les agents sans vocation de partage doivent y être placés.
 
+## Rôles (stricts — ne pas usurper)
+**OhMyPi = agent de développement.** Il n'est **ni** N1 (Grok), **ni** N2 (Claude), **ni** l'architecte.
+- **Autorisé** : code, tests, smoke, constats factuels (logs, durées, exit codes), push, documentation CI (documenter la cause **avant** de corriger si la CI est rouge).
+- **Interdit** : lancer ou attendre un sous-agent de revue (`GrokN1Review`, revue N2) ; rédiger un commit ou une section « revue N1/N2 : APPROVE/REJECT » ; simuler un pourcentage de complétion de revue ; se prononcer à la place de l'architecte sur une décision scientifique ou un erratum de budget ; enchaîner sur une auto-revue.
+- **Grok** = Tech-Lead, revue niveau 1 (conversation / agent séparé).
+- **Claude Sonnet** = revue niveau 2 (conversation / agent séparé).
+- **Utilisateur** = acceptation PRE, erratum budget, arbitrages scientifiques.
+
+**Fin de lot développeur** = un **message unique** du type « Lot livré (commits …, CI …). Prêt pour revue N1 (Grok). », puis **attendre l'utilisateur**. Aucune orchestration de revue, aucun correctif J18R supplémentaire dans le lot courant sans demande explicite.
+
 ## Règles de session — run GPU d'évaluation (miroir d'`AGENTS.md` règles 13–17)
 - **Vol d'essai obligatoire avant tout run GPU complet** (ex. `modules/dopd/docs/reports/J18R.md` §7.3, `--blocks 100`) : vol réduit (ex. `--blocks 2`), sorties dans `_artefact/` (jamais `modules/*/eval/`), puis **autorisation demandée à l'utilisateur** avant le run complet.
 - **Seuil VRAM mesuré** (`nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free --format=csv`) : en dessous du seuil chiffré de la mission (ex. ≈ 17 GiB libres pour J18R, `modules/dopd/docs/BUDGET_RTX5090.md`), STOP et **demander l'autorisation** ; ne jamais forcer, cibler une application, décharger un modèle ni tuer un processus.

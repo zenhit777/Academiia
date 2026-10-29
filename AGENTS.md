@@ -63,6 +63,27 @@ Academiia/
 └── _artefact/             # Dossier temporaire agents (non partage)
 ```
 
+## Rôles (stricts — ne pas usurper)
+
+**OhMyPi = agent de développement.** Il n'est **ni** N1 (Grok), **ni** N2 (Claude),
+**ni** l'architecte.
+
+- **Autorisé** : code, tests, smoke, constats factuels (logs, durées, exit codes),
+  push, documentation CI (documenter la cause **avant** de corriger si la CI est rouge).
+- **Interdit** : lancer ou attendre un sous-agent de revue (`GrokN1Review`, revue N2) ;
+  rédiger un commit ou une section « revue N1/N2 : APPROVE/REJECT » ; simuler un
+  pourcentage de complétion de revue ; se prononcer à la place de l'architecte sur
+  une décision scientifique ou d'un erratum de budget ; enchaîner sur une auto-revue.
+
+- **Grok** = Tech-Lead, revue niveau 1 (conversation / agent séparé).
+- **Claude Sonnet** = revue niveau 2 (conversation / agent séparé).
+- **Utilisateur** = acceptation PRE, erratum budget, arbitrages scientifiques.
+
+**Fin de lot développeur** = un **message unique** du type
+« Lot livré (commits …, CI …). Prêt pour revue N1 (Grok). », puis **attendre
+l'utilisateur**. Aucune orchestration de revue, aucun correctif J18R supplémentaire
+dans le lot courant sans demande explicite.
+
 ### Règles de travail
 
 1. **Toujours lire le code dans `modules/a2d/` (et `modules/dopd/` pour d-OPD) avant d'agir** — il contient la logique exacte du pipeline ; le code générique est dans `academiia/core/`.
