@@ -684,7 +684,7 @@ def _fake_execute_environment(
             row.pop("arm")  # J15 n'étiquette pas : J18R étiquette à l'ingestion
         return rows
 
-    def fake_subprocess(invocation, root):
+    def fake_subprocess(invocation, root, **kwargs):
         tokens = shlex.split(invocation)
         output = root / Path(tokens[tokens.index("--output") + 1])
         arm = {
@@ -696,7 +696,20 @@ def _fake_execute_environment(
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(payload, encoding="utf-8")
             raw_payloads[str(output.relative_to(root))] = payload
-        return returncode
+        return {
+            "returncode": int(returncode),
+            "group": {
+                "pgid": 0,
+                "limit_mib": int(kwargs.get("limit_mib", 0)),
+                "limit_applied": True,
+                "stop_after_seconds": float(kwargs.get("stop_after_seconds", 0.0)),
+                "stop_signal": None,
+                "survivors_after_stop": 0,
+                "verified_after_stop": True,
+                "elapsed_seconds": 0.0,
+            },
+            "resisted": False,
+        }
 
     monkeypatch.setattr(j18r, "run_arm_subprocess", fake_subprocess)
 
@@ -1888,3 +1901,477 @@ def test_r_j18r_18_budget_scope_is_declared_in_the_plan_and_in_the_run(monkeypat
     assert results["numerical_integrity"]["observed_arms"] == ["control", "decision"]
     assert "n6_chat_template" in results["numerical_integrity"]["excluded_arms"]
     assert outcome["manifest"]["verification"]["budget_scope"] == runtime["rss_budget_scope"]
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-19 — audit : engagement aux frontières de bloc, couverture N6, inventaire
+# complet C9, C6 complet, écriture gardée par le temps, sous-processus supervisés
+# (points A1, A4, A5, A8, D9 de la revue)
+# ---------------------------------------------------------------------------
+
+
+def _reference_rows() -> list[dict]:
+    """Lignes J15 gelées (référence C9), sans étiquette `arm`."""
+    path = j18r._REPO_ROOT / "modules" / "dopd" / "eval" / "annexe_d_qwen3_0.6b_multiprompt" / "results.json"
+    return json.loads(path.read_text(encoding="utf-8"))["rows"]
+
+
+def _group_fake(rows_by_arm: Mapping[str, list[dict]], *, resisted: bool = False):
+    """Sous-processus simulé conforme au contrat supervisé D9 (groupe, RLIMIT, stop)."""
+    def fake(invocation: str, root: Path, **kwargs) -> dict:
+        tokens = shlex.split(invocation)
+        output = root / Path(tokens[tokens.index("--output") + 1])
+        arm = {
+            j18r.RAW_SHARDS["anchor"]: "anchor",
+            j18r.RAW_SHARDS["sensitivity_fp32"]: "sensitivity_fp32",
+        }[output.name]
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps({"rows": rows_by_arm[arm]}, indent=2) + "\n", encoding="utf-8")
+        return {
+            "returncode": 0,
+            "group": {
+                "pgid": 4242,
+                "limit_mib": int(kwargs["limit_mib"]),
+                "limit_applied": True,
+                "stop_after_seconds": float(kwargs["stop_after_seconds"]),
+                "stop_signal": "SIGKILL" if resisted else None,
+                "survivors_after_stop": 2 if resisted else 0,
+                "verified_after_stop": not resisted,
+                "elapsed_seconds": 1.0,
+                "cgroup_memory_peak_bytes": 12345.0,
+            },
+            "resisted": resisted,
+        }
+    return fake
+
+
+def test_r_j18r_19_block_commit_shares_only_complete_blocks() -> None:
+    """A1/D5 : un bloc **complet** est engagé sur la liste partagée **à sa frontière** ;
+    le bloc où le budget tombe n'est **jamais** engagé partiellement."""
+    table = fixture_table()
+    block_size, vocab_width, blocks = 3, 3, 3
+    support = j18r.build_economical_support(
+        lambda prefixes: np.stack([table(prefix) for prefix in prefixes]), block_size, vocab_width, option="A"
+    )
+    sequences, log_joint = support.enumerate_joint()
+    shared: list = []
+    calls = {"n": 0}
+
+    class _Budget:
+        def check(self) -> dict:
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise j18r.BudgetExceeded("time", "plafond atteint à la frontière de bloc")
+            return {"elapsed_seconds": 0.0, "rss_gib": 0.0, "gpu_peak_mib": 0.0}
+
+    try:
+        j18r.process_configuration(
+            arm="n6_chat_template",
+            prompt="p01",
+            config_index=f"N{block_size}_V{vocab_width}",
+            support=support,
+            sequences=sequences,
+            log_joint=log_joint,
+            provider=FixtureScorer(table),
+            seed=j18r.SEED_DECISION,
+            blocks=blocks,
+            noise_levels=[0.0],
+            integrity=j18r.IntegrityStats(),
+            replay_stats=j18r.ReplayStats(),
+            job_counter=j18r.JobCounter(),
+            block_sample=list(range(blocks)),
+            future_is_state=False,
+            observations_out=shared,
+            budget=_Budget(),
+        )
+    except j18r.BudgetExceeded:
+        pass
+    assert calls["n"] == 2
+    assert shared
+    assert {int(o.block_index) for o in shared} == {0, 1}
+
+
+def test_r_j18r_19_n6_coverage_is_published_when_partial(monkeypatch) -> None:
+    """A1 : budget N6 → publication **partielle**, stats **conservées**, couverture
+    **réellement engagée** publiée (blocs complets sur la liste partagée)."""
+    env = _fake_execute_environment(monkeypatch)
+    original_run_arm = j18r.run_arm
+
+    def fake_run_arm(**kwargs):
+        arm = str(kwargs["arm"])
+        env["arms"].append(arm)
+        if arm != "n6_chat_template":
+            return original_run_arm(**kwargs)
+        observations = kwargs.get("observations_out")
+        if observations is not None:
+            observations.extend(_observation_for(arm) for _ in range(2))
+        raise j18r.BudgetExceeded("time", "budget temps dépassé (1801.0 s > 1800.0 s)")
+
+    monkeypatch.setattr(j18r, "run_arm", fake_run_arm)
+    out = _scratch_output_dir("n6_coverage_partial")
+    argv = [
+        "--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25",
+        "--n6-chat-template",
+    ]
+    outcome = j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    results = json.loads((j18r._REPO_ROOT / out / "results.json").read_text(encoding="utf-8"))
+    assert results["n6"]["status"] == "budget_exceeded"
+    assert results["n6"]["partial"] is True
+    assert results["n6"]["n_observations"] == 2
+    assert results["n6"]["coverage"]["n_blocks_completed"] == 1
+    assert results["n6"]["coverage"]["n_jobs_emitted"] == 0
+    # les statistiques tirées des observations engagées restent publiées
+    assert results["arms"]["n6_chat_template"]["n"] == 2
+    assert results["arms"]["n6_chat_template"]["diagnostic_only"] is True
+    assert outcome["results_written"] is True
+
+
+def test_r_j18r_19_n6_coverage_is_zero_before_any_observation(monkeypatch) -> None:
+    """A1 : exception **avant toute observation** → couverture nulle, aucune statistique
+    inventée, le run reste valide (bras requis complets)."""
+    env = _fake_execute_environment(monkeypatch)
+    original_run_arm = j18r.run_arm
+
+    def fake_run_arm(**kwargs):
+        arm = str(kwargs["arm"])
+        env["arms"].append(arm)
+        if arm != "n6_chat_template":
+            return original_run_arm(**kwargs)
+        raise RuntimeError("crash N6 avant la première observation")
+
+    monkeypatch.setattr(j18r, "run_arm", fake_run_arm)
+    out = _scratch_output_dir("n6_coverage_zero")
+    argv = [
+        "--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25",
+        "--n6-chat-template",
+    ]
+    j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    results = json.loads((j18r._REPO_ROOT / out / "results.json").read_text(encoding="utf-8"))
+    assert results["n6"]["status"] == "failed"
+    assert results["n6"]["n_observations"] == 0
+    assert results["n6"]["coverage"]["n_blocks_completed"] == 0
+    assert results["n6"]["coverage"]["n_jobs_emitted"] == 0
+    assert results["arms"]["n6_chat_template"]["n"] == 0
+
+
+def test_r_j18r_19_fast_path_rechecks_global_time_ceiling() -> None:
+    """A5 : le throttle de 1 Hz porte sur l'échantillonnage RSS/GPU, **pas** sur le
+    plafond de temps global : `check()` sur chemin rapide voit le plafond."""
+    ticks = iter([0.0, 0.0, 0.5, 0.8])
+    guard = j18r.BudgetGuard(max_seconds=0.7, clock=lambda: next(ticks))
+    first = guard.check()
+    assert first["elapsed_seconds"] == 0.0
+    second = guard.check()  # chemin rapide (gap < 1 s), écart cumulé 0.5 ≤ 0.7 s
+    assert second["elapsed_seconds"] == 0.5
+    with pytest.raises(j18r.BudgetExceeded) as exc:
+        guard.check()
+    assert exc.value.kind == "time"
+
+
+def test_r_j18r_19_guard_time_uses_injected_clock_and_freezes_during_pause() -> None:
+    """A5 : `guard_time` évalue l'horloge **injectée** ; le temps global est **gelé**
+    pendant la pause N6, jamais remis à zéro."""
+    t = [0.0]
+    guard = j18r.BudgetGuard(max_seconds=10.0, clock=lambda: t[0])
+    t[0] = 4.0
+    assert guard.guard_time("écriture") == 4.0
+    guard.pause()
+    t[0] = 9000.0
+    assert guard.guard_time("écriture") == 4.0
+    guard.resume()
+    t[0] = 9005.0
+    assert guard.guard_time("écriture") == 9.0
+    t[0] = 9011.0
+    with pytest.raises(j18r.BudgetExceeded) as exc:
+        guard.guard_time("écriture")
+    assert exc.value.kind == "time"
+
+
+def test_r_j18r_19_results_not_written_when_global_time_exceeds_before_write(
+    monkeypatch,
+) -> None:
+    """A5 : dépassement du plafond global **avant** la persistance → `results.json`
+    **non écrit** ; les shards d'observations restent acquis."""
+    _fake_execute_environment(monkeypatch)
+    out = _scratch_output_dir("global_time_write")
+    argv = ["--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25"]
+    class _Guard(j18r.BudgetGuard):
+        def check(self) -> dict:
+            return {"elapsed_seconds": 0.0, "rss_gib": 0.0, "gpu_peak_mib": 0.0}
+
+        def guard_time(self, label: str) -> float:
+            raise j18r.BudgetExceeded("global_time", f"dépassement du plafond global avant écriture ({label})")
+    monkeypatch.setattr(j18r, "BudgetGuard", _Guard)
+    with pytest.raises(j18r.BudgetExceeded) as exc:
+        j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    assert exc.value.kind == "global_time"
+    assert not (j18r._REPO_ROOT / out / "results.json").exists()
+    assert (j18r._REPO_ROOT / out / j18r.ARM_SHARDS["control"]).exists()
+    assert (j18r._REPO_ROOT / out / j18r.ARM_SHARDS["decision"]).exists()
+
+
+def test_r_j18r_19_full_anchor_inventory_is_measured_drift() -> None:
+    """A4 : inventaire complet (20 prompts × 3 configs × 100 indices distincts) →
+    écart **mesuré**, `evaluable` vrai, dérive → STOP (clause a en échec)."""
+    rows = _reference_rows()
+    drifted = [
+        dict(r, causal_kl=float(r["causal_kl"]) + 0.05) if index % 2 == 0 else dict(r)
+        for index, r in enumerate(rows)
+    ]
+    c9 = j18r.criterion_c9(drifted, {"rows": rows}, blocks=100, anchor_executed=True, n_prompts=20)
+    assert c9["evaluable"] is True
+    assert c9["evaluable_reason"] == "measured"
+    assert c9["sample_complete"] is True
+    assert c9["missing_pairs"] == [] and c9["incomplete_pairs"] == []
+    assert c9["clause_a"]["holds"] is False
+    assert c9["clause_b"]["holds"] is True
+    assert c9["holds"] is False
+
+
+def test_r_j18r_19_truncated_inventory_is_invalidate_not_drift() -> None:
+    """A4 : un shard d'ancrage **tronqué** rend C9 **non évaluable** ; la clause (b)
+    n'interprète **pas** la troncature comme une dérive."""
+    rows = _reference_rows()
+    complete = j18r.criterion_c9(rows, {"rows": rows}, blocks=100, anchor_executed=True, n_prompts=20)
+    truncated = [r for r in rows if r["prompt"] != "p03"]
+    c9 = j18r.criterion_c9(truncated, {"rows": rows}, blocks=100, anchor_executed=True, n_prompts=20)
+    assert c9["evaluable"] is False
+    assert c9["evaluable_reason"] == "incomplete_anchor_sample"
+    assert c9["missing_pairs"] == [["p03", "N4_V12"], ["p03", "N4_V6"], ["p03", "N6_V6"]]
+    # l'écart sur les clés partagées n'est **pas** gonflé par la troncature
+    assert c9["clause_b"]["mean_abs_gap_shared"] == complete["clause_b"]["mean_abs_gap_shared"]
+    assert c9["clause_b"]["holds"] is True
+    assert c9["holds"] is True
+    # `STOP` est réservé à un écart **mesuré** en échec ; l'inventaire incomplet tombe en INVALIDE
+    issue = j18r.decide_j18r_issue(
+        {"C1": False, "C4": False, "C5": True, "C6": True, "C7": True, "C8": True,
+         "C9": True, "C10": True, "arms_complete": True, "C9_evaluable": False,
+         "C1_sigma_positive": False},
+        {},
+    )
+    assert issue["status"] == "INVALIDE"
+    assert issue["priority"] == 2
+
+
+def test_r_j18r_19_full_inventory_drift_gives_stop_at_run_level(monkeypatch) -> None:
+    """A4 : au niveau du run, dérive mesurée sur échantillon **conforme** → STOP
+    (priorité 1), `results.json` écrit, bras complets."""
+    _fake_execute_environment(monkeypatch)
+    rows = _reference_rows()
+    drifted = [
+        dict(r, causal_kl=float(r["causal_kl"]) + 0.05) if index % 2 == 0 else dict(r)
+        for index, r in enumerate(rows)
+    ]
+    monkeypatch.setattr(
+        j18r, "run_arm_subprocess", _group_fake({"anchor": drifted, "sensitivity_fp32": rows})
+    )
+    out = _scratch_output_dir("stop_full_inventory")
+    argv = ["--output-dir", str(out), "--blocks", "100", "--bootstrap-iterations", "25"]
+    outcome = j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    results = json.loads((j18r._REPO_ROOT / out / "results.json").read_text(encoding="utf-8"))
+    c9 = results["criteria"]["C9"]
+    assert c9["evaluable"] is True
+    assert c9["evaluable_reason"] == "measured"
+    assert c9["sample_complete"] is True
+    assert c9["holds"] is False
+    assert results["criteria"]["arms_complete"] is True
+    assert outcome["decision"]["status"] == "STOP"
+    assert outcome["decision"]["priority"] == 1
+    assert outcome["results_written"] is True
+
+
+def test_r_j18r_19_truncated_shard_gives_invalidate_at_run_level(monkeypatch) -> None:
+    """A4 : au niveau du run, shard d'ancrage tronqué → INVALIDE (non dérive),
+    `C9_evaluable` faux, effet **non** mesuré."""
+    _fake_execute_environment(monkeypatch)
+    rows = _reference_rows()
+    truncated = [r for r in rows if r["prompt"] != "p03"]
+    monkeypatch.setattr(
+        j18r, "run_arm_subprocess", _group_fake({"anchor": truncated, "sensitivity_fp32": truncated})
+    )
+    out = _scratch_output_dir("invalidate_truncated")
+    argv = ["--output-dir", str(out), "--blocks", "100", "--bootstrap-iterations", "25"]
+    outcome = j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    results = json.loads((j18r._REPO_ROOT / out / "results.json").read_text(encoding="utf-8"))
+    c9 = results["criteria"]["C9"]
+    assert c9["evaluable"] is False
+    assert c9["evaluable_reason"] == "incomplete_anchor_sample"
+    assert c9["sample_complete"] is False
+    assert outcome["decision"]["status"] == "INVALIDE"
+    assert "C4" in outcome["decision"]["failed_criteria"]
+
+
+def test_r_j18r_19_c6_compares_all_fields_and_keeps_acceptance_flag_in_trace() -> None:
+    """A8 : C6 compare la **configuration complète** (modèle, device, dtype par bras,
+    fichier, effectifs, graines, rejeu, plafonds, sortie) ; la trace fidèle garde
+    `--confirm-accepted`, la commande **rejouable** ne le porte jamais."""
+    canonical_argv = shlex.split(j18r.CANONICAL_COMMAND)[2:]
+    argv = canonical_argv + ["--confirm-accepted"]
+    args = j18r.build_parser().parse_args(argv)
+    c6 = j18r.criterion_c6(argv, args)
+    assert c6["holds"] is True
+    assert all(bool(field["holds"]) for field in c6["fields"].values())
+    assert len(c6["fields"]) == len(j18r.CANONICAL_FIELDS)
+    assert "--confirm-accepted" in c6["command_executed"]
+    assert c6["string_match_without_acceptance_flag"] is True
+    reconstruction = c6["canonical_reconstruction"]
+    assert "--confirm-accepted" not in reconstruction
+    parsed = j18r.build_parser().parse_args(shlex.split(reconstruction)[2:])
+    for name, _flag in j18r.CANONICAL_FIELDS:
+        assert getattr(parsed, name) == getattr(args, name)
+
+
+def test_r_j18r_19_c6_fails_on_one_configured_field() -> None:
+    """A8 : `holds` n'est **pas** acquis par convention — un seul champ en écart
+    (`--device cpu` vs `cuda` figé §7.3) rend C6 faux."""
+    argv = shlex.split(j18r.CANONICAL_COMMAND)[2:] + ["--device", "cpu", "--confirm-accepted"]
+    args = j18r.build_parser().parse_args(argv)
+    c6 = j18r.criterion_c6(argv, args)
+    assert c6["holds"] is False
+    assert c6["fields"]["device"]["holds"] is False
+    assert c6["fields"]["model"]["holds"] is True
+    assert c6["string_match_without_acceptance_flag"] is False
+
+
+def test_r_j18r_19_manifest_carries_training_and_the_faithful_trace(monkeypatch) -> None:
+    """A8 : le manifeste consigne le bloc `training` **mesuré** au runtime, la garde
+    de temps **avant** écriture, et la commande exécutée **avec** le drapeau."""
+    _fake_execute_environment(monkeypatch)
+    out = _scratch_output_dir("manifest_training")
+    argv = ["--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25", "--confirm-accepted"]
+    outcome = j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    verification = outcome["manifest"]["verification"]
+    training = verification["training"]
+    assert training["performed"] is False
+    assert training["backward"] is False
+    assert training["weights_updated"] is False
+    assert training["backward_count"] == 0
+    assert training["requires_grad_all_false"] is True
+    assert verification["time_guarded_before_write"] is True
+    assert "--confirm-accepted" in outcome["manifest"]["producer"]["command"]
+
+
+def test_r_j18r_19_plan_declares_delegated_limits_and_scope() -> None:
+    """D9 : le plan dry-run consigne le plafond RLIMIT_AS délégué, le plafond de stop
+    et la **portée réelle** (groupe, descendants, GPU non couvert)."""
+    plan = j18r.dry_run_plan(["--output-dir", "_artefact/j18r_decision_tests/plan_d9", "--blocks", "2"])
+    budgets = plan["budgets"]
+    assert budgets["budget_rss_mib"] == int(budgets["max_rss_gib"] * 1024)
+    assert budgets["delegated_memory_limit_mib"] == budgets["budget_rss_mib"]
+    assert budgets["delegated_stop_after_seconds"] == budgets["max_seconds"]
+    scope = budgets["rss_budget_scope"]
+    assert "RLIMIT_AS" in scope
+    assert "processus du harnais" in scope
+    assert "n'est pas couverte" in scope
+
+
+def test_r_j18r_19_memory_limit_mechanism_is_available() -> None:
+    """D9 : le mécanisme du plafond est **mesuré**, pas deviné (child qui pose et
+    relit RLIMIT_AS avant `exec`)."""
+    assert j18r.memory_limit_available() >= 64
+    assert j18r.memory_limit_mib(j18r.build_parser().parse_args(["--output-dir", "x"])) == int(
+        j18r.build_parser().parse_args(["--output-dir", "x"]).max_rss_gib * 1024
+    )
+
+
+def test_r_j18r_19_rlimit_is_applied_before_exec_in_the_group() -> None:
+    """D9 : RLIMIT_AS est posé **avant** `exec` sur le child ; le child relit sa
+    limite **avant** toute allocation."""
+    out = _scratch_output_dir("rlimit_probe")
+    probe = j18r._REPO_ROOT / out / "probe.py"
+    result = j18r._REPO_ROOT / out / "result.json"
+    probe.write_text(
+        "import json, pathlib, resource\n"
+        "soft, hard = resource.getrlimit(resource.RLIMIT_AS)\n"
+        "pathlib.Path('" + str(out) + "/result.json').write_text("
+        "json.dumps({'soft': soft, 'hard': hard}))\n",
+        encoding="utf-8",
+    )
+    res = j18r.run_arm_subprocess(
+        f"{sys.executable} {out}/probe.py", j18r._REPO_ROOT, limit_mib=64, stop_after_seconds=30.0
+    )
+    assert res["returncode"] == 0
+    group = res["group"]
+    assert group["limit_applied"] is True
+    assert group["limit_mib"] == 64
+    payload = json.loads(result.read_text(encoding="utf-8"))
+    assert payload["soft"] == 64 * 1024 * 1024
+    assert payload["hard"] == 64 * 1024 * 1024
+    assert group["verified_after_stop"] is True
+
+
+def test_r_j18r_19_enforced_limit_refusal_stops_before_the_run(monkeypatch) -> None:
+    """D9 : un plafond **non appliqué** est refusé **avant** le run complet
+    (sortie 2), `results.json` **non écrit**."""
+    _fake_execute_environment(monkeypatch)
+    out = _scratch_output_dir("rlimit_refusal")
+
+    def refusing(invocation, root, **kwargs):
+        raise j18r.MemoryLimitEnforced("plafond RLIMIT_AS non appliqué")
+
+    monkeypatch.setattr(j18r, "run_arm_subprocess", refusing)
+    argv = ["--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25"]
+    with pytest.raises(SystemExit) as exc:
+        j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    assert exc.value.code == 2
+    assert not (j18r._REPO_ROOT / out / "results.json").exists()
+
+
+def test_r_j18r_19_resisted_group_is_never_recorded_complete(monkeypatch) -> None:
+    """D9 : des membres qui **résistent** au stop rendent le bras **non complet** ;
+    le run est INVALIDE, `results.json` non écrit."""
+    _fake_execute_environment(monkeypatch)
+    out = _scratch_output_dir("resisted_group")
+    rows = _reference_rows()
+    monkeypatch.setattr(
+        j18r, "run_arm_subprocess",
+        _group_fake({"anchor": rows, "sensitivity_fp32": rows}, resisted=True),
+    )
+    argv = ["--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25"]
+    outcome = j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    assert outcome["results_written"] is False
+    assert not (j18r._REPO_ROOT / out / "results.json").exists()
+    assert outcome["decision"]["status"] == "INVALIDE"
+    assert "bras requis incomplet" in outcome["decision"]["failed_criteria"]
+    assert (j18r._REPO_ROOT / out / j18r.RAW_SHARDS["anchor"]).exists()
+
+
+def test_r_j18r_19_stop_signal_is_sent_to_the_group_on_time_ceiling() -> None:
+    """D9 : au-delà du plafond de **temps**, `SIGTERM` au **groupe** ; vérification
+    après stop, `resisted` faux si le groupe est intégralement arrêté."""
+    res = j18r.run_arm_subprocess(
+        f"{sys.executable} -c \"import time; time.sleep(30)\"",
+        j18r._REPO_ROOT,
+        limit_mib=64,
+        stop_after_seconds=0.2,
+    )
+    assert res["returncode"] < 0
+    group = res["group"]
+    assert group["stop_signal"] in ("SIGTERM", "SIGKILL")
+    assert group["survivors_after_stop"] == 0
+    assert group["verified_after_stop"] is True
+    assert res["resisted"] is False
+
+
+def test_r_j18r_19_group_observation_publishes_limit_stop_and_verification() -> None:
+    """D9 : la mémoire déléguée publiée porte la limite posée, le signal de stop,
+    la vérification après stop, la couverture du groupe (members covered)."""
+    group = {
+        "pgid": 4242,
+        "limit_mib": 64,
+        "limit_applied": True,
+        "stop_after_seconds": 14400.0,
+        "stop_signal": "SIGTERM",
+        "survivors_after_stop": 0,
+        "verified_after_stop": True,
+        "elapsed_seconds": 1.0,
+        "cgroup_memory_peak_bytes": 12345.0,
+    }
+    obs = j18r.delegated_memory_observation(group)
+    assert obs["group_members_covered"] is True
+    assert obs["limit_mib"] == 64
+    assert obs["stop_after_seconds"] == 14400.0
+    assert obs["group_stop_signal"] == "SIGTERM"
+    assert obs["group_verified_after_stop"] is True
+    assert obs["cgroup_memory_peak_bytes"] == 12345.0
+    assert "RLIMIT_AS" in obs["measured_by"]
