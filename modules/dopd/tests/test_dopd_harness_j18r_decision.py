@@ -14,6 +14,7 @@ nécessitent torch (T8) vivent dans `test_dopd_harness_j18r_torch.py`.
 
 from __future__ import annotations
 
+import errno
 import importlib.util
 import inspect
 import json
@@ -645,7 +646,17 @@ def _make_scorer_module(recorder: list[str]):
     return types.SimpleNamespace(Qwen3TeacherScorer=MirrorScorer, load_teacher=load_teacher)
 
 
-def _fake_execute_environment(monkeypatch, *, returncode: int = 0, write_raw: bool = True) -> dict[str, object]:
+class ChatTemplateRejected(Exception):
+    """Échec **métier** de N6 (gabarit de conversation refusé) : interceptable par le garde."""
+
+
+class OutOfMemoryError(Exception):
+    """Nom de type identique à `torch.cuda.OutOfMemoryError` : échec d'**infrastructure**."""
+
+
+def _fake_execute_environment(
+    monkeypatch, *, returncode: int = 0, write_raw: bool = True, raise_for: str | None = None
+) -> dict[str, object]:
     """Exécution sans torch ni GPU : seules les collaborations externes sont simulées.
 
     La sous-invocation J15 écrit son shard brut sous le `--output` de son invocation, comme
@@ -711,7 +722,15 @@ def _fake_execute_environment(monkeypatch, *, returncode: int = 0, write_raw: bo
         # le `device` est lié par mot-clé au constructeur : le miroir l'enregistre (§R-J18R-07)
         assert str(provider._scorer.device) == str(kwargs["args"].device)
         records = fake_records(arm)
-        return {"arm": arm, "records": records, "publications": publications_for(arm, records), "complete": True}
+        # R-J18R-17 : le nombre de **jobs** du bras est publié (base de la couverture de
+        # rejeu §5.2) ; le fake l'égale à son nombre d'observations.
+        result = {"arm": arm, "records": records, "publications": publications_for(arm, records), "complete": True}
+        result["n_jobs"] = len(records)
+        if arm == raise_for:
+            # échec **métier** du bras non décisionnel : le garde N6 doit l'absorber,
+            # **sans** le faire entrer dans C5 ni dans l'issue (R-J18R-15).
+            raise ChatTemplateRejected("gabarit de conversation refusé par le professeur")
+        return result
 
     # `run_arm_guarded` (R-J18R-14) reste **réel** : c'est lui qui intercepte les
     # exceptions du seul bras N6 ; `run_arm` est simulé en dessous.
@@ -1577,3 +1596,295 @@ def test_r_j18r_14_n6_time_budget_is_typed_and_global_ones_are_not_intercepted()
     with pytest.raises(j18r.BudgetExceeded) as excinfo:
         rss_guard.check(now=0.0)
     assert excinfo.value.kind == "rss"
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-17 — compteur de jobs **du bras** (§3.5), niveaux de bruit du contrôle (§2.5)
+# ---------------------------------------------------------------------------
+
+
+def _config_records(
+    arm: str,
+    block_size: int,
+    vocab_width: int,
+    blocks: int,
+    prompt: str,
+    counter: j18r.JobCounter,
+    replay_stats: j18r.ReplayStats,
+    integrity: j18r.IntegrityStats,
+) -> list:
+    """Une configuration sur la fixture NumPy, avec le compteur **partagé** du bras."""
+    table = fixture_table()
+    support = j18r.build_economical_support(
+        lambda prefixes: np.stack([table(prefix) for prefix in prefixes]), block_size, vocab_width, option="A"
+    )
+    sequences, log_joint = support.enumerate_joint()
+    return j18r.process_configuration(
+        arm=arm,
+        prompt=prompt,
+        config_index=f"N{block_size}_V{vocab_width}",
+        support=support,
+        sequences=sequences,
+        log_joint=log_joint,
+        provider=FixtureScorer(table),
+        seed=j18r.SEED_DECISION,
+        blocks=blocks,
+        noise_levels=j18r.CONTROL_NOISE_LEVELS if arm == "control" else j18r.NOISE_LEVELS,
+        integrity=integrity,
+        replay_stats=replay_stats,
+        job_counter=counter,
+        block_sample=list(range(blocks)),
+        future_is_state=(arm == "control"),
+    )
+
+
+def test_r_j18r_17_control_arm_runs_only_the_zero_noise_level() -> None:
+    """PRE §2.5 : σ = 0 est donné **au seul** bras de contrôle ; §1.5 fige 18 marginaux."""
+    counter = j18r.JobCounter()
+    integrity, replay = j18r.IntegrityStats(), j18r.ReplayStats()
+    records = []
+    for prompt in j18r.CONTROL_PROMPTS:
+        for block_size, vocab_width in ((3, 3), (3, 4)):
+            records.extend(
+                _config_records("control", block_size, vocab_width, len(j18r.CONTROL_BLOCKS), prompt, counter, replay, integrity)
+            )
+    assert j18r.CONTROL_NOISE_LEVELS == (0.0,)
+    assert len(j18r.NOISE_LEVELS) == 4
+    assert [observation.noise for observation in records] == [0.0] * len(records)
+    assert len(records) == len(j18r.CONTROL_PROMPTS) * len(j18r.CONTROL_BLOCKS) * len(j18r.CONTROL_CONFIGS) == 18
+    control = j18r.control_metrics([observation.record() for observation in records])
+    assert control["n"] == 18 and control["holds"] is True
+    assert control["max_future_kl"] <= control["threshold_max"]
+
+
+def test_r_j18r_17_job_counter_is_monotone_across_the_configurations_of_a_arm() -> None:
+    """Le compteur est **du bras** : il ne repart pas à 1 à chaque configuration (§3.5)."""
+    counter = j18r.JobCounter()
+    indexes: list[int] = []
+    # contrôle : un seul niveau de bruit, une seule position masquée par bloc →
+    # 1 job par bloc, donc 10 jobs par configuration, comptés en continu.
+    for block_size, vocab_width in ((2, 2), (2, 3)):
+        observations = _config_records(
+            "control", block_size, vocab_width, 10, "p01", counter, j18r.ReplayStats(), j18r.IntegrityStats()
+        )
+        indexes.extend([observation.job_index for observation in observations])
+    assert len(indexes) == 20
+    assert indexes == list(range(1, 21))
+    assert counter.value == 20
+
+
+def test_r_j18r_17_replay_reaches_five_percent_of_the_arm_jobs() -> None:
+    """20 jobs d'un bras → 1 job rejoué (index 20) = 5 % ; 18 jobs → 0 et C5(c) échoue.
+
+    La géométrie de contrôle (σ = 0, **une** position masquée par bloc) donne 1 job
+    par bloc : le nombre de jobs est donc **exactement** celui des blocs.
+    """
+    counter, replay = j18r.JobCounter(), j18r.ReplayStats()
+    twenty = _config_records("control", 2, 2, 20, "p01", counter, replay, j18r.IntegrityStats())
+    assert len(twenty) == 20
+    assert replay.n_jobs == 1
+    assert replay.violations == []
+    c5 = j18r.criterion_c5(
+        j18r.IntegrityStats(), replay, {"holds": True}, arm_jobs={"control": 20, "decision": 20}
+    )
+    assert c5["clause_c_replay"]["sampled_jobs"] == 20
+    assert c5["clause_c_replay"]["expected_replays"] == 1
+    assert c5["clause_c_replay"]["coverage"] == 0.05
+    assert c5["clause_c_replay"]["holds"] is True
+    # un bras à 18 jobs ne **peut** atteindre 5 % : le critère échoue, il n'est pas faked.
+    replay18 = j18r.ReplayStats()
+    _config_records("control", 2, 2, 18, "p01", j18r.JobCounter(), replay18, j18r.IntegrityStats())
+    assert replay18.n_jobs == 0
+    c5_small = j18r.criterion_c5(
+        j18r.IntegrityStats(), replay18, {"holds": True}, arm_jobs={"control": 18, "decision": 18}
+    )
+    assert c5_small["clause_c_replay"]["holds"] is False
+
+
+def test_r_j18r_17_expected_replays_is_ceiling_of_five_percent() -> None:
+    """L'attendu est `ceil(5 % × jobs)` : 1 rejeu sur 24 jobs ne suffit pas."""
+    stats = j18r.ReplayStats()
+    stats.record_job(20, 0.0)
+    c5 = j18r.criterion_c5(j18r.IntegrityStats(), stats, {"holds": True}, arm_jobs={"decision": 24})
+    assert c5["clause_c_replay"]["expected_replays"] == 2
+    assert c5["clause_c_replay"]["holds"] is False
+    stats.record_job(40, 0.0)
+    c5 = j18r.criterion_c5(j18r.IntegrityStats(), stats, {"holds": True}, arm_jobs={"decision": 24})
+    assert c5["clause_c_replay"]["coverage"] == 2 / 24
+    assert c5["clause_c_replay"]["holds"] is True
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-15 / R-J18R-16 — portée de C5, garde N6 à trois étages
+# ---------------------------------------------------------------------------
+
+
+def test_r_j18r_15_c5_is_evaluated_on_its_own_arms_and_n6_is_isolated() -> None:
+    """C5 observe **contrôle + décision** ; l'intégrité N6 vit dans ses propres instances."""
+    run_replay = j18r.ReplayStats()
+    run_replay.record_job(20, 0.0)
+    n6_replay = j18r.ReplayStats()
+    n6_replay.record_job(20, 5.0)  # anomalie N6 : écart très au-dessus de la tolérance
+    c5_run = j18r.criterion_c5(
+        j18r.IntegrityStats(), run_replay, {"holds": True}, arm_jobs={"control": 18, "decision": 20}
+    )
+    c5_n6 = j18r.criterion_c5(
+        j18r.IntegrityStats(),
+        n6_replay,
+        {"holds": True},
+        observed_arms=("n6_chat_template",),
+        excluded_arms=("control", "decision", "anchor", "sensitivity_fp32"),
+        arm_jobs={"n6_chat_template": 20},
+    )
+    assert c5_run["observed_arms"] == ["control", "decision"]
+    assert "n6_chat_template" in c5_run["excluded_arms"]
+    assert c5_run["clause_c_replay"]["violations"] == []
+    assert c5_run["clause_c_replay"]["holds"] is True
+    assert c5_run["clause_e_control_and_enumeration"]["holds"] is True
+    # clause D : **aucune** cible float32 observée sur cette instance vide → agrégat faux,
+    # la violation N6 (dans l'autre instance) n'y est **pas** entrée.
+    assert c5_run["clause_d_float32_applied"]["holds"] is False
+    assert c5_run["holds"] is False
+    assert c5_n6["observed_arms"] == ["n6_chat_template"]
+    assert c5_n6["clause_c_replay"]["violations"] == [20]
+    assert c5_n6["holds"] is False
+
+
+def test_r_j18r_16_infra_and_business_failures_are_distinguished() -> None:
+    """La liste d'infrastructure est **étroite** : un échec métier n'y entre pas."""
+    assert j18r.is_infra_failure(OutOfMemoryError("CUDA: out of memory")) is True
+    assert j18r.is_infra_failure(OutOfMemoryError("")) is True
+    assert j18r.is_infra_failure(RuntimeError("cannot allocate 40 GiB")) is True
+    enom = OSError()
+    enom.errno = errno.ENOMEM
+    assert j18r.is_infra_failure(enom) is True
+    assert j18r.is_infra_failure(ChatTemplateRejected("gabarit refusé")) is False
+    assert j18r.is_infra_failure(ValueError("k < V obligatoire")) is False
+
+
+def test_r_j18r_16_the_n6_guard_absorbs_business_failure_and_propagates_the_rest(monkeypatch) -> None:
+    """Trois étages : temps N6 → `partial` ; RSS / GPU / mémoire → **propagés**."""
+    args = types.SimpleNamespace(bootstrap_seed=j18r.BOOTSTRAP_SEED_DECISION)
+    kwargs = {
+        "args": args,
+        "prompts": [],
+        "model": None,
+        "provider_factory": None,
+        "tokenizer": None,
+        "device": "cpu",
+        "budget": j18r.BudgetGuard(max_seconds=1800.0, clock=lambda: 0.0, rss=lambda: 0.0, time_kind="time"),
+        "integrity": j18r.IntegrityStats(),
+        "replay_stats": j18r.ReplayStats(),
+    }
+
+    def _raise(arm, **_kwargs):
+        raise ChatTemplateRejected("gabarit de conversation refusé par le professeur")
+    monkeypatch.setattr(j18r, "run_arm", _raise)
+    absorbed = j18r.run_arm_guarded("n6_chat_template", **kwargs)
+    assert absorbed["status"] == "failed" and absorbed["complete"] is False
+    assert absorbed["publications"]["partial"] is True
+    assert absorbed["publications"]["diagnostic_only"] is False
+    assert absorbed["n_jobs"] == 0
+    assert absorbed["error"]["type"] == "ChatTemplateRejected"
+
+    def _raise_infra(arm, **_kwargs):
+        raise OutOfMemoryError("CUDA: out of memory")
+
+    monkeypatch.setattr(j18r, "run_arm", _raise_infra)
+    with pytest.raises(OutOfMemoryError):
+        j18r.run_arm_guarded("n6_chat_template", **kwargs)
+
+    def _raise_rss(arm, **_kwargs):
+        raise j18r.BudgetExceeded("rss", "plafond RSS global atteint pendant N6")
+
+    monkeypatch.setattr(j18r, "run_arm", _raise_rss)
+    with pytest.raises(j18r.BudgetExceeded) as excinfo:
+        j18r.run_arm_guarded("n6_chat_template", **kwargs)
+    assert excinfo.value.kind == "rss"
+
+    def _raise_time(arm, **_kwargs):
+        raise j18r.BudgetExceeded("time", "plafond propre de N6 (1800 s)")
+
+    monkeypatch.setattr(j18r, "run_arm", _raise_time)
+    partial = j18r.run_arm_guarded("n6_chat_template", **kwargs)
+    assert partial["status"] == "budget_exceeded" and partial["publications"]["partial"] is True
+
+
+def test_r_j18r_15_an_n6_anomaly_does_not_move_the_run_issue(monkeypatch) -> None:
+    """Une anomalie N6 reste **dans le bloc N6** : `C5` et l'issue sont inchangés."""
+    out_without = _scratch_output_dir("n6_anomaly_without")
+    argv = ["--output-dir", str(out_without), "--blocks", "2", "--bootstrap-iterations", "25"]
+    env_without = _fake_execute_environment(monkeypatch)
+    outcome_without = j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    monkeypatch.undo()
+    env = _fake_execute_environment(monkeypatch, raise_for="n6_chat_template")
+    out_with = _scratch_output_dir("n6_anomaly_with")
+    argv_with = ["--output-dir", str(out_with), "--blocks", "2", "--bootstrap-iterations", "25", "--n6-chat-template"]
+    outcome_with = j18r.execute(j18r.build_parser().parse_args(argv_with), argv_with)
+    base = j18r._REPO_ROOT
+    without = json.loads((base / out_without / "results.json").read_text(encoding="utf-8"))
+    with_n6 = json.loads((base / out_with / "results.json").read_text(encoding="utf-8"))
+    assert env_without["arms"] == ["control", "decision"]
+    assert outcome_without["results_written"] is True
+    assert env["arms"] == ["control", "decision", "n6_chat_template"]
+    # C5 du run : contrôle + décision **uniquement**, aucune violation N6.
+    assert with_n6["criteria"]["C5"]["observed_arms"] == ["control", "decision"]
+    assert "n6_chat_template" in with_n6["criteria"]["C5"]["excluded_arms"]
+    assert with_n6["criteria"]["C5"]["clause_c_replay"]["violations"] == []
+    assert with_n6["criteria"]["C5"] == without["criteria"]["C5"]
+    # l'issue est **identique** : elle n'est pas fonction du statut N6.
+    assert with_n6["decision"] == without["decision"]
+    assert outcome_with["results_written"] is True
+    # l'anomalie est publiée **dans le bloc N6**, avec son intégrité propre.
+    n6 = with_n6["n6"]
+    assert n6["present"] is True and n6["decisionnal"] is False
+    assert n6["status"] == "failed" and n6["partial"] is True
+    assert n6["error"]["type"] == "ChatTemplateRejected"
+    assert n6["integrity_c5"]["observed_arms"] == ["n6_chat_template"]
+    assert n6["integrity_c5"]["clause_c_replay"]["holds"] is False
+    assert "jamais dans le C5 du run" in n6["integrity_note"]
+    assert without["n6"]["present"] is False
+    # R-J18R-17 : le dénominateur est le nombre de **jobs** publié par les bras.
+    assert with_n6["criteria"]["C5"]["arm_jobs"] == {"control": 6, "decision": 6}
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-18 — portée réelle du plafond RSS, mesure des sous-processus (constat D9)
+# ---------------------------------------------------------------------------
+
+
+def test_r_j18r_18_child_memory_is_measured_after_a_real_subprocess() -> None:
+    """`RUSAGE_CHILDREN` mesure le pic d'un enfant **attendu** par le harnais."""
+    subprocess.run([sys.executable, "-c", "x = bytearray(200 * 1024 * 1024); print(len(x))"], check=True)
+    observation = j18r.delegated_memory_observation()
+    assert observation["observed"] is True
+    assert observation["max_rss_children_bytes"] > 0
+    assert "RUSAGE_CHILDREN" in observation["measured_by"]
+    assert "ne sont **pas** couverts" in observation["note"]
+
+
+def test_r_j18r_18_budget_scope_is_declared_in_the_plan_and_in_the_run(monkeypatch) -> None:
+    """La portée du plafond est **consignée** : le plafond n'est pas devenu « sans plafond »."""
+    plan = j18r.dry_run_plan(["--output-dir", "_artefact/j18r_decision_tests/plan_scope", "--blocks", "2"])
+    scope = plan["budgets"]["rss_budget_scope"]
+    assert "processus du harnais" in scope and "n'est pas couverte" in scope
+    assert plan["arms"]["control"]["control_noise_levels"] == [0.0]
+    assert plan["arms"]["decision"]["control_noise_levels"] is None
+    env = _fake_execute_environment(monkeypatch)
+    out = _scratch_output_dir("delegated_memory")
+    argv = ["--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25"]
+    outcome = j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    results = json.loads((j18r._REPO_ROOT / out / "results.json").read_text(encoding="utf-8"))
+    # R-J18R-17 : le dénominateur de la couverture est le nombre de **jobs** publié par
+    # chaque bras (`n_jobs`), pas un nombre d'observations deviné.
+    assert results["criteria"]["C5"]["arm_jobs"] == {"control": 6, "decision": 6}
+    assert env["arms"] == ["control", "decision"]
+    runtime = results["runtime"]
+    assert "processus du harnais" in runtime["rss_budget_scope"]
+    assert "sous-processus" in runtime["rss_budget_scope"]
+    delegated = runtime["delegated_memory"]["anchor"]
+    assert {"max_rss_children_bytes", "cgroup_memory_peak_bytes", "observed", "measured_by", "note"} <= set(delegated)
+    assert results["protocol"]["control_noise_levels"] == [0.0]
+    assert results["numerical_integrity"]["observed_arms"] == ["control", "decision"]
+    assert "n6_chat_template" in results["numerical_integrity"]["excluded_arms"]
+    assert outcome["manifest"]["verification"]["budget_scope"] == runtime["rss_budget_scope"]
