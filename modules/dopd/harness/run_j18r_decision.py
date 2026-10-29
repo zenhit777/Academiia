@@ -145,6 +145,59 @@ MAX_RSS_GIB = 24
 N6_MAX_SECONDS = 1_800
 RSS_CHECK_PERIOD_SECONDS = 1.0
 
+#: J18R-final — seuil **dur** du watchdog VRAM, exprimé en **VRAM totale utilisée**
+#: (`nvidia-smi memory.used`, toutes applications confondues).
+#:
+#: Dérivation (chiffrée, J18R-final §2) :
+#:
+#: * capacité physique mesurée : 32 607 MiB totaux, baseline non-mission mesurée
+#:   1 090 MiB (Xwayland) ⇒ **31 517 MiB** utilisables ;
+#: * pic J18R observé au vol d'essai §12 : **11 691 MiB** utilisés (total GPU) ;
+#: * plus grand pic **alloué** mesuré dans `BUDGET_RTX5090.md` §1.4 pour un job de
+#:   scoring professeur : **18 835 MiB** (k = 64, contexte 2 048) ;
+#: * seuil retenu : **28 672 MiB** (28 GiB) utilisés au total, soit 91 % des
+#:   31 517 MiB utilisables — **2 845 MiB** sous l'épuisement physique — et
+#:   2,45 × le pic J18R observé, 1,52 × le plus grand pic alloué mesuré.
+#:
+#: Portée : le seuil porte sur la **VRAM totale** (mission + applications tierces).
+#: Il est distinct du plafond PRE `--max-gpu-mib` (16 384 MiB), qui porte sur
+#: l'**allocation torch** du processus du harnais (`torch.cuda.max_memory_allocated`).
+VRAM_WATCHDOG_MAX_USED_MIB = 28_672
+VRAM_WATCHDOG_SAMPLE_SECONDS = 1.0
+VRAM_WATCHDOG_INSTRUMENT = "nvidia-smi --query-gpu=memory.used,memory.free,memory.total --format=csv,noheader,nounits"
+VRAM_WATCHDOG_DERIVATION = (
+    "seuil dur = 28 672 MiB de VRAM totale utilisée ; capacité mesurée 32 607 MiB "
+    "moins baseline non-mission 1 090 MiB = 31 517 MiB utilisables ; seuil = 91 % "
+    "des utilisables (2 845 MiB sous l'épuisement) ; pic J18R observé 11 691 MiB ; "
+    "plus grand pic alloué mesuré (BUDGET_RTX5090.md §1.4) 18 835 MiB"
+)
+
+#: J18R-final — plafond **RLIMIT_AS** des sous-processus délégués §7.3b.
+#:
+#: RLIMIT_AS porte sur l'**espace d'adressage virtuel** (CUDA réserve de grandes
+#: plages virtuelles) : il n'est pas un plafond RSS et ne peut pas être calé sur
+#: `--max-rss-gib`. La valeur est **mesurée** (J18R-final §3) :
+#:
+#: * initialisation CUDA + chargement Qwen3-0.6B BF16 + forward trivial : échec à
+#:   24 GiB (`AcceleratorError` CUDA), échec à 32 GiB (`mmap` ENOMEM du shard),
+#:   **succès à partir de 40 GiB** (`forward_ok`, VmPeak 40 287 348 kB) ;
+#: * exécution réelle du harnais J15 délégué (`--blocks 2`, BF16) : **VmPeak
+#:   mesuré 109,73 GiB** (RSS de groupe 21,06 GiB) sous une limite de 160 GiB ;
+#: * la limite retenue est donc le **plus petit multiple de 32 GiB** au-dessus du
+#:   pic virtuel mesuré majoré de 25 % : ceil(109,73 × 1,25 / 32) × 32 = 160 GiB.
+#:
+#: Portée : plafond virtuel du **groupe** délégué (child + descendants). Il ne
+#: couvre pas la VRAM (mesurée par le watchdog VRAM) ni la RSS (mesurée par
+#: `RUSAGE_CHILDREN` / cgroup).
+DELEGATED_RLIMIT_AS_GIB = 160
+DELEGATED_RLIMIT_AS_DERIVATION = (
+    "RLIMIT_AS = 160 GiB, mesuré : VmPeak réel du harnais J15 délégué (--blocks 2, "
+    "BF16) = 109,73 GiB sous limite 160 GiB ; initialisation CUDA + chargement "
+    "modèle BF16 + forward : échec à 24 GiB (AcceleratorError) et à 32 GiB (mmap "
+    "ENOMEM), succès à 40 GiB ; limite = ceil(109,73 × 1,25 / 32) × 32 = 160 GiB ; "
+    "plafond virtuel, distinct du plafond RSS 24 GiB et du watchdog VRAM"
+)
+
 #: §9.2 — hashes des sources figées au moment du gel du PRE (vérifiés en phase 1).
 FROZEN_HASHES: dict[str, str] = {
     "modules/dopd/dopd/target.py": "e9568bf3329c8c0a17d09019c966ef2f8919ed132ea9240d9cc57005097b4556",
@@ -1684,13 +1737,139 @@ class BudgetExceeded(RuntimeError):
     """Dépassement de budget **typé** (R-J18R-14).
 
     `kind` distingue le plafond **propre à N6** (`"time"`, 1800 s, arrêt du seul
-    bras N6 avec publication partielle) des dépassements **globaux**
-    (`"rss"`, `"gpu"`), qui restent des arrêts du run entier.
+    bras N6 avec publication partielle explicite) des dépassements **globaux**
+    (`"rss"`, `"gpu"`, `"gpu_vram"`), qui restent des arrêts du run entier.
     """
 
     def __init__(self, kind: str, message: str) -> None:
         super().__init__(message)
         self.kind = str(kind)
+
+
+class VramWatchdogUnavailable(RuntimeError):
+    """Le watchdog VRAM n'a pas pu mesurer la VRAM (`nvidia-smi` indisponible ou
+    illisible). Le harnais **refuse** d'exécuter : pas de supposition de budget."""
+
+
+class VramWatchdog:
+    """Watchdog VRAM J18R-final : VRAM **totale** utilisée, seuil **dur**, arrêt net.
+
+    Instrument : `nvidia-smi --query-gpu=memory.used,memory.free,memory.total`
+    (une requête par échantillon, période 1 s). Le seuil porte sur la mémoire
+    **utilisée totale** (mission + applications tierces) ; il est **distinct** du
+    plafond PRE `--max-gpu-mib`, qui porte sur l'allocation torch du harnais.
+
+    Portée et limites (consignées dans le manifeste) :
+
+    * **observé** : `memory.used` / `memory.free` / `memory.total` du GPU 0 au
+      niveau du pilote, échantillonné à 1 s pendant la vie du sous-processus ;
+    * **limité** : l'échantillonnage à 1 s peut laisser passer un pic **plus court**
+      que la période d'échantillonnage ; l'instrument mesure le **total** GPU et
+      n'attribue pas la mémoire à un processus ; un pilote qui cesse de répondre
+      fait **échouer** la mesure (refus), jamais passer pour un dépassement.
+    """
+
+    def __init__(
+        self,
+        *,
+        max_used_mib: int = VRAM_WATCHDOG_MAX_USED_MIB,
+        sample_seconds: float = VRAM_WATCHDOG_SAMPLE_SECONDS,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self.max_used_mib = int(max_used_mib)
+        self.sample_seconds = float(sample_seconds)
+        self._clock = clock
+        self._last_sample_at = -1e18
+        self.samples = 0
+        self.peak_used_mib: int | None = None
+        self.min_free_mib: int | None = None
+        self.total_mib: int | None = None
+        self.last_used_mib: int | None = None
+        self.exceeded = False
+        self.event: dict[str, object] | None = None
+
+    @staticmethod
+    def query() -> dict[str, int]:
+        """Lit la VRAM du GPU 0 ; lève `VramWatchdogUnavailable` si la mesure échoue."""
+        try:
+            proc = subprocess.run(
+                [
+                    "nvidia-smi",
+                    "--query-gpu=memory.used,memory.free,memory.total",
+                    "--format=csv,noheader,nounits",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise VramWatchdogUnavailable(f"mesure VRAM indisponible : {exc}") from exc
+        if proc.returncode != 0:
+            raise VramWatchdogUnavailable(
+                f"mesure VRAM indisponible (nvidia-smi rc={proc.returncode}) : "
+                f"{proc.stderr.strip()[:200]}"
+            )
+        try:
+            used_s, free_s, total_s = proc.stdout.strip().splitlines()[0].split(",")
+            return {
+                "used_mib": int(used_s.strip()),
+                "free_mib": int(free_s.strip()),
+                "total_mib": int(total_s.strip()),
+            }
+        except (ValueError, IndexError, AttributeError) as exc:
+            raise VramWatchdogUnavailable(
+                f"mesure VRAM illisible : {proc.stdout.strip()[:200]}"
+            ) from exc
+
+    def sample(self, *, force: bool = False) -> dict[str, int]:
+        """Échantillonne la VRAM ; ne l'échantillonne qu'une fois par période."""
+        now = self._clock()
+        if not force and self.samples and now - self._last_sample_at < self.sample_seconds:
+            return {
+                "used_mib": int(self.last_used_mib or 0),
+                "free_mib": int(self.min_free_mib or 0),
+                "total_mib": int(self.total_mib or 0),
+            }
+        reading = self.query()
+        self._last_sample_at = now
+        self.samples += 1
+        self.last_used_mib = reading["used_mib"]
+        self.total_mib = reading["total_mib"]
+        self.peak_used_mib = max(int(self.peak_used_mib or 0), reading["used_mib"])
+        self.min_free_mib = min(int(self.min_free_mib or reading["free_mib"]), reading["free_mib"])
+        if reading["used_mib"] > self.max_used_mib and not self.exceeded:
+            self.exceeded = True
+            self.event = {
+                "reason": "vram_used_above_hard_threshold",
+                "threshold_used_mib": int(self.max_used_mib),
+                "observed_used_mib": int(reading["used_mib"]),
+                "observed_free_mib": int(reading["free_mib"]),
+                "observed_total_mib": int(reading["total_mib"]),
+                "sample_index": int(self.samples),
+                "instrument": VRAM_WATCHDOG_INSTRUMENT,
+            }
+        return reading
+
+    def to_dict(self) -> dict[str, object]:
+        """Trace du watchdog, publiée dans le manifeste."""
+        return {
+            "instrument": VRAM_WATCHDOG_INSTRUMENT,
+            "threshold_used_mib": int(self.max_used_mib),
+            "threshold_derivation": VRAM_WATCHDOG_DERIVATION,
+            "sample_seconds": float(self.sample_seconds),
+            "samples": int(self.samples),
+            "peak_used_mib": (None if self.peak_used_mib is None else int(self.peak_used_mib)),
+            "min_free_mib": (None if self.min_free_mib is None else int(self.min_free_mib)),
+            "total_mib": (None if self.total_mib is None else int(self.total_mib)),
+            "exceeded": bool(self.exceeded),
+            "event": self.event,
+            "scope": (
+                "VRAM totale du GPU 0 (mission + applications tierces), échantillonnée "
+                "à 1 s via nvidia-smi ; ne couvre pas les pics plus courts que la période "
+                "d'échantillonnage et n'attribue pas la mémoire à un processus"
+            ),
+        }
 
 
 class BudgetGuard:
@@ -1905,8 +2084,13 @@ def write_json(path: Path, payload: object) -> str:
 
 
 def memory_limit_mib(args: argparse.Namespace) -> int:
-    """Plafond RLIMIT_AS des sous-processus §7.3b : `budget_rss_mib` de la config (D9)."""
-    return int(args.max_rss_gib * 1024)
+    """Plafond RLIMIT_AS des sous-processus §7.3b (J18R-final).
+
+    Le plafond est **mesuré**, pas déduit du plafond RSS : RLIMIT_AS porte sur
+    l'espace d'adressage virtuel (réservations CUDA), sans rapport avec
+    `--max-rss-gib`. Valeur : `DELEGATED_RLIMIT_AS_GIB` (voir la dérivation).
+    """
+    return int(DELEGATED_RLIMIT_AS_GIB * 1024)
 
 
 def memory_limit_available() -> int:
