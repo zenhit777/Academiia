@@ -18,6 +18,7 @@ exactitude numerique §5, bras N6 §6, gouvernance §7.
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import importlib.util
 import json
@@ -81,9 +82,15 @@ DECISION_CONFIGS: tuple[tuple[int, int, int], ...] = ((4, 12, 4), (4, 24, 8))
 CONTROL_CONFIGS: tuple[tuple[int, int], ...] = ((4, 12), (4, 24))
 
 #: §1.5 — échantillon deterministe du controle negatif : 3 prompts x 3 blocs x 2
-#: configurations = 18 marginaux.
+#: configurations x 1 niveau de perturbation = 18 marginaux.
 CONTROL_PROMPTS: tuple[str, ...] = ("p01", "p02", "p03")
 CONTROL_BLOCKS: tuple[int, ...] = (0, 1, 2)
+# R-J18R-17 (constat D7) : la grille §2.5 donne `σ = 0` **au seul** bras de controle
+# (« controle | (4,12), (4,24) | 0 »). Les seuils C5(e) sont des seuils d'**identite**
+# (~ 4 ordres au-dessus du residu d'identite, ~ 5 ordres sous le plus petit effet reel
+# attende, ~ 0,08) : faire tourner le controle sur `NOISE_LEVELS` mesurerait une
+# geometrie perturbee (σ = 0,5/1,0/1,5) contre des seuils declares pour σ = 0.
+CONTROL_NOISE_LEVELS: tuple[float, ...] = (0.0,)
 CONTROL_MAX_FUTURE_KL = 1e-3
 CONTROL_MEDIAN_FUTURE_KL = 1e-5
 
@@ -723,6 +730,34 @@ class IntegrityStats:
         }
 
 
+# ---------------------------------------------------------------------------
+# §3.5 / §5.2 — compteur de **jobs** d'un bras (R-J18R-17, constat D6)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class JobCounter:
+    """Compteur des **jobs** d'un bras (§3.5), monotone, jamais remis à zéro.
+
+    §3.5 définit le job comme « une demande de scoring d'un marginal » et §5.2
+    sélectionne le rejeu sur `job_index mod 20 == 0` — exactement **5 %** des jobs
+    du **bras**. Compté par configuration (le comportement d'avant R-J18R-17), le
+    compteur repart à 1 à chaque configuration : un seul job est éligible par
+    tranche de 20, et sur un bras à effectif faible (le contrôle : 18 jobs par
+    configuration, 36 sur ses deux configurations) le taux réel tombe à 2/36 = 5,6 %
+    la première fois, **0 %** ensuite — C5(c) « ≥ 5 % des jobs » devient
+    inatteignable sur un bras réel. Un compteur créé **au niveau du bras** donne le
+    taux réel `floor(n_jobs / 20) / n_jobs ≈ 5 %` sur l'ensemble des jobs émis.
+    """
+
+    value: int = 0
+
+    def next_index(self) -> int:
+        """Index 1-based du job suivant ; le compteur ne décroît jamais."""
+        self.value += 1
+        return self.value
+
+
 @dataclass
 class ReplayStats:
     """Publication `numerics.replay` (§5.2)."""
@@ -812,7 +847,7 @@ def marginal_for_position(
     provider: ScoreProvider,
     integrity: IntegrityStats,
     replay_stats: ReplayStats,
-    job_counter: int,
+    job_index: int,
     k: int | None,
     arithmetic_dtype: str = "float32",
 ) -> MarginalObservation:
@@ -867,7 +902,7 @@ def marginal_for_position(
         full_kl=None if arm == "anchor" else float(full_kl),
         reason=str(full_result["reason"]),
         n_candidates=int(full_result["n_candidates"]),
-        job_index=int(job_counter),
+        job_index=int(job_index),
     )
 
     if k is not None:
@@ -915,14 +950,14 @@ def marginal_for_position(
         observation.prod_kl_teacheron = float(prod_kl_teacheron)
         observation.delta_kl_teacheron = float(causal_kl - prod_kl_teacheron)
 
-    if job_counter % replay_stats.modulo == 0:
+    if job_index % replay_stats.modulo == 0:
         replayed_prior, replayed_scores = provider.replay_job(prefix, [int(token) for token in tokens], suffix)
         ids = [int(token) for token in tokens]
         delta_prior = np.abs(
             np.asarray(replayed_prior, dtype=np.float64) - np.asarray(prior_full, dtype=np.float64)[ids]
         )
         delta_scores = np.abs(np.asarray(replayed_scores, dtype=np.float64) - np.asarray(scores, dtype=np.float64))
-        replay_stats.record_job(job_counter, float(max(float(np.max(delta_prior)), float(np.max(delta_scores)))))
+        replay_stats.record_job(job_index, float(max(float(np.max(delta_prior)), float(np.max(delta_scores)))))
 
     return observation
 
@@ -942,6 +977,9 @@ def process_configuration(
     k: int | None = None,
     integrity: IntegrityStats,
     replay_stats: ReplayStats,
+    # R-J18R-17 : compteur de **jobs du bras** (§3.5) — créé par `run_arm`, partagé
+    # entre les configurations, jamais remis à zéro (`None` = compteur local, tests).
+    job_counter: JobCounter | None = None,
     arithmetic_dtype: str = "float32",
     block_sample: Sequence[int] | None = None,
     future_is_state: bool = False,
@@ -966,7 +1004,9 @@ def process_configuration(
         base_blocks.append((block, masked))
 
     observations: list[MarginalObservation] = []
-    job_counter = 0
+    # R-J18R-17 : le compteur est **celui du bras**, passé par `run_arm` ; il passe
+    # d'une configuration à l'autre sans remise à zéro (§3.5, §5.2).
+    job_counter = job_counter if job_counter is not None else JobCounter()
     for noise in noise_levels:
         perturbation = rng_perturbation(seed, block_size, vocab_width, noise).normal(size=sequences.shape[0])
         perturbed_log = log_joint + float(noise) * perturbation
@@ -987,7 +1027,7 @@ def process_configuration(
                 future_block = tuple(int(token) for token in sequences[index])
 
             for position in sorted(masked):
-                job_counter += 1
+                job_index = job_counter.next_index()
                 observations.append(
                     marginal_for_position(
                         arm=arm,
@@ -1007,7 +1047,7 @@ def process_configuration(
                         provider=provider,
                         integrity=integrity,
                         replay_stats=replay_stats,
-                        job_counter=job_counter,
+                        job_index=job_index,
                         k=k,
                         arithmetic_dtype=arithmetic_dtype,
                     )
@@ -1411,6 +1451,70 @@ def current_rss_bytes() -> float:
     except (OSError, IndexError):
         return float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024)
     return float(resident * resource.getpagesize())
+
+
+def child_rss_peak_bytes() -> int:
+    """Pic RSS des **enfants attendus** par ce processus (`RUSAGE_CHILDREN`), en octets.
+
+    Le plafond `--max-rss-gib` est appliqué à `current_rss_bytes()` = RSS du
+    **processus du harnais**. Les invocations d'ancrage §7.3b sont des
+    **sous-processus** : leur mémoire (≈ 35 Go pour le chemin J15 non économe à
+    `V = 24`, chiffré §1.1) n'entre **pas** dans cette mesure.
+    `RUSAGE_CHILDREN.ru_maxrss` est le pic du **plus gros enfant déjà attendu**
+    (`subprocess.run` attend) ; il ne couvre ni les descendants de ces enfants, ni
+    la mémoire GPU de ces enfants. 0 = aucun enfant terminé mesuré.
+    """
+    return int(resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss) * 1024
+
+
+def cgroup_memory_peak_bytes() -> int | None:
+    """Pic mémoire du **cgroup** (`memory.peak` v2, `max_usage_in_bytes` v1) ; None si absent.
+
+    Seule vue **transverse** (harnais + sous-processus du même cgroup). Absente sous
+    cgroup v1 sans le fichier, absente sur macOS.
+    """
+    for relative in ("/sys/fs/cgroup/memory.peak", "/sys/fs/cgroup/memory/memory.max_usage_in_bytes"):
+        try:
+            text = Path(relative).read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if text.isdigit():
+            return int(text)
+    return None
+
+
+def delegated_memory_observation() -> dict[str, object]:
+    """Mesure **réellement disponible** après une invocation déléguée §7.3b (constat D9, R-J18R-18).
+
+    Le run complet n'est **pas** protégé par le plafond RSS pour ses invocations
+    d'ancrage : cette fonction relève ce qui est **mesurable** (`RUSAGE_CHILDREN`,
+    `memory.peak`) et consigne explicitement ce qui ne l'est **pas** (« non observé »).
+    La portée du plafond est publiée dans `runtime.rss_budget_scope` ; le plafond
+    n'est pas transformé en « sans plafond ».
+    """
+    children = child_rss_peak_bytes()
+    cgroup = cgroup_memory_peak_bytes()
+    observed = bool(children > 0 or cgroup is not None)
+    instruments: list[str] = []
+    if children > 0:
+        instruments.append("RUSAGE_CHILDREN")
+    if cgroup is not None:
+        instruments.append("cgroup memory.peak")
+    return {
+        "max_rss_children_bytes": int(children),
+        "cgroup_memory_peak_bytes": (None if cgroup is None else int(cgroup)),
+        "observed": bool(observed),
+        "measured_by": instruments,
+        "note": (
+            "pic des enfants **attendus** par le harnais (`subprocess.run`) ; les "
+            "descendants de ces sous-processus et leur mémoire GPU ne sont **pas** "
+            "couverts par cette mesure"
+            if observed
+            else "non observé : RUSAGE_CHILDREN = 0 et aucun fichier memory.peak "
+            "(cgroup v1 sans max_usage_in_bytes, macOS)"
+        ),
+    }
+
 
 
 class BudgetExceeded(RuntimeError):
@@ -1890,11 +1994,18 @@ def run_arm(
 
     `observations_out` reçoit les observations **au fil de l'eau** : un arrêt en cours
     de bras (plafond N6) laisse ainsi les observations déjà produites (R-J18R-14).
+
+    Deux états **du bras** sont créés ici, pas par configuration : le compteur de
+    **jobs** (§3.5, R-J18R-17) et la liste des observations. Le bras de **contrôle**
+    ne tourne **que** sur `σ = 0` (grille figée §2.5, R-J18R-17).
     """
     observations: list[MarginalObservation] = (
         observations_out if observations_out is not None else []
     )
     started = clock()
+    # R-J18R-17 : compteur de **jobs du bras** — traverse toutes les configurations
+    # sans remise à zéro ; c'est ce qui donne le taux réel de 5 % du rejeu §5.2.
+    job_counter = JobCounter()
     for prompt_id, text in prompts:
         if arm == "control" and prompt_id not in CONTROL_PROMPTS:
             continue
@@ -1931,6 +2042,10 @@ def run_arm(
                     arithmetic_dtype=arm_dtype(args, arm),
                     block_sample=CONTROL_BLOCKS if arm == "control" else None,
                     future_is_state=(arm == "control"),
+                    # R-J18R-17 : le contrôle ne tourne que sur σ = 0 (§2.5) ; les
+                    # seuils C5(e) sont des seuils d'identité, pas de perturbation.
+                    noise_levels=CONTROL_NOISE_LEVELS if arm == "control" else NOISE_LEVELS,
+                    job_counter=job_counter,
                     budget=budget,
                 )
             )
@@ -1945,18 +2060,60 @@ def run_arm(
         "status": "completed",
         "elapsed_seconds": elapsed,
         "n_observations": len(observations),
+        # nombre de **jobs** émis par le bras (§3.5) — base du taux de rejeu §5.2.
+        "n_jobs": int(job_counter.value),
     }
 
 
-def run_arm_guarded(arm: str, **kwargs) -> dict[str, object]:
-    """Exécute un bras en **interceptant les exceptions du seul bras N6** (R-J18R-14).
+#: Types d'**infrastructure** jamais absorbés par le garde N6 (R-J18R-16) :
+#: épuisement d'allocation (`MemoryError`, `torch.cuda.OutOfMemoryError`).
+_INFRA_FAILURE_TYPE_NAMES: frozenset[str] = frozenset({"MemoryError", "OutOfMemoryError"})
 
-    - plafond propre de N6 atteint (`BudgetExceeded.kind == "time"`) : arrêt du bras
-      N6, publication partielle explicite, décision principale conservée ;
-    - observations puis exception : échec consigné, données **diagnostiques** seulement ;
-    - échec avant toute observation : aucune statistique inventée ;
-    - exceptions des autres bras et dépassements **globaux** (RSS, VRAM, temps
-      global) : propagés — ils restent des arrêts du run.
+#: Motifs de message d'un échec mémoire / GPU (torch, CUDA, allocator) — R-J18R-16.
+_INFRA_FAILURE_MESSAGE_PATTERNS: tuple[str, ...] = (
+    "out of memory",
+    "cannot allocate",
+    "can't allocate",
+    "allocation failed",
+    "insufficient memory",
+    "failed to allocate",
+)
+
+
+def is_infra_failure(error: BaseException) -> bool:
+    """L'échec est d'**infrastructure** (mémoire / GPU) : arrêt du run, pas un incident N6.
+
+    La liste est **étroite et déclarée** (R-J18R-16) : l'interception ajoutée en
+    R-J18R-14 ne vaut **pas** « toute exception ⇒ `partial` valide ». Elle couvre les
+    **échecs métier** du bras non décisionnel (gate T1, troncature, gabarit de
+    conversation refusé, provider refusé, grammaire du prompt). Un épuisement de
+    mémoire n'est pas une divergence d'implémentation que N6 peut absorber : la VRAM
+    de N6 est **la même** que celle des bras décisionnels et le PRE §7.8 dit « arrêt
+    immédiat » pour les plafonds.
+    """
+    if type(error).__name__ in _INFRA_FAILURE_TYPE_NAMES:
+        return True
+    if getattr(error, "errno", None) == errno.ENOMEM:
+        return True
+    message = str(error).casefold()
+    return any(pattern in message for pattern in _INFRA_FAILURE_MESSAGE_PATTERNS)
+
+
+def run_arm_guarded(arm: str, **kwargs) -> dict[str, object]:
+    """Exécute un bras en **interceptant les exceptions du seul bras N6** (R-J18R-14, R-J18R-16).
+
+    Interception **limitée à N6**, et la règle est **à trois étages** (R-J18R-16),
+    pas « toute exception ⇒ `partial` » :
+
+    - `BudgetExceeded.kind == "time"` (plafond **propre de N6**, `--n6-max-seconds`) :
+      arrêt du bras N6 seul, publication partielle explicite, le **run continue** ;
+    - `BudgetExceeded.kind` **global** (`"rss"`, `"gpu"`, `"global_time"`) : **propagé**.
+      Le budget N6 (`n6_budget`) porte les **mêmes** seuils RSS / VRAM que le budget
+      global : un dépassement de mémoire pendant N6 n'est pas absorbable ;
+    - échec d'**infrastructure** mémoire / GPU (`is_infra_failure`) : **propagé** ;
+    - échec **métier** N6 (gate T1, troncature, gabarit, provider) : publication
+      partielle sur les **seules observations émises**, sans statistiques inventées
+      si le bras n'a rien émis.
     """
     clock = kwargs.get("clock", time.monotonic)
     started = clock()
@@ -1972,6 +2129,9 @@ def run_arm_guarded(arm: str, **kwargs) -> dict[str, object]:
             arm, observations, exc, started, clock, kwargs["args"].bootstrap_seed
         )
     except Exception as exc:  # noqa: BLE001 — interception **limitée** au bras N6
+        if is_infra_failure(exc):
+            # mémoire / GPU : arrêt du run, pas un incident du bras non décisionnel.
+            raise
         return _n6_partial_result(
             arm, observations, exc, started, clock, kwargs["args"].bootstrap_seed
         )
@@ -2011,6 +2171,9 @@ def _n6_partial_result(
         },
         "elapsed_seconds": float(clock() - started),
         "n_observations": len(observations),
+        # R-J18R-17 : nombre de **jobs émis avant l'arrêt** (index maximal du compteur
+        # du bras) — base de la couverture de rejeu publiée par le bloc N6.
+        "n_jobs": int(max([int(obs.job_index) for obs in observations if obs.job_index is not None], default=0)),
     }
 
 
@@ -2085,13 +2248,44 @@ def criterion_c5(
     integrity: IntegrityStats,
     replay_stats: ReplayStats,
     control: Mapping[str, object],
+    *,
+    observed_arms: Sequence[str] = ("control", "decision"),
+    excluded_arms: Sequence[str] = ("anchor", "sensitivity_fp32", "n6_chat_template"),
+    arm_jobs: Mapping[str, int] | None = None,
 ) -> dict[str, object]:
-    """C5 : intégrité numérique (finitude, sommes, rejeu, float32 appliqué, contrôle)."""
+    """C5 : intégrité numérique (finitude, sommes, rejeu, float32 appliqué, contrôle).
+
+    R-J18R-15 (constat D5 / audit A2) : C5 est évalué **sur les bras de ses
+    instances**. Le bras N6 a ses **propres** instances (`n6_integrity`,
+    `n6_replay`) et publie son intégrité dans le **bloc N6** : une anomalie N6
+    **n'entre pas dans C5** et ne déclenche **pas** `INVALIDE`. Les bras délégués
+    §7.3b (`anchor`, `sensitivity_fp32`) sont mesurés par leurs propres harnais.
+
+    R-J18R-17 (constat D6) : la couverture de rejeu §5.2 est calculée sur le nombre
+    de **jobs du bras de décision** (`arm_jobs["decision"]`), produit par un
+    compteur **monotone par bras** (pas par configuration). Le bras de contrôle
+    (18 jobs, `σ = 0`, §1.5/§2.5) n'atteint **pas** le multiple 20 : sa validité est
+    la clause d'**identité** C5(e), pas une couverture de 5 %. La couverture est
+    **publiée**, jamais présupposée.
+    """
+    jobs = dict(arm_jobs) if arm_jobs is not None else {}
+    sampled = int(jobs.get("decision", 0))
+    if sampled == 0 and observed_arms:
+        # bras évalué sur ses **propres** instances (N6) : dénominateur = ses jobs.
+        sampled = int(jobs.get(observed_arms[0], 0))
+    replayed = int(replay_stats.n_jobs)
+    expected = int(math.ceil(REPLAY_FRACTION * sampled)) if sampled > 0 else 1
+    coverage = float(replayed / sampled) if sampled > 0 else 0.0
+    clause_c_holds = bool(
+        not replay_stats.violations
+        and replayed >= max(expected, 1)
+        and (sampled == 0 or coverage >= REPLAY_FRACTION - 1e-12)
+    )
     return {
         "holds": bool(
             integrity.finite
             and integrity.max_sum_error <= SUM_ERROR_TOLERANCE
-            and replay_stats.holds()
+            and clause_c_holds
             and integrity.float32_applied
             and control.get("holds")
             and integrity.enumeration_agreement_max <= SUM_ERROR_TOLERANCE
@@ -2102,7 +2296,19 @@ def criterion_c5(
             "tolerance": SUM_ERROR_TOLERANCE,
             "holds": bool(integrity.max_sum_error <= SUM_ERROR_TOLERANCE),
         },
-        "clause_c_replay": dict(replay_stats.to_dict(), holds=bool(replay_stats.holds())),
+        "clause_c_replay": dict(
+            replay_stats.to_dict(),
+            holds=bool(clause_c_holds),
+            sampled_jobs=int(sampled),
+            expected_replays=int(max(expected, 1)),
+            coverage=coverage,
+            coverage_note=(
+                "dénominateur = jobs du **bras de décision** (compteur monotone par "
+                "bras, §3.5) ; le bras de contrôle (18 jobs, σ = 0) n'atteint pas le "
+                "multiple 20 et est validé par la clause d'identité C5(e), pas par "
+                "une couverture de 5 %"
+            ),
+        ),
         "clause_d_float32_applied": {
             "targets_seen": int(integrity.float32_targets_seen),
             "mismatches": int(integrity.float32_mismatches),
@@ -2113,6 +2319,16 @@ def criterion_c5(
             "enumeration_agreement_max": float(integrity.enumeration_agreement_max),
             "holds": bool(bool(control.get("holds")) and integrity.enumeration_agreement_max <= SUM_ERROR_TOLERANCE),
         },
+        # R-J18R-15 : portée **déclarée** de C5 — les bras observés par ces instances.
+        "observed_arms": list(observed_arms),
+        "excluded_arms": list(excluded_arms),
+        "arm_jobs": {arm: int(count) for arm, count in jobs.items()},
+        "scope_note": (
+            "C5 est évalué sur les bras mesurés par ce harnais ; le bras N6 a ses "
+            "propres instances d'intégrité/rejeu et publie son intégrité dans le bloc "
+            "N6 (non décisionnel) ; les bras délégués §7.3b sont mesurés par leurs "
+            "propres harnais"
+        ),
     }
 
 
@@ -2183,11 +2399,14 @@ def criterion_c1(
     }
 
 
-def _n6_status_block(arm_result: Mapping[str, object] | None) -> dict[str, object]:
-    """Bloc d'état du bras N6 (PRE §6, R-J18R-14) : statut, cause, caractère partiel.
+def _n6_status_block(
+    arm_result: Mapping[str, object] | None,
+    integrity_c5: Mapping[str, object] | None = None,
+) -> dict[str, object]:
+    """Bloc d'état du bras N6 (PRE §6, R-J18R-14, R-J18R-15) : statut, cause, intégrité propre.
 
-    N6 est **non décisionnel** : son état est publié mais ne modifie jamais
-    l'issue principale (C1–C10 inchangée).
+    N6 est **non décisionnel** : son état **et son intégrité** (instances propres)
+    sont publiés ici, et ne modifient **jamais** l'issue principale (C1–C10).
     """
     if arm_result is None:
         return {"present": False, "status": "not_run", "decisionnal": False, "partial": False}
@@ -2208,6 +2427,12 @@ def _n6_status_block(arm_result: Mapping[str, object] | None) -> dict[str, objec
         }
         if error
         else None,
+        # R-J18R-15 : intégrité **du bras N6**, évaluée sur ses propres instances.
+        "integrity_c5": (dict(integrity_c5) if integrity_c5 is not None else None),
+        "integrity_note": (
+            "intégrité évaluée sur les instances propres de N6 ; jamais dans `criteria`, "
+            "jamais dans le C5 du run (R-J18R-15)"
+        ),
     }
 
 
@@ -2234,6 +2459,13 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
         tolerance=float(args.replay_tolerance),
         modulo=int(round(1.0 / fraction)) if fraction > 0 else REPLAY_MODULO,
     )
+    # R-J18R-15 (constat D5 / audit A2) : le bras **N6** a ses **propres** instances
+    # d'intégrité et de rejeu. `C5` est évalué sur les bras **qu'il observe**
+    # (contrôle + décision) ; une anomalie N6 est publiée dans le **bloc N6** et ne
+    # contamine **ni** `C5`, **ni** `criteria`, **ni** l'issue de la table §4.5 :
+    # l'issue n'est pas fonction du statut N6.
+    n6_integrity = IntegrityStats()
+    n6_replay = ReplayStats(tolerance=float(args.replay_tolerance), modulo=replay_stats.modulo)
 
     def gpu_peak_bytes() -> float:
         return float(torch.cuda.max_memory_allocated()) if torch.cuda.is_available() else 0.0
@@ -2287,6 +2519,9 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             "status": "completed" if (records and returncode == 0) else "failed",
             "elapsed_seconds": delegated_elapsed,
             "n_observations": len(records),
+            # R-J18R-18 (constat D9) : le plafond RSS ne couvre **pas** ce sous-processus ;
+            # la mesure disponible (pic des enfants attendus, pic cgroup) est consignée ici.
+            "delegated_memory": delegated_memory_observation(),
         }
         if raw_hash is not None:
             produced[RAW_SHARDS[arm]] = raw_hash
@@ -2312,8 +2547,10 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
                 tokenizer=tokenizer,
                 device=args.device,
                 budget=n6_budget if arm == "n6_chat_template" else budget,
-                integrity=integrity,
-                replay_stats=replay_stats,
+                # R-J18R-15 : N6 alimente ses **propres** instances ; ses marginaux
+                # n'entrent **jamais** dans les instances de C5.
+                integrity=n6_integrity if arm == "n6_chat_template" else integrity,
+                replay_stats=n6_replay if arm == "n6_chat_template" else replay_stats,
             )
         finally:
             if arm == "n6_chat_template":
@@ -2328,7 +2565,14 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
     reserves = evaluate_reserves(arms["decision"]["publications"])
     criteria_shell = {
         "C4": criterion_c4({arm: arms[arm]["publications"] for arm in arms}, args.blocks, len(prompts)),
-        "C5": criterion_c5(integrity, replay_stats, control),
+        # R-J18R-17 : le dénominateur de la couverture de rejeu est le nombre de
+        # **jobs** du bras de décision, compté par le compteur monotone du bras.
+        "C5": criterion_c5(
+            integrity,
+            replay_stats,
+            control,
+            arm_jobs={arm: int(arms[arm].get("n_jobs", 0)) for arm in ("control", "decision")},
+        ),
         "C6": {"holds": reconstruct_command([token for token in argv if token != ACCEPTANCE_FLAG]) == CANONICAL_COMMAND},
         "C7": criterion_c7(model, counter),
         "C8": {"holds": bool(guard.get("model_source_in_repo"))},
@@ -2348,7 +2592,26 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
     # la priorité 1 (`STOP`) est réservée à un ancrage mesuré en échec.
     flags["C9_evaluable"] = bool(criteria_shell["C9"]["evaluable"])
     decision = decide_j18r_issue(flags, reserves)
+    # R-J18R-15 : l'intégrité du bras N6 est évaluée sur ses **propres** instances et
+    # publiée **dans le bloc N6** ; elle n'entre pas dans `criteria`, et une anomalie
+    # N6 ne déclenche pas `INVALIDE`.
+    n6_arm = arms.get("n6_chat_template")
+    n6_c5: dict[str, object] | None = None
+    if n6_arm is not None:
+        # Le bras N6 est évalué sur ses propres jobs : dénominateur = ses jobs.
+        n6_c5 = criterion_c5(
+            n6_integrity,
+            n6_replay,
+            control,
+            observed_arms=("n6_chat_template",),
+            excluded_arms=("control", "decision", "anchor", "sensitivity_fp32"),
+            arm_jobs={"n6_chat_template": int(n6_arm.get("n_jobs", 0))},
+        )
 
+
+    # R-J18R-18 (constat D9) : portée **réelle** du plafond RSS, et mesure des enfants.
+    children_peak = child_rss_peak_bytes()
+    cgroup_peak = cgroup_memory_peak_bytes()
     runtime = {
         "elapsed_seconds": float(budget.check()["elapsed_seconds"]),
         "budget_checks": int(budget.checks),
@@ -2363,6 +2626,19 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             "sensitivity": args.dtype_sensitivity,
         },
         "versions": versions_block(),
+        # R-J18R-18 : le plafond `--max-rss-gib` est appliqué au **processus du harnais**.
+        # Les invocations §7.3b sont des **sous-processus** non couverts par cette mesure ;
+        # la mesure disponible (pic des enfants **attendus**, pic cgroup) est consignée,
+        # avec un « non observé » explicite quand elle n'existe pas.
+        "rss_budget_scope": (
+            "plafond --max-rss-gib appliqué à la RSS du processus du harnais "
+            "(/proc/self/statm) ; les invocations d'ancrage §7.3b (ancrage BF16, "
+            "sensibilité FP32) sont des sous-processus dont la mémoire n'est pas "
+            "couverte par ce plafond"
+        ),
+        "rss_peak_children_gib": float(children_peak / 1024**3),
+        "cgroup_memory_peak_gib": (None if cgroup_peak is None else float(cgroup_peak / 1024**3)),
+        "delegated_memory": {arm: arms[arm].get("delegated_memory") for arm in ("anchor", "sensitivity_fp32")},
     }
     # R-J18R-14 : temps **par bras** publiés (bras requis vs N6 vs traitements finaux).
     arm_timings = {
@@ -2388,6 +2664,8 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             "iterations": args.bootstrap_iterations,
             "group_fields": list(GROUP_FIELDS),
             "noise_levels": list(NOISE_LEVELS),
+            # R-J18R-17 : le bras de contrôle ne tourne **que** sur σ = 0 (grille figée §2.5).
+            "control_noise_levels": list(CONTROL_NOISE_LEVELS),
             "mask_retention": MASK_RETAIN_PROBABILITY,
             "configs": {arm: [list(config) for config in configs] for arm, configs in ARM_CONFIGS.items()},
             "replay_fraction": fraction,
@@ -2396,7 +2674,13 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             "canonical_command": CANONICAL_COMMAND,
         },
         "runtime": runtime,
-        "numerical_integrity": dict(integrity.to_dict(), replay=replay_stats.to_dict()),
+        "numerical_integrity": dict(
+            integrity.to_dict(),
+            replay=replay_stats.to_dict(),
+            # R-J18R-15 : portée déclarée — C5 n'observe **ni** N6 **ni** les bras délégués.
+            observed_arms=list(criteria_shell["C5"]["observed_arms"]),
+            excluded_arms=list(criteria_shell["C5"]["excluded_arms"]),
+        ),
         "criteria": {
             "C1": c1,
             **{key: value for key, value in criteria_shell.items()},
@@ -2406,7 +2690,7 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
         "decision": decision,
         "arms": {arm: arms[arm]["publications"] for arm in arms},
         "arm_timings": arm_timings,
-        "n6": _n6_status_block(arms.get("n6_chat_template")),
+        "n6": _n6_status_block(arms.get("n6_chat_template"), n6_c5),
         "training": counter.training_block(criterion_c7(model, counter)["requires_grad_all_false"]),
         "reference_j15": REFERENCE_J15,
     }
@@ -2426,7 +2710,12 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
         ),
         config=LineageWriter.config_block(DOPDConfig(), seed=args.seed, bootstrap_seed=args.bootstrap_seed),
         data={"prompts_file": args.prompt_file, "n_prompts": len(prompts), "model": args.model},
-        verification={"criteria": results["criteria"], "decision": decision},
+        verification={
+            "criteria": results["criteria"],
+            "decision": decision,
+            # R-J18R-18 : la portée du plafond RSS est consignée au manifeste (constat D9).
+            "budget_scope": runtime["rss_budget_scope"],
+        },
         command=reconstruct_command([token for token in argv if token != ACCEPTANCE_FLAG]),
     )
     sidecar = output_dir / "lineage.json"
@@ -2505,6 +2794,8 @@ def dry_run_plan(argv: Sequence[str]) -> dict[str, object]:
         arms[arm] = {
             "configs": [list(config) for config in configs],
             "noise_levels": list(NOISE_LEVELS),
+            # R-J18R-17 : le bras de contrôle ne tourne **que** sur σ = 0 (§2.5).
+            "control_noise_levels": (list(CONTROL_NOISE_LEVELS) if arm == "control" else None),
             "shards": arm_shard_names(arm),
             "memory_estimates": estimates,
         }
@@ -2518,6 +2809,11 @@ def dry_run_plan(argv: Sequence[str]) -> dict[str, object]:
             "n6_max_seconds": args.n6_max_seconds,
             "max_gpu_mib": args.max_gpu_mib,
             "max_rss_gib": args.max_rss_gib,
+            # R-J18R-18 : portée réelle du plafond, consignée dans le plan.
+            "rss_budget_scope": (
+                "appliqué à la RSS du processus du harnais ; les invocations d'ancrage "
+                "§7.3b sont des sous-processus dont la mémoire n'est pas couverte"
+            ),
         },
     }
 
