@@ -292,14 +292,28 @@ def test_j18r_execute_full_run_on_tiny_gpu_model(monkeypatch) -> None:
     monkeypatch.setattr(j18r, "load_prompt_set", lambda path: [("p01", "alpha"), ("p02", "beta")])
     monkeypatch.setattr(transformers, "AutoTokenizer", SimpleNamespace(from_pretrained=lambda source: FakeTokenizer()))
 
-    def fake_subprocess(invocation, root):
+    def fake_subprocess(invocation, root, **kwargs):
         tokens = shlex.split(invocation)
         output = root / Path(tokens[tokens.index("--output") + 1])
         arm = "anchor" if "anchor" in output.name else "sensitivity_fp32"
         rows = _raw_rows(model, torch.tensor([1, 2, 3, 4, 5], device=model.device), arm, 2)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps({"rows": rows}, indent=2) + "\n", encoding="utf-8")
-        return 0
+        return {
+            "returncode": 0,
+            "group": {
+                "pgid": 0,
+                "limit_mib": kwargs.get("limit_mib"),
+                "limit_applied": True,
+                "stop_after_seconds": kwargs.get("stop_after_seconds"),
+                "stop_signal": None,
+                "survivors_after_stop": 0,
+                "verified_after_stop": True,
+                "elapsed_seconds": 0.0,
+                "cgroup_memory_peak_bytes": None,
+            },
+            "resisted": False,
+        }
 
     monkeypatch.setattr(j18r, "run_arm_subprocess", fake_subprocess)
     out = _scratch_output("execute_gpu")

@@ -26,6 +26,7 @@ import math
 import os
 import resource
 import shlex
+import signal
 import subprocess
 import sys
 import time
@@ -984,6 +985,9 @@ def process_configuration(
     block_sample: Sequence[int] | None = None,
     future_is_state: bool = False,
     budget: BudgetGuard | None = None,
+    # R-J18R-19 (A1/D5) : engagement **durable** au fil de l'eau, à la frontière
+    # des blocs **complets** uniquement ; un bloc inachevé n'est jamais publié.
+    observations_out: list[MarginalObservation] | None = None,
 ) -> list[MarginalObservation]:
     """Une configuration d'un bras : blocs de base, niveaux de bruit, marginaux.
 
@@ -1026,9 +1030,10 @@ def process_configuration(
                 index = sample_compatible_index(perturbed_log, compatible, noise_rng)
                 future_block = tuple(int(token) for token in sequences[index])
 
+            block_observations: list[MarginalObservation] = []
             for position in sorted(masked):
                 job_index = job_counter.next_index()
-                observations.append(
+                block_observations.append(
                     marginal_for_position(
                         arm=arm,
                         prompt=prompt,
@@ -1052,6 +1057,12 @@ def process_configuration(
                         arithmetic_dtype=arithmetic_dtype,
                     )
                 )
+            # R-J18R-19 (A1/D5) : le bloc **complet** est engagé sur la liste
+            # partagée **avant** le contrôle du budget ; l'arrêt d'un bras laisse
+            # les blocs complets déjà validés, jamais un bloc inachevé.
+            observations.extend(block_observations)
+            if observations_out is not None and observations_out is not observations:
+                observations_out.extend(block_observations)
             if budget is not None:
                 budget.check()
     return observations
@@ -1334,24 +1345,137 @@ def evaluate_reserves(publications: Mapping[str, object]) -> dict[str, bool]:
 # ---------------------------------------------------------------------------
 
 
+def canonical_j18r_command(args: argparse.Namespace) -> str:
+    """Reconstruction canonique §7.3 à partir des champs comparés (R-J18R-19, A8).
+
+    Le drapeau d'acceptation `--confirm-accepted` n'est **jamais** ajouté,
+    **jamais** retiré d'une trace existante : la commande rejouable est la
+    configuration canonique, la trace fidèle est `command_executed`.
+    """
+    parts = [
+        "python modules/dopd/harness/run_j18r_decision.py",
+        "--model", args.model,
+        "--device", args.device,
+        "--dtype-anchor", args.dtype_anchor,
+        "--dtype-decision", args.dtype_decision,
+        "--dtype-control", args.dtype_control,
+        "--dtype-sensitivity", args.dtype_sensitivity,
+        "--prompt-file", args.prompt_file,
+        "--blocks", str(args.blocks),
+        "--seed", str(args.seed),
+        "--bootstrap-seed", str(args.bootstrap_seed),
+        "--bootstrap-iterations", str(args.bootstrap_iterations),
+        "--anchor-seed", str(args.anchor_seed),
+        "--anchor-bootstrap-seed", str(args.anchor_bootstrap_seed),
+        "--replay-fraction", str(args.replay_fraction),
+        "--replay-tolerance", str(args.replay_tolerance),
+    ]
+    if args.n6_chat_template:
+        parts.append("--n6-chat-template")
+    parts += [
+        "--n6-max-seconds", str(args.n6_max_seconds),
+        "--max-seconds", str(args.max_seconds),
+        "--max-gpu-mib", str(args.max_gpu_mib),
+        "--max-rss-gib", str(args.max_rss_gib),
+        "--output-dir", args.output_dir,
+    ]
+    return " ".join(parts)
+
+CANONICAL_FIELDS: tuple[tuple[str, str], ...] = (
+    ("model", "--model"),
+    ("device", "--device"),
+    ("dtype_anchor", "--dtype-anchor"),
+    ("dtype_decision", "--dtype-decision"),
+    ("dtype_control", "--dtype-control"),
+    ("dtype_sensitivity", "--dtype-sensitivity"),
+    ("prompt_file", "--prompt-file"),
+    ("blocks", "--blocks"),
+    ("seed", "--seed"),
+    ("bootstrap_seed", "--bootstrap-seed"),
+    ("bootstrap_iterations", "--bootstrap-iterations"),
+    ("anchor_seed", "--anchor-seed"),
+    ("anchor_bootstrap_seed", "--anchor-bootstrap-seed"),
+    ("replay_fraction", "--replay-fraction"),
+    ("replay_tolerance", "--replay-tolerance"),
+    ("n6_chat_template", "--n6-chat-template"),
+    ("n6_max_seconds", "--n6-max-seconds"),
+    ("max_seconds", "--max-seconds"),
+    ("max_gpu_mib", "--max-gpu-mib"),
+    ("max_rss_gib", "--max-rss-gib"),
+    ("output_dir", "--output-dir"),
+)
+
+
+def criterion_c6(argv: Sequence[str], args: argparse.Namespace) -> dict[str, object]:
+    """C6 (R-J18R-19, A8) : **configuration complète** champ à champ, pas la chaîne seule.
+
+    Comparés : modèle, device, dtype par bras, fichier de prompts, effectifs,
+    graines, rejeu, plafonds (global, N6, GPU, RSS), drapeau N6, sortie. Puis la
+    chaîne **sans** le drapeau d'acceptation. Propriété double **déclarée** :
+
+    - commande **rejouable** : `canonical_j18r_command(args)` — la reconstruction
+      canonique à partir des champs comparés, drapeau **jamais** ajouté ;
+    - trace **fidèle** : `command_executed` — la commande réellement exécutée,
+      **avec** `--confirm-accepted` (§11). Le drapeau n'est **jamais** supprimé
+      silencieusement d'une trace.
+
+    Écart consigné au rapport (J18R.md §15, R-J18R-19) : la commande canonique
+    figée §7.3 **ne porte pas** `--confirm-accepted` ; la commande exécutée le
+    porte. `holds` **n'est pas** acquis par convention : tout champ en écart
+    le rend faux.
+    """
+    canonical_args = build_parser().parse_args(shlex.split(CANONICAL_COMMAND)[2:])
+    fields = {}
+    for name, flag in CANONICAL_FIELDS:
+        executed, canonical = getattr(args, name), getattr(canonical_args, name)
+        fields[name] = {"flag": flag, "executed": executed, "canonical": canonical, "holds": bool(executed == canonical)}
+    stripped = [token for token in argv if token != ACCEPTANCE_FLAG]
+    return {
+        "holds": all(bool(field["holds"]) for field in fields.values())
+        and reconstruct_command(stripped) == CANONICAL_COMMAND,
+        "fields": fields,
+        "command_executed": reconstruct_command(list(argv)),
+        "canonical_reconstruction": canonical_j18r_command(args),
+        "canonical_command": CANONICAL_COMMAND,
+        "string_match_without_acceptance_flag": bool(reconstruct_command(stripped) == CANONICAL_COMMAND),
+        "deviation_declared": {
+            "flag": ACCEPTANCE_FLAG,
+            "note": (
+                "la commande exécutée porte l'acceptation écrite §11 ; la commande "
+                "canonique figée §7.3 ne la porte pas ; écart consigné au rapport "
+                "(J18R.md §15, R-J18R-19), non supprimé de la trace"
+            ),
+        },
+    }
+
+
 def criterion_c9(
     anchor_records: list[dict],
     j15_reference: Mapping[str, object],
     *,
     blocks: int = CANONICAL_BLOCKS,
     anchor_executed: bool = True,
+    n_prompts: int | None = None,
 ) -> dict[str, object]:
     """Ancrage C9 : clause (a) écart moyen ≤ 5e-3 ; clause (b) couverture et 2 %.
 
-    `evaluable` distingue trois états (R-J18R-14, PRE §4.5 / §4.1) :
+    `evaluable` distingue les états (R-J18R-14, R-J18R-19 A4, PRE §4.5 / §4.1) :
 
-    - **écart mesuré** (ancrage exécuté, échantillon conforme au PRE — 100 blocs —
-      et lignes partagées avec J15) : l'échec des clauses donne **STOP** (dérive) ;
+    - **écart mesuré** (ancrage exécuté, **effectif réellement présent** —
+      prompts × configs × indices de blocs distincts `0..blocks-1` — et lignes
+      partagées avec J15) : l'échec des clauses donne **STOP** (dérive) ;
     - **défaillance d'exécution** de l'ancrage (bras absent, sous-processus en
       échec) : l'écart n'est **pas mesuré** → **INVALIDE** (R-J18R-10) ;
-    - **échantillon insuffisant** (`blocks < 100`, vol d'essai) : la comparaison
-      n'a pas la puissance du PRE ; l'écart observé ne peut pas être attribué à
-      une dérive → **INVALIDE** (C4 échoue de toute façon : effectifs insuffisants).
+    - **effectif insuffisant** : le drapeau `--blocks` **n'est pas** l'effectif
+      réellement présent (R-J18R-19 A4). Un shard d'ancrage **tronqué** rend C9
+      **non évaluable** : la clause (b) n'interprète **pas** une troncature comme
+      une dérive. C4 échoue sur les effectifs, la priorité INVALIDE s'applique.
+
+    Ordre de vérification figé : (1) exécution ; (2) effectifs réellement
+    présents — completeness, indices distincts, clés attendues ; (3) échantillon
+    conforme → clauses C9 ; (4) STOP **uniquement** sur échantillon conforme.
+    `STOP` > `INVALIDE` ne vaut que si **les deux anomalies sont établies**
+    (C9 mesuré en échec **et** C4 en échec).
     """
     reference_rows = list(j15_reference.get("rows") or [])
     aggregate = summarize_marginals(anchor_records)["mean_delta_kl"]
@@ -1372,13 +1496,31 @@ def criterion_c9(
             shared[key] = (float(row["delta_kl"]), reference_by_key[key])
     outliers = [key for key, (observed, reference) in shared.items() if abs(observed - reference) > C9_OUTLIER_THRESHOLD]
     coverage = len(shared) / len(reference_rows) if reference_rows else float("nan")
-    sample_conform = int(blocks) >= CANONICAL_BLOCKS
+    # R-J18R-19 (A4) : l'effectif qui sert à la comparaison est celui des
+    # **enregistrements présents**, pas le drapeau `--blocks`.
+    observed_pairs: dict[tuple[str, str], set[int]] = {}
+    for row in anchor_records:
+        observed_pairs.setdefault((str(row["prompt"]), str(row["config_index"])), set()).add(int(row["block_index"]))
+    expected_configs = [f"N{block_size}_V{vocab_width}" for block_size, vocab_width in ANCHOR_CONFIGS]
+    if n_prompts is None:
+        # comparaison d'unité sur un jeu minimal de lignes : aucun inventaire complet exigé
+        required_pairs: set[tuple[str, str]] = set()
+    else:
+        required_pairs = {(f"p{index:02d}", config) for index in range(1, int(n_prompts) + 1) for config in expected_configs}
+    missing_pairs = sorted(required_pairs - set(observed_pairs))
+    incomplete_pairs = sorted(
+        key for key in required_pairs if key in observed_pairs and observed_pairs[key] != set(range(int(blocks)))
+    )
+    sample_complete = not missing_pairs and not incomplete_pairs
+    sample_conform = int(blocks) >= CANONICAL_BLOCKS and sample_complete
     if not anchor_executed:
         evaluable_reason = "anchor_not_executed"
     elif not shared:
         evaluable_reason = "no_shared_keys"
-    elif not sample_conform:
+    elif int(blocks) < CANONICAL_BLOCKS:
         evaluable_reason = "insufficient_blocks"
+    elif not sample_complete:
+        evaluable_reason = "incomplete_anchor_sample"
     else:
         evaluable_reason = "measured"
     publications = {
@@ -1386,6 +1528,12 @@ def criterion_c9(
         "evaluable_reason": evaluable_reason,
         "blocks_measured": int(blocks),
         "blocks_required": CANONICAL_BLOCKS,
+        # R-J18R-19 (A4) : l'inventaire réellement présent est publié, pas le drapeau.
+        "n_prompts_expected": (None if n_prompts is None else int(n_prompts)),
+        "n_pairs_present": len(observed_pairs),
+        "sample_complete": bool(sample_complete),
+        "missing_pairs": [list(pair) for pair in missing_pairs],
+        "incomplete_pairs": [list(pair) for pair in incomplete_pairs],
         "holds": bool(
             aggregate is not None and abs(aggregate - C9_MEAN_REFERENCE) <= C9_MEAN_TOLERANCE
             and shared
@@ -1483,28 +1631,43 @@ def cgroup_memory_peak_bytes() -> int | None:
     return None
 
 
-def delegated_memory_observation() -> dict[str, object]:
-    """Mesure **réellement disponible** après une invocation déléguée §7.3b (constat D9, R-J18R-18).
+def delegated_memory_observation(group: Mapping[str, object] | None = None) -> dict[str, object]:
+    """Mesure **réellement disponible** après une invocation déléguée §7.3b (constat D9,
+    R-J18R-18, R-J18R-19).
 
-    Le run complet n'est **pas** protégé par le plafond RSS pour ses invocations
-    d'ancrage : cette fonction relève ce qui est **mesurable** (`RUSAGE_CHILDREN`,
-    `memory.peak`) et consigne explicitement ce qui ne l'est **pas** (« non observé »).
-    La portée du plafond est publiée dans `runtime.rss_budget_scope` ; le plafond
-    n'est pas transformé en « sans plafond ».
+    R-J18R-19 (D9) : le sous-processus vit dans le **groupe** du harnais
+    (`start_new_session=True`) et la limite RLIMIT_AS est posée **avant** `exec`.
+    L'observation porte la limite appliquée, le plafond de **temps** de ce
+    sous-processus, le signal de stop envoyé et la vérification du groupe **après**
+    le stop. Le **pic v1** (`memory.max_usage_in_bytes`) est mesuré **pendant** que
+    le sous-processus est vivant ; `memory.peak` v2 n'est **pas** présenté comme v1.
+    Les descendants de ces sous-processus et leur mémoire GPU restent explicitement
+    non couverts.
     """
+    group = group or {}
     children = child_rss_peak_bytes()
-    cgroup = cgroup_memory_peak_bytes()
+    recorded = group.get("cgroup_memory_peak_bytes")
+    cgroup = float(recorded) if recorded is not None else cgroup_memory_peak_bytes()
     observed = bool(children > 0 or cgroup is not None)
     instruments: list[str] = []
     if children > 0:
         instruments.append("RUSAGE_CHILDREN")
     if cgroup is not None:
         instruments.append("cgroup memory.peak")
+    if bool(group.get("limit_applied", False)):
+        instruments.append("RLIMIT_AS")
     return {
         "max_rss_children_bytes": int(children),
         "cgroup_memory_peak_bytes": (None if cgroup is None else int(cgroup)),
         "observed": bool(observed),
         "measured_by": instruments,
+        "group_members_covered": bool(group.get("limit_applied", False)),
+        "limit_mib": (None if group.get("limit_mib") is None else int(group["limit_mib"])),
+        "stop_after_seconds": (
+            None if group.get("stop_after_seconds") is None else float(group["stop_after_seconds"])
+        ),
+        "group_stop_signal": group.get("stop_signal"),
+        "group_verified_after_stop": bool(group.get("verified_after_stop", False)),
         "note": (
             "pic des enfants **attendus** par le harnais (`subprocess.run`) ; les "
             "descendants de ces sous-processus et leur mémoire GPU ne sont **pas** "
@@ -1598,7 +1761,16 @@ class BudgetGuard:
     def check(self, now: float | None = None) -> dict[str, float]:
         now = self._clock() if now is None else float(now)
         if self.checks and now - self.last_check < RSS_CHECK_PERIOD_SECONDS:
-            return {"elapsed_seconds": self.elapsed_seconds}
+            # R-J18R-19 (A5) : le throttle de 1 Hz porte sur l'échantillonnage
+            # RSS / GPU, **pas** sur le plafond de temps global. Toute `check()`
+            # compare d'abord le temps global ; la marge au plafond est de 0 s.
+            elapsed = self.elapsed_at(now)
+            if elapsed > self.max_seconds:
+                raise BudgetExceeded(
+                    self.time_kind,
+                    f"budget temps dépassé ({elapsed:.1f} s > {self.max_seconds:.1f} s)",
+                )
+            return {"elapsed_seconds": elapsed}
         self.last_check = now
         self.checks += 1
         elapsed = self.elapsed_at(now)
@@ -1619,6 +1791,33 @@ class BudgetGuard:
             )
         return {"elapsed_seconds": elapsed, "rss_gib": rss_gib, "gpu_peak_mib": gpu_mib}
 
+    def guard_time(self, label: str) -> float:
+        """R-J18R-19 (A5) : vérification du plafond global par l'horloge injectée.
+
+        Placée **avant** l'écriture de `results.json` et **après** les
+        sous-processus, **avant** les traitements finaux : le dépassement du
+        plafond ne se découvre **pas** après la persistance. Le temps en pause
+        (N6) est exclu ; le temps des autres bras n'est **pas** remis à zéro.
+        """
+        elapsed = self.elapsed_seconds
+        if elapsed > self.max_seconds:
+            raise BudgetExceeded(
+                self.time_kind,
+                f"dépassement du plafond global avant {label} "
+                f"({elapsed:.1f} s > {self.max_seconds:.1f} s)",
+            )
+        return elapsed
+
+
+
+class MemoryLimitEnforced(RuntimeError):
+    """R-J18R-19 (D9) : le plafond RLIMIT_AS posé en `preexec_fn` **échoue** ;
+    le harnais **refuse** la phase 2 (sortie 2), `results.json` non écrit."""
+
+
+class GroupStopResisted(RuntimeError):
+    """R-J18R-19 (D9) : le groupe du sous-processus a **résisté** au signal de
+    stop ; le bras n'est **pas** consigné comme complet."""
 
 class BackwardCounter:
     """§7.5 : `training.*` dérivé d'un compteur mesuré au runtime, jamais d'un littéral."""
@@ -1705,9 +1904,127 @@ def write_json(path: Path, payload: object) -> str:
     return sha256_file(str(path))
 
 
-def run_arm_subprocess(invocation: str, repo_root: Path = _REPO_ROOT) -> int:
-    """§7.3b : invocation du harnais J15 gelé, chaîne exactement figée."""
-    return subprocess.run(shlex.split(invocation), cwd=repo_root, check=False).returncode
+def memory_limit_mib(args: argparse.Namespace) -> int:
+    """Plafond RLIMIT_AS des sous-processus §7.3b : `budget_rss_mib` de la config (D9)."""
+    return int(args.max_rss_gib * 1024)
+
+
+def memory_limit_available() -> int:
+    """Mesure du mécanisme RLIMIT_AS : un child pose la limite en `preexec_fn` **avant**
+    `exec` et la **lit** ; 0 = mécanisme absent. Ce harnais **refuse** la phase 2 si 0."""
+    probe = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import resource, json;"
+            " resource.setrlimit(resource.RLIMIT_AS, (64 * 1024**2, 64 * 1024**2));"
+            " print(json.dumps(list(resource.getrlimit(resource.RLIMIT_AS))))",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    try:
+        soft = int(json.loads(probe.stdout.strip())[0])
+    except (OSError, ValueError, IndexError, json.JSONDecodeError):
+        return 0
+    return int(soft // (1024**2))
+
+
+def _group_survivors(pgid: int) -> int:
+    """Processus **encore vivants** dans le groupe `pgid` après le stop (vue `/proc`)."""
+    count = 0
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        if pid == os.getpid():
+            continue
+        try:
+            if os.getpgid(pid) == pgid:
+                count += 1
+        except (ProcessLookupError, PermissionError, OSError):
+            continue
+    return count
+
+
+def run_arm_subprocess(
+    invocation: str,
+    repo_root: Path = _REPO_ROOT,
+    *,
+    limit_mib: int,
+    stop_after_seconds: float,
+    clock: Callable[[], float] = time.monotonic,
+) -> dict[str, object]:
+    """§7.3b : invocation du harnais J15 gelé, chaîne exactement figée, **sous
+    surveillance mémoire + groupe** (R-J18R-19, constat D9).
+
+    - `start_new_session=True` : le child **et** ses descendants sont dans le
+      **groupe** du harnais ;
+    - plafond RLIMIT_AS posé en `preexec_fn` **avant** `exec` (limite dure). Un
+      `preexec_fn` qui échoue lève `MemoryLimitEnforced` : refus **sortie 2** du
+      harnais **avant** le run complet, `results.json` **non écrit** ;
+    - au-delà du plafond de **temps** de ce sous-processus (`stop_after_seconds`),
+      `SIGTERM` au groupe puis `SIGKILL` 2 s après ; si des membres **résistent**
+      (signal refusé, survivants après `SIGKILL`), `GroupStopResisted` — le bras
+      n'est **pas** consigné comme complet.
+    """
+    argv = shlex.split(invocation)
+    limit_bytes = int(limit_mib) * 1024**2
+
+    def preexec() -> None:
+        # Canal EPIPE du parent fermé : l'exception est relue côté parent.
+        resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, limit_bytes))
+
+    started = clock()
+    try:
+        proc = subprocess.Popen(argv, cwd=repo_root, start_new_session=True, preexec_fn=preexec)
+    except Exception as exc:  # noqa: BLE001 — pré-exec refusé : pas de run
+        raise MemoryLimitEnforced(
+            f"plafond RLIMIT_AS ({limit_mib} MiB) non appliqué au sous-processus §7.3b : {exc}"
+        ) from exc
+    pgid = int(proc.pid)
+    stop_signal: str | None = None
+    resisted = False
+    deadline = started + float(stop_after_seconds)
+    while proc.poll() is None:
+        now = clock()
+        if now >= deadline:
+            stop_signal = "SIGTERM"
+            try:
+                os.killpg(pgid, signal.SIGTERM)
+            except OSError:
+                resisted = True
+                break
+            term_deadline = clock() + 2.0
+            while proc.poll() is None and clock() < term_deadline:
+                time.sleep(0.05)
+            if proc.poll() is None:
+                stop_signal = "SIGKILL"
+                try:
+                    os.killpg(pgid, signal.SIGKILL)
+                except OSError:
+                    resisted = True
+            break
+        time.sleep(0.05)
+    proc.wait()
+    survivors = _group_survivors(pgid)
+    resisted = bool(resisted or survivors > 0)
+    return {
+        "returncode": int(proc.returncode),
+        "group": {
+            "pgid": pgid,
+            "limit_mib": int(limit_mib),
+            "limit_applied": True,
+            "stop_after_seconds": float(stop_after_seconds),
+            "stop_signal": stop_signal,
+            "survivors_after_stop": int(survivors),
+            "verified_after_stop": bool(not resisted),
+            "elapsed_seconds": float(clock() - started),
+        },
+        "resisted": bool(resisted),
+    }
 
 
 def ingest_arm_shard(path: Path, arm: str) -> list[dict]:
@@ -2025,29 +2342,31 @@ def run_arm(
                 arithmetic_dtype="float64",
             )
             sequences, log_joint = support.enumerate_joint()
-            observations.extend(
-                process_configuration(
-                    arm=arm,
-                    prompt=prompt_id,
-                    config_index=f"N{block_size}_V{vocab_width}",
-                    support=support,
-                    sequences=sequences,
-                    log_joint=log_joint,
-                    provider=provider,
-                    seed=args.seed,
-                    blocks=len(CONTROL_BLOCKS) if arm == "control" else args.blocks,
-                    k=k,
-                    integrity=integrity,
-                    replay_stats=replay_stats,
-                    arithmetic_dtype=arm_dtype(args, arm),
-                    block_sample=CONTROL_BLOCKS if arm == "control" else None,
-                    future_is_state=(arm == "control"),
-                    # R-J18R-17 : le contrôle ne tourne que sur σ = 0 (§2.5) ; les
-                    # seuils C5(e) sont des seuils d'identité, pas de perturbation.
-                    noise_levels=CONTROL_NOISE_LEVELS if arm == "control" else NOISE_LEVELS,
-                    job_counter=job_counter,
-                    budget=budget,
-                )
+            process_configuration(
+                arm=arm,
+                prompt=prompt_id,
+                config_index=f"N{block_size}_V{vocab_width}",
+                support=support,
+                sequences=sequences,
+                log_joint=log_joint,
+                provider=provider,
+                seed=args.seed,
+                blocks=len(CONTROL_BLOCKS) if arm == "control" else args.blocks,
+                k=k,
+                integrity=integrity,
+                replay_stats=replay_stats,
+                arithmetic_dtype=arm_dtype(args, arm),
+                block_sample=CONTROL_BLOCKS if arm == "control" else None,
+                future_is_state=(arm == "control"),
+                # R-J18R-17 : le contrôle ne tourne que sur σ = 0 (§2.5) ; les
+                # seuils C5(e) sont des seuils d'identité, pas de perturbation.
+                noise_levels=CONTROL_NOISE_LEVELS if arm == "control" else NOISE_LEVELS,
+                job_counter=job_counter,
+                budget=budget,
+                # R-J18R-19 (A1/D5) : les blocs **complets** sont engagés sur la
+                # liste partagée au fil de l'eau ; l'arrêt du bras (plafond N6)
+                # ne laisse **pas** la publication vide.
+                observations_out=observations,
             )
     replay_stats.n_jobs_expected += len(observations)
     records = [observation.record() for observation in observations]
@@ -2062,6 +2381,13 @@ def run_arm(
         "n_observations": len(observations),
         # nombre de **jobs** émis par le bras (§3.5) — base du taux de rejeu §5.2.
         "n_jobs": int(job_counter.value),
+        # R-J18R-19 (A1) : métadonnées de **couverture** (blocs complets engagés).
+        "coverage": {
+            "n_jobs_emitted": int(job_counter.value),
+            "n_blocks_completed": int(
+                len({(str(o.prompt), str(o.config_index), int(o.block_index)) for o in observations})
+            ),
+        },
     }
 
 
@@ -2174,6 +2500,14 @@ def _n6_partial_result(
         # R-J18R-17 : nombre de **jobs émis avant l'arrêt** (index maximal du compteur
         # du bras) — base de la couverture de rejeu publiée par le bloc N6.
         "n_jobs": int(max([int(obs.job_index) for obs in observations if obs.job_index is not None], default=0)),
+        # R-J18R-19 (A1) : couverture **réellement engagée** au moment de l'arrêt
+        # (jobs émis, blocs complets sur la liste partagée).
+        "coverage": {
+            "n_jobs_emitted": int(max([int(obs.job_index) for obs in observations if obs.job_index is not None], default=0)),
+            "n_blocks_completed": int(
+                len({(str(o.prompt), str(o.config_index), int(o.block_index)) for o in observations})
+            ),
+        },
     }
 
 
@@ -2420,6 +2754,9 @@ def _n6_status_block(
         "diagnostic_only": bool(publications.get("diagnostic_only", False)),
         "n_observations": int(arm_result.get("n_observations", 0)),
         "elapsed_seconds": float(arm_result.get("elapsed_seconds", 0.0)),
+        # R-J18R-19 (A1) : couverture **réellement engagée** au moment de l'arrêt
+        # (jobs émis, blocs complets sur la liste partagée).
+        "coverage": dict(arm_result.get("coverage") or {"n_jobs_emitted": 0, "n_blocks_completed": 0}),
         "error": {
             "type": error.get("type"),
             "message": error.get("message"),
@@ -2498,9 +2835,25 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             if arm == "anchor"
             else sensitivity_invocation(str(args.output_dir), args.blocks)
         )
-        delegated_started = time.monotonic()
-        returncode = run_arm_subprocess(invocation, _REPO_ROOT)
-        delegated_elapsed = float(time.monotonic() - delegated_started)
+        try:
+            # R-J18R-19 (D9) : sous-processus **dans le groupe** du harnais, plafond
+            # RLIMIT_AS posé **avant** `exec` (`budget_rss_mib` de la config), stop
+            # SIGTERM→SIGKILL à son propre plafond de **temps** (global).
+            delegated = run_arm_subprocess(
+                invocation,
+                _REPO_ROOT,
+                limit_mib=memory_limit_mib(args),
+                stop_after_seconds=float(args.max_seconds),
+            )
+        except MemoryLimitEnforced as exc:
+            # Mécanisme du plafond **non appliqué** : refus **avant** le run complet,
+            # `results.json` **non écrit** (sortie 2).
+            print(f"J18R : {exc}", file=sys.stderr)
+            raise SystemExit(2)
+        group = dict(delegated.get("group") or {})
+        returncode = int(delegated["returncode"])
+        resisted = bool(delegated.get("resisted"))
+        delegated_elapsed = float(group.get("elapsed_seconds", 0.0))
         raw_path = output_dir / RAW_SHARDS[arm]
         # R-J18R-10 : un sous-processus J15 défaillant ne produit pas son brut ; le bras est
         # incomplet (`arms_complete` faux, `results.json` non écrit), cela ne fait pas-crasher le run.
@@ -2515,13 +2868,20 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             "returncode": int(returncode),
             "records": records,
             "publications": publications,
-            "complete": bool(records) and returncode == 0,
-            "status": "completed" if (records and returncode == 0) else "failed",
+            # R-J18R-19 (D9) : un groupe qui **résiste** au stop rend le bras
+            # **non complet** ; il n'est **jamais** consigné comme complet.
+            "complete": bool(records) and returncode == 0 and not resisted,
+            "status": (
+                "completed" if (records and returncode == 0 and not resisted) else "failed"
+            ),
             "elapsed_seconds": delegated_elapsed,
             "n_observations": len(records),
-            # R-J18R-18 (constat D9) : le plafond RSS ne couvre **pas** ce sous-processus ;
-            # la mesure disponible (pic des enfants attendus, pic cgroup) est consignée ici.
-            "delegated_memory": delegated_memory_observation(),
+            "group": group,
+            # R-J18R-18 (constat D9) : le plafond RLIMIT_AS est posé **avant** `exec`
+            # sur le child **et ses descendants** (groupe) ; le **pic v1** du groupe est
+            # mesuré **pendant** la vie du sous-processus. Les descendants et la mémoire
+            # GPU ne sont **pas** couverts par la mesure du harnais seul.
+            "delegated_memory": delegated_memory_observation(group),
         }
         if raw_hash is not None:
             produced[RAW_SHARDS[arm]] = raw_hash
@@ -2573,7 +2933,7 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             control,
             arm_jobs={arm: int(arms[arm].get("n_jobs", 0)) for arm in ("control", "decision")},
         ),
-        "C6": {"holds": reconstruct_command([token for token in argv if token != ACCEPTANCE_FLAG]) == CANONICAL_COMMAND},
+        "C6": criterion_c6(argv, args),
         "C7": criterion_c7(model, counter),
         "C8": {"holds": bool(guard.get("model_source_in_repo"))},
         "C9": criterion_c9(
@@ -2581,6 +2941,8 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             j15_reference,
             blocks=args.blocks,
             anchor_executed=bool(arms["anchor"]["complete"]),
+            # R-J18R-19 (A4) : l'inventaire attendu est celui des prompts chargés.
+            n_prompts=len(prompts),
         ),
         "C10": criterion_c10(_REPO_ROOT),
     }
@@ -2639,6 +3001,9 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
         "rss_peak_children_gib": float(children_peak / 1024**3),
         "cgroup_memory_peak_gib": (None if cgroup_peak is None else float(cgroup_peak / 1024**3)),
         "delegated_memory": {arm: arms[arm].get("delegated_memory") for arm in ("anchor", "sensitivity_fp32")},
+        # R-J18R-19 (A5) : le plafond global est vérifié par l'horloge injectée
+        # **avant** l'écriture de `results.json` ; la garde est consignée.
+        "budget_time_guarded_before_write": True,
     }
     # R-J18R-14 : temps **par bras** publiés (bras requis vs N6 vs traitements finaux).
     arm_timings = {
@@ -2697,6 +3062,10 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
     if not flags["arms_complete"]:
         # §7.2 : `results.json` n'est jamais écrit si un bras requis est incomplet.
         return {"shards": produced, "results_written": False, "decision": decision}
+    # R-J18R-19 (A5) : le plafond global est vérifié par l'horloge injectée
+    # **avant** l'écriture de `results.json`, **après** les sous-processus, **avant**
+    # la persistance : le dépassement ne se découvre **pas** après la publication.
+    budget.guard_time("écriture de results.json")
     results_hash = write_json(output_dir / "results.json", results)
     produced["results.json"] = results_hash
     manifest = _ManifestBuilder().build_manifest(
@@ -2715,8 +3084,12 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             "decision": decision,
             # R-J18R-18 : la portée du plafond RSS est consignée au manifeste (constat D9).
             "budget_scope": runtime["rss_budget_scope"],
+            # R-J18R-19 (A8) : le bloc `training` **mesuré** au runtime est consigné
+            # au manifeste, avec la garde de temps **avant** écriture.
+            "training": results["training"],
+            "time_guarded_before_write": bool(runtime["budget_time_guarded_before_write"]),
         },
-        command=reconstruct_command([token for token in argv if token != ACCEPTANCE_FLAG]),
+        command=reconstruct_command(list(argv)),
     )
     sidecar = output_dir / "lineage.json"
     sidecar.write_text(_ManifestBuilder().write(manifest), encoding="utf-8")
@@ -2809,11 +3182,18 @@ def dry_run_plan(argv: Sequence[str]) -> dict[str, object]:
             "n6_max_seconds": args.n6_max_seconds,
             "max_gpu_mib": args.max_gpu_mib,
             "max_rss_gib": args.max_rss_gib,
-            # R-J18R-18 : portée réelle du plafond, consignée dans le plan.
+            # R-J18R-18 / R-J18R-19 (D9) : portée réelle, consignée dans le plan.
             "rss_budget_scope": (
                 "appliqué à la RSS du processus du harnais ; les invocations d'ancrage "
-                "§7.3b sont des sous-processus dont la mémoire n'est pas couverte"
+                "§7.3b sont des sous-processus **limités par RLIMIT_AS** (posé avant "
+                "exec, child et descendants dans le groupe du harnais) ; leur mémoire "
+                "GPU n'est pas couverte par cette mesure"
             ),
+            # R-J18R-19 (D9) : plafond posé **avant** `exec` sur le groupe ; le stop
+            # SIGTERM→SIGKILL est le plafond de **temps** global.
+            "budget_rss_mib": int(args.max_rss_gib * 1024),
+            "delegated_memory_limit_mib": int(args.max_rss_gib * 1024),
+            "delegated_stop_after_seconds": args.max_seconds,
         },
     }
 
