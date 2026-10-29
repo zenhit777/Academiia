@@ -30,6 +30,7 @@ import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from numbers import Integral
 from pathlib import Path
 from typing import Protocol
 
@@ -1293,11 +1294,24 @@ def evaluate_reserves(publications: Mapping[str, object]) -> dict[str, bool]:
 # ---------------------------------------------------------------------------
 
 
-def criterion_c9(anchor_records: list[dict], j15_reference: Mapping[str, object]) -> dict[str, object]:
+def criterion_c9(
+    anchor_records: list[dict],
+    j15_reference: Mapping[str, object],
+    *,
+    blocks: int = CANONICAL_BLOCKS,
+    anchor_executed: bool = True,
+) -> dict[str, object]:
     """Ancrage C9 : clause (a) écart moyen ≤ 5e-3 ; clause (b) couverture et 2 %.
 
-    `evaluable` est vrai quand au moins une ligne du bras d'ancrage est partagée avec
-    l'artefact J15 : sans ligne comparable, l'écart n'est **pas mesuré** (R-J18R-10).
+    `evaluable` distingue trois états (R-J18R-14, PRE §4.5 / §4.1) :
+
+    - **écart mesuré** (ancrage exécuté, échantillon conforme au PRE — 100 blocs —
+      et lignes partagées avec J15) : l'échec des clauses donne **STOP** (dérive) ;
+    - **défaillance d'exécution** de l'ancrage (bras absent, sous-processus en
+      échec) : l'écart n'est **pas mesuré** → **INVALIDE** (R-J18R-10) ;
+    - **échantillon insuffisant** (`blocks < 100`, vol d'essai) : la comparaison
+      n'a pas la puissance du PRE ; l'écart observé ne peut pas être attribué à
+      une dérive → **INVALIDE** (C4 échoue de toute façon : effectifs insuffisants).
     """
     reference_rows = list(j15_reference.get("rows") or [])
     aggregate = summarize_marginals(anchor_records)["mean_delta_kl"]
@@ -1318,8 +1332,20 @@ def criterion_c9(anchor_records: list[dict], j15_reference: Mapping[str, object]
             shared[key] = (float(row["delta_kl"]), reference_by_key[key])
     outliers = [key for key, (observed, reference) in shared.items() if abs(observed - reference) > C9_OUTLIER_THRESHOLD]
     coverage = len(shared) / len(reference_rows) if reference_rows else float("nan")
+    sample_conform = int(blocks) >= CANONICAL_BLOCKS
+    if not anchor_executed:
+        evaluable_reason = "anchor_not_executed"
+    elif not shared:
+        evaluable_reason = "no_shared_keys"
+    elif not sample_conform:
+        evaluable_reason = "insufficient_blocks"
+    else:
+        evaluable_reason = "measured"
     publications = {
-        "evaluable": bool(shared),
+        "evaluable": bool(shared and anchor_executed and sample_conform),
+        "evaluable_reason": evaluable_reason,
+        "blocks_measured": int(blocks),
+        "blocks_required": CANONICAL_BLOCKS,
         "holds": bool(
             aggregate is not None and abs(aggregate - C9_MEAN_REFERENCE) <= C9_MEAN_TOLERANCE
             and shared
@@ -1387,8 +1413,28 @@ def current_rss_bytes() -> float:
     return float(resident * resource.getpagesize())
 
 
+class BudgetExceeded(RuntimeError):
+    """Dépassement de budget **typé** (R-J18R-14).
+
+    `kind` distingue le plafond **propre à N6** (`"time"`, 1800 s, arrêt du seul
+    bras N6 avec publication partielle) des dépassements **globaux**
+    (`"rss"`, `"gpu"`), qui restent des arrêts du run entier.
+    """
+
+    def __init__(self, kind: str, message: str) -> None:
+        super().__init__(message)
+        self.kind = str(kind)
+
+
 class BudgetGuard:
-    """Garde-budgets §7.8 : temps mural, pic GPU, RSS contrôlée à 1 Hz."""
+    """Garde-budgets §7.8 : temps mural, pic GPU, RSS contrôlée à 1 Hz.
+
+    R-J18R-14 : le plafond **propre de N6** (1800 s) produit une exception typée
+    `"time"` — arrêt du seul bras N6, publication partielle explicite. Les
+    plafonds **globaux** (RSS, VRAM) produisent `"rss"` / `"gpu"` : ils restent
+    des arrêts du run entier. Le plafond global de temps (4 h, PRE §7.8) est
+    « hors N6 » : il est porté par le garde global, jamais par celui de N6.
+    """
 
     def __init__(
         self,
@@ -1399,7 +1445,9 @@ class BudgetGuard:
         clock: Callable[[], float] = time.monotonic,
         rss: Callable[[], float] = current_rss_bytes,
         gpu_peak_bytes: Callable[[], float] = lambda: 0.0,
+        time_kind: str = "time",
     ) -> None:
+        self.time_kind = str(time_kind)
         self.max_seconds = float(max_seconds)
         self.max_gpu_mib = float(max_gpu_mib)
         self.max_rss_gib = float(max_rss_gib)
@@ -1409,22 +1457,62 @@ class BudgetGuard:
         self.started = clock()
         self.last_check = 0.0
         self.checks = 0
+        self.rss_peak_bytes = 0.0
+        self.paused = False
+        self.paused_at = 0.0
+
+    def pause(self) -> None:
+        """Fige le temps écoulé (le budget global « hors N6 » ne court pas pendant N6)."""
+        if not self.paused:
+            self.paused_at = float(self._clock() - self.started)
+            self.paused = True
+
+    def resume(self) -> None:
+        """Reprend le décompte du temps écoulé au point de la pause."""
+        if self.paused:
+            self.started = self._clock() - self.paused_at
+            self.paused = False
+
+    def elapsed_at(self, now: float) -> float:
+        """Temps écoulé du garde à l'instant `now` (gelé pendant une pause)."""
+        if self.paused:
+            return float(self.paused_at)
+        return float(now - self.started)
+
+    @property
+    def elapsed_seconds(self) -> float:
+        """Temps écoulé du garde (gelé pendant une pause)."""
+        return self.elapsed_at(self._clock())
+
+    def note_rss(self) -> float:
+        """Relève la RSS courante et met à jour le pic observé par le garde."""
+        current = float(self._rss())
+        if current > self.rss_peak_bytes:
+            self.rss_peak_bytes = current
+        return current
 
     def check(self, now: float | None = None) -> dict[str, float]:
         now = self._clock() if now is None else float(now)
         if self.checks and now - self.last_check < RSS_CHECK_PERIOD_SECONDS:
-            return {"elapsed_seconds": now - self.started}
+            return {"elapsed_seconds": self.elapsed_seconds}
         self.last_check = now
         self.checks += 1
-        elapsed = now - self.started
-        rss_gib = self._rss() / 1024**3
+        elapsed = self.elapsed_at(now)
+        rss_bytes = self.note_rss()
+        rss_gib = rss_bytes / 1024**3
         gpu_mib = self._gpu_peak_bytes() / 1024**2
         if elapsed > self.max_seconds:
-            raise RuntimeError(f"budget temps dépassé ({elapsed:.1f} s > {self.max_seconds:.1f} s)")
+            raise BudgetExceeded(
+                self.time_kind, f"budget temps dépassé ({elapsed:.1f} s > {self.max_seconds:.1f} s)"
+            )
         if rss_gib > self.max_rss_gib:
-            raise RuntimeError(f"plafond RSS dépassé ({rss_gib:.2f} GiB > {self.max_rss_gib} GiB)")
+            raise BudgetExceeded(
+                "rss", f"plafond RSS dépassé ({rss_gib:.2f} GiB > {self.max_rss_gib} GiB)"
+            )
         if gpu_mib > self.max_gpu_mib:
-            raise RuntimeError(f"pic GPU dépassé ({gpu_mib:.1f} MiB > {self.max_gpu_mib} MiB)")
+            raise BudgetExceeded(
+                "gpu", f"pic GPU dépassé ({gpu_mib:.1f} MiB > {self.max_gpu_mib} MiB)"
+            )
         return {"elapsed_seconds": elapsed, "rss_gib": rss_gib, "gpu_peak_mib": gpu_mib}
 
 
@@ -1711,14 +1799,72 @@ def load_scorer_module():
     return module
 
 
+def extract_input_ids(encoded: object) -> list[int]:
+    """Extrait la **liste plate** des identifiants d'un encodage de tokenizer.
+
+    Formes acceptées (R-J18R-13) :
+
+    - `Mapping` (y compris `BatchEncoding`, qui dérive de `UserDict` et **n'est pas**
+      un `dict`) : seul le champ `input_ids` est extrait ; les autres champs
+      (`attention_mask`, ...) sont ignorés ;
+    - liste plate d'entiers ;
+    - liste contenant **une seule** séquence d'entiers (forme `[1, longueur]`) :
+      elle est aplatie ; plusieurs séquences sont refusées.
+
+    Toute autre forme — vide, non-entier, ambiguë — est refusée par `ValueError`.
+    """
+    if isinstance(encoded, Mapping):
+        if "input_ids" not in encoded:
+            raise ValueError("encodage Mapping sans champ 'input_ids'")
+        raw = encoded["input_ids"]
+    else:
+        raw = encoded
+    if isinstance(raw, (str, bytes)):
+        raise ValueError("encodage invalide : texte reçu là où des identifiants sont attendus")
+    if hasattr(raw, "tolist") and not isinstance(raw, (list, tuple)):
+        raw = raw.tolist()
+    if isinstance(raw, Integral) or not isinstance(raw, Sequence):
+        raise ValueError(f"forme d'encodage refusée : {type(raw).__name__}")
+    values = list(raw)
+    if values and all(
+        isinstance(item, Sequence) and not isinstance(item, (str, bytes)) for item in values
+    ):
+        if len(values) != 1:
+            raise ValueError("encodage ambigu : plusieurs séquences refusées")
+        values = list(values[0])
+    ids: list[int] = []
+    for token in values:
+        if isinstance(token, bool) or not isinstance(token, Integral):
+            raise ValueError(f"identifiant non entier : {token!r}")
+        ids.append(int(token))
+    if not ids:
+        raise ValueError("encodage vide : aucun identifiant")
+    return ids
+
+
 def prompt_token_ids(tokenizer, text: str, device: object, *, chat_template: bool):
-    """Encodage d'un prompt : base (§1.2) ou variante N6 avec gabarit de conversation (§6)."""
+    """Encodage d'un prompt : base (§1.2) ou variante N6 avec gabarit de conversation (§6).
+
+    N6 (R-J18R-13) : le gabarit est rendu **en texte** (`tokenize=False`), puis le
+    rendu est encodé par le tokenizer (`add_special_tokens=False`). Cette voie
+    évite la dérive d'API `transformers` (le retour `tokenize=True` est un
+    `BatchEncoding`, pas une liste) et garde `enable_thinking=False` effectif.
+    """
     torch = _torch()
     if chat_template:
-        encoded = tokenizer.apply_chat_template(
-            [{"role": "user", "content": text}], add_generation_prompt=True, enable_thinking=False
+        rendered = tokenizer.apply_chat_template(
+            [{"role": "user", "content": text}],
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=False,
         )
-        return torch.tensor([int(token) for token in encoded], dtype=torch.long, device=device)
+        if not isinstance(rendered, str):
+            raise ValueError(
+                f"apply_chat_template(tokenize=False) doit rendre un texte, reçu {type(rendered).__name__}"
+            )
+        encoded = tokenizer(rendered, add_special_tokens=False)
+        ids = extract_input_ids(encoded)
+        return torch.tensor(ids, dtype=torch.long, device=device)
     return tokenizer(text, return_tensors="pt").to(device)["input_ids"][0]
 
 
@@ -1734,13 +1880,21 @@ def run_arm(
     budget: BudgetGuard,
     integrity: IntegrityStats,
     replay_stats: ReplayStats,
+    clock: Callable[[], float] = time.monotonic,
+    observations_out: list[MarginalObservation] | None = None,
 ) -> dict[str, object]:
     """Bras exécuté par J18R : construction économe, arithmétique FP32, boucle figée.
 
     Le provider est construit **par prompt** (D4, R-J18R-12) : ses scores sont conditionnés
     sur `q + z_i`, et `position = 0` donne un préfixe relatif vide, que le scorer refuse.
+
+    `observations_out` reçoit les observations **au fil de l'eau** : un arrêt en cours
+    de bras (plafond N6) laisse ainsi les observations déjà produites (R-J18R-14).
     """
-    observations: list[MarginalObservation] = []
+    observations: list[MarginalObservation] = (
+        observations_out if observations_out is not None else []
+    )
+    started = clock()
     for prompt_id, text in prompts:
         if arm == "control" and prompt_id not in CONTROL_PROMPTS:
             continue
@@ -1782,11 +1936,81 @@ def run_arm(
             )
     replay_stats.n_jobs_expected += len(observations)
     records = [observation.record() for observation in observations]
+    elapsed = float(clock() - started)
     return {
         "arm": arm,
         "records": records,
         "publications": arm_publications(observations, arm=arm, bootstrap_seed=args.bootstrap_seed),
         "complete": bool(records),
+        "status": "completed",
+        "elapsed_seconds": elapsed,
+        "n_observations": len(observations),
+    }
+
+
+def run_arm_guarded(arm: str, **kwargs) -> dict[str, object]:
+    """Exécute un bras en **interceptant les exceptions du seul bras N6** (R-J18R-14).
+
+    - plafond propre de N6 atteint (`BudgetExceeded.kind == "time"`) : arrêt du bras
+      N6, publication partielle explicite, décision principale conservée ;
+    - observations puis exception : échec consigné, données **diagnostiques** seulement ;
+    - échec avant toute observation : aucune statistique inventée ;
+    - exceptions des autres bras et dépassements **globaux** (RSS, VRAM, temps
+      global) : propagés — ils restent des arrêts du run.
+    """
+    clock = kwargs.get("clock", time.monotonic)
+    started = clock()
+    if arm != "n6_chat_template":
+        return run_arm(arm=arm, **kwargs)
+    observations: list[MarginalObservation] = []
+    try:
+        return run_arm(arm=arm, observations_out=observations, **kwargs)
+    except BudgetExceeded as exc:
+        if exc.kind != "time":
+            raise
+        return _n6_partial_result(
+            arm, observations, exc, started, clock, kwargs["args"].bootstrap_seed
+        )
+    except Exception as exc:  # noqa: BLE001 — interception **limitée** au bras N6
+        return _n6_partial_result(
+            arm, observations, exc, started, clock, kwargs["args"].bootstrap_seed
+        )
+
+
+def _n6_partial_result(
+    arm: str,
+    observations: list[MarginalObservation],
+    error: BaseException,
+    started: float,
+    clock: Callable[[], float],
+    bootstrap_seed: int = BOOTSTRAP_SEED_DECISION,
+) -> dict[str, object]:
+    """Publication **partielle** du bras N6 (PRE §6, R-J18R-14).
+
+    - plafond N6 atteint (`BudgetExceeded.kind == "time"`) : publication partielle
+      explicite, décision principale conservée ;
+    - observations puis exception : échec consigné, données **diagnostiques** seulement,
+      jamais un « résultat N6 valide » ;
+    - échec avant toute observation : aucune statistique inventée.
+    """
+    records = [observation.record() for observation in observations]
+    publications = arm_publications(observations, arm=arm, bootstrap_seed=bootstrap_seed)
+    publications["partial"] = True
+    publications["diagnostic_only"] = bool(records)
+    status = "budget_exceeded" if isinstance(error, BudgetExceeded) else "failed"
+    return {
+        "arm": arm,
+        "records": records,
+        "publications": publications,
+        "complete": False,
+        "status": status,
+        "error": {
+            "type": type(error).__name__,
+            "message": str(error),
+            "kind": getattr(error, "kind", None),
+        },
+        "elapsed_seconds": float(clock() - started),
+        "n_observations": len(observations),
     }
 
 
@@ -1818,16 +2042,26 @@ def expected_blocks_per_config(arm: str, n_prompts: int, blocks: int) -> int:
     return int(n_prompts) * int(blocks)
 
 
-def criterion_c4(publications: Mapping[str, Mapping[str, object]], blocks: int, n_prompts: int) -> dict[str, object]:
-    """C4 : effectifs par configuration et blocs de base (§3.2, §4.4)."""
+def criterion_c4(
+    publications: Mapping[str, Mapping[str, object]], blocks: int, n_prompts: int
+) -> dict[str, object]:
+    """C4 : effectifs par configuration et blocs de base (§3.2, §4.4).
+
+    R-J18R-14 : le bras **N6 est non décisionnel** (§6, §4.5) — il ne participe
+    **pas** à C4 ; sa partialité (plafond 1800 s, exception) n'invalide donc pas
+    le run. Ses effectifs restent publiés dans `arms.n6_chat_template`.
+    """
     per_config: dict[str, object] = {}
     holds = True
     for arm, values in publications.items():
+        if arm == "n6_chat_template":
+            continue
         for config, counts in (values.get("block_counts") or {}).items():
             expected_blocks = expected_blocks_per_config(arm, n_prompts, blocks)
-            ok = int(counts["n_blocks_sampled"]) == expected_blocks and int(counts["n_distinct_block_indices"]) <= (
-                len(CONTROL_BLOCKS) if arm == "control" else blocks)
-            if arm in ("decision", "n6_chat_template"):
+            ok = int(counts["n_blocks_sampled"]) == expected_blocks and int(
+                counts["n_distinct_block_indices"]
+            ) <= (len(CONTROL_BLOCKS) if arm == "control" else blocks)
+            if arm == "decision":
                 ok = ok and int(counts["n_marginals"]) >= MIN_MARGINALS
             key = f"{arm}/{config}"
             per_config[key] = {
@@ -1949,6 +2183,34 @@ def criterion_c1(
     }
 
 
+def _n6_status_block(arm_result: Mapping[str, object] | None) -> dict[str, object]:
+    """Bloc d'état du bras N6 (PRE §6, R-J18R-14) : statut, cause, caractère partiel.
+
+    N6 est **non décisionnel** : son état est publié mais ne modifie jamais
+    l'issue principale (C1–C10 inchangée).
+    """
+    if arm_result is None:
+        return {"present": False, "status": "not_run", "decisionnal": False, "partial": False}
+    error = arm_result.get("error") or {}
+    publications = arm_result.get("publications") or {}
+    return {
+        "present": True,
+        "decisionnal": False,
+        "status": str(arm_result.get("status", "completed")),
+        "partial": bool(publications.get("partial", False)),
+        "diagnostic_only": bool(publications.get("diagnostic_only", False)),
+        "n_observations": int(arm_result.get("n_observations", 0)),
+        "elapsed_seconds": float(arm_result.get("elapsed_seconds", 0.0)),
+        "error": {
+            "type": error.get("type"),
+            "message": error.get("message"),
+            "kind": error.get("kind"),
+        }
+        if error
+        else None,
+    }
+
+
 def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
     """Run complet : garde-fou avant chargement, bras, critères, décision, shards, sidecar."""
     torch = _torch()
@@ -1981,12 +2243,14 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
         max_gpu_mib=args.max_gpu_mib,
         max_rss_gib=args.max_rss_gib,
         gpu_peak_bytes=gpu_peak_bytes,
+        time_kind="global_time",
     )
     n6_budget = BudgetGuard(
         max_seconds=args.n6_max_seconds,
         max_gpu_mib=args.max_gpu_mib,
         max_rss_gib=args.max_rss_gib,
         gpu_peak_bytes=gpu_peak_bytes,
+        time_kind="time",
     )
     prompts = load_prompt_set(_REPO_ROOT / args.prompt_file)
     arms: dict[str, dict[str, object]] = {}
@@ -2002,7 +2266,9 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             if arm == "anchor"
             else sensitivity_invocation(str(args.output_dir), args.blocks)
         )
+        delegated_started = time.monotonic()
         returncode = run_arm_subprocess(invocation, _REPO_ROOT)
+        delegated_elapsed = float(time.monotonic() - delegated_started)
         raw_path = output_dir / RAW_SHARDS[arm]
         # R-J18R-10 : un sous-processus J15 défaillant ne produit pas son brut ; le bras est
         # incomplet (`arms_complete` faux, `results.json` non écrit), cela ne fait pas-crasher le run.
@@ -2018,6 +2284,9 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             "records": records,
             "publications": publications,
             "complete": bool(records) and returncode == 0,
+            "status": "completed" if (records and returncode == 0) else "failed",
+            "elapsed_seconds": delegated_elapsed,
+            "n_observations": len(records),
         }
         if raw_hash is not None:
             produced[RAW_SHARDS[arm]] = raw_hash
@@ -2027,21 +2296,32 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             produced[ARM_SHARDS[arm]] = write_json(output_dir / ARM_SHARDS[arm], arms[arm])
 
     for arm in executed_arms(args):
-        result = run_arm(
-            arm=arm,
-            args=args,
-            prompts=prompts,
-            model=model,
-            provider_factory=provider_factory,
-            tokenizer=tokenizer,
-            device=args.device,
-            budget=n6_budget if arm == "n6_chat_template" else budget,
-            integrity=integrity,
-            replay_stats=replay_stats,
-        )
+        # R-J18R-14 : N6 est **non décisionnel** et s'exécute **en dernier**, après les
+        # shards contrôle / décision. Le budget global « hors N6 » (PRE §7.8) est donc
+        # **en pause** pendant N6 ; les plafonds RSS / VRAM globaux restent surveillés
+        # par le garde N6 (mêmes seuils) et restent des arrêts du run.
+        if arm == "n6_chat_template":
+            budget.pause()
+        try:
+            result = run_arm_guarded(
+                arm,
+                args=args,
+                prompts=prompts,
+                model=model,
+                provider_factory=provider_factory,
+                tokenizer=tokenizer,
+                device=args.device,
+                budget=n6_budget if arm == "n6_chat_template" else budget,
+                integrity=integrity,
+                replay_stats=replay_stats,
+            )
+        finally:
+            if arm == "n6_chat_template":
+                budget.resume()
         arms[arm] = result
         produced[ARM_SHARDS[arm]] = write_json(output_dir / ARM_SHARDS[arm], result)
 
+    final_started = time.monotonic()
     control = control_metrics(arms["control"]["records"])
     j15_reference = json.loads((_REPO_ROOT / "modules/dopd/eval/annexe_d_qwen3_0.6b_multiprompt/results.json").read_text(encoding="utf-8"))
     c1 = criterion_c1(arms["decision"]["records"], arms["decision"]["publications"], bootstrap_seed=args.bootstrap_seed, iterations=args.bootstrap_iterations)
@@ -2052,7 +2332,12 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
         "C6": {"holds": reconstruct_command([token for token in argv if token != ACCEPTANCE_FLAG]) == CANONICAL_COMMAND},
         "C7": criterion_c7(model, counter),
         "C8": {"holds": bool(guard.get("model_source_in_repo"))},
-        "C9": criterion_c9(arms["anchor"]["records"], j15_reference),
+        "C9": criterion_c9(
+            arms["anchor"]["records"],
+            j15_reference,
+            blocks=args.blocks,
+            anchor_executed=bool(arms["anchor"]["complete"]),
+        ),
         "C10": criterion_c10(_REPO_ROOT),
     }
     flags = {key: bool(value["holds"]) for key, value in criteria_shell.items()}
@@ -2068,6 +2353,7 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
         "elapsed_seconds": float(budget.check()["elapsed_seconds"]),
         "budget_checks": int(budget.checks),
         "rss_gib_at_end": float(current_rss_bytes() / 1024**3),
+        "rss_peak_gib": float(max(budget.rss_peak_bytes, n6_budget.rss_peak_bytes) / 1024**3),
         "gpu_peak_mib": float(gpu_peak_bytes() / 1024**2),
         "device": args.device,
         "dtypes": {
@@ -2077,6 +2363,20 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             "sensitivity": args.dtype_sensitivity,
         },
         "versions": versions_block(),
+    }
+    # R-J18R-14 : temps **par bras** publiés (bras requis vs N6 vs traitements finaux).
+    arm_timings = {
+        arm: {
+            "elapsed_seconds": float(arms[arm].get("elapsed_seconds", 0.0)),
+            "status": str(arms[arm].get("status", "completed")),
+            "n_observations": int(arms[arm].get("n_observations", len(arms[arm]["records"]))),
+        }
+        for arm in arms
+    }
+    arm_timings["final_treatments"] = {
+        "elapsed_seconds": float(time.monotonic() - final_started),
+        "status": "completed",
+        "n_observations": 0,
     }
     results = {
         "kind": "j18r_decision",
@@ -2105,6 +2405,8 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
         "reserves": reserves,
         "decision": decision,
         "arms": {arm: arms[arm]["publications"] for arm in arms},
+        "arm_timings": arm_timings,
+        "n6": _n6_status_block(arms.get("n6_chat_template")),
         "training": counter.training_block(criterion_c7(model, counter)["requires_grad_all_false"]),
         "reference_j15": REFERENCE_J15,
     }

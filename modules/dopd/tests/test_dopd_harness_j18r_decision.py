@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import types
+from collections.abc import Mapping
 from pathlib import Path
 
 import numpy as np
@@ -712,6 +713,8 @@ def _fake_execute_environment(monkeypatch, *, returncode: int = 0, write_raw: bo
         records = fake_records(arm)
         return {"arm": arm, "records": records, "publications": publications_for(arm, records), "complete": True}
 
+    # `run_arm_guarded` (R-J18R-14) reste **réel** : c'est lui qui intercepte les
+    # exceptions du seul bras N6 ; `run_arm` est simulé en dessous.
     monkeypatch.setattr(j18r, "run_arm", fake_run_arm)
     return {"arms": arms, "scorer_devices": scorer_devices, "raw_payloads": raw_payloads}
 
@@ -751,7 +754,13 @@ def test_r_j18r_04_execute_runs_n6_when_the_flag_is_present(monkeypatch) -> None
     results = json.loads((j18r._REPO_ROOT / out / "results.json").read_text(encoding="utf-8"))
     assert "n6_chat_template" in results["arms"]
     assert "arm_n6.json" in outcome["shards"]
-    assert [key for key in results["criteria"]["C4"]["per_config"] if key.startswith("n6_chat_template/")]
+    # R-J18R-14 : N6 est **non décisionnel** (PRE §3.2, §4.5) — il ne figure pas dans C4,
+    # dont le seuil d'effectif ne concerne que les bras de mesure (ancrage, décision).
+    assert not [
+        key
+        for key in results["criteria"]["C4"]["per_config"]
+        if key.startswith("n6_chat_template/")
+    ]
     assert list(j18r.dry_run_plan(argv)["arms"]) == [
         "anchor",
         "sensitivity_fp32",
@@ -1151,3 +1160,420 @@ def test_r_j18r_12_provider_factory_is_per_prompt_and_binds_device_by_keyword() 
     assert devices == ["cpu", "cpu"]
     assert spies[0].job_prefixes == [(7, 8, 9, 1)]
     assert spies[1].job_prefixes == [(10, 11)]
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-13 — `prompt_token_ids` : rendu texte puis encodage (D4)
+# ---------------------------------------------------------------------------
+
+
+class _MappingEncoding(Mapping):
+    """`Mapping` qui n'est **pas** un `dict` (comme `BatchEncoding` : `UserDict`)."""
+
+    def __init__(self, **values: object) -> None:
+        self._values = dict(values)
+
+    def __getitem__(self, key: str) -> object:
+        return self._values[key]
+
+    def __iter__(self):
+        return iter(self._values)
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+
+class _FakeChatTokenizer:
+    """Tokenizer factice dont `apply_chat_template` rend un **texte** puis renvoie un
+    `Mapping` (non-`dict`) — la forme qui faisait échouer le code précédent."""
+
+    def __init__(self, ids: list[int]) -> None:
+        self.ids = list(ids)
+        self.rendered: list[str] = []
+        self.chat_kwargs: list[dict] = []
+
+    def apply_chat_template(self, messages, **kwargs):
+        self.chat_kwargs.append(dict(kwargs))
+        rendered = "<|im_start|>user\n" + messages[0]["content"] + "<|im_end|>\n"
+        self.rendered.append(rendered)
+        return rendered
+
+    def __call__(self, text, add_special_tokens=True, return_tensors=None):
+        assert text in self.rendered
+        assert add_special_tokens is False
+        return _MappingEncoding(input_ids=list(self.ids), attention_mask=[1] * len(self.ids))
+
+
+class _FakeTorch:
+    """Minimal `torch` pour `prompt_token_ids` : `tensor` rend une liste d'entiers."""
+
+    long = "long"
+
+    @staticmethod
+    def tensor(values, dtype=None, device=None):
+        return list(values)
+
+
+def test_r_j18r_13_prompt_token_ids_accepts_a_mapping_that_is_not_a_dict(monkeypatch) -> None:
+    """D4 : le retour `apply_chat_template`/`tokenizer` est un `Mapping` (pas un `dict`) ;
+    le code précédent itérait sur ses **clés** et levait `ValueError: 'input_ids'`."""
+    monkeypatch.setattr(j18r, "_torch", lambda: _FakeTorch)
+    tokenizer = _FakeChatTokenizer([11, 22, 33])
+    ids = j18r.prompt_token_ids(tokenizer, "hello", "cpu", chat_template=True)
+    assert ids == [11, 22, 33]
+    # le gabarit est rendu **en texte** (`tokenize=False`) puis encodé sans jetons spéciaux
+    assert tokenizer.chat_kwargs == [
+        {"tokenize": False, "add_generation_prompt": True, "enable_thinking": False}
+    ]
+
+
+@pytest.mark.parametrize(
+    "encoded",
+    [
+        [1, 2, 3],
+        [[1, 2, 3]],
+        _MappingEncoding(input_ids=[1, 2, 3]),
+    ],
+)
+def test_r_j18r_13_extract_input_ids_accepts_the_allowed_shapes(encoded) -> None:
+    assert j18r.extract_input_ids(encoded) == [1, 2, 3]
+
+
+@pytest.mark.parametrize(
+    "encoded",
+    [
+        [],
+        [[1, 2], [3, 4]],
+        [1, "2"],
+        [1, True],
+        _MappingEncoding(attention_mask=[1, 2]),
+        "abc",
+        42,
+    ],
+)
+def test_r_j18r_13_extract_input_ids_refuses_ambiguous_or_invalid_shapes(encoded) -> None:
+    with pytest.raises(ValueError):
+        j18r.extract_input_ids(encoded)
+
+
+def _local_chat_tokenizer():
+    """Tokenizer local (aucun réseau) au gabarit de chat inspiré de Qwen3."""
+    transformers = pytest.importorskip("transformers")
+    tokenizers = pytest.importorskip("tokenizers")
+    root = j18r._REPO_ROOT / "_artefact" / "j18r_decision_tests" / "tokenizer"
+    root.mkdir(parents=True, exist_ok=True)
+    vocab = {
+        "[UNK]": 0,
+        "[PAD]": 1,
+        "<|im_start|>": 2,
+        "<|im_end|>": 3,
+        "<think>": 4,
+        "</think>": 5,
+        "user": 6,
+        "assistant": 7,
+        "\n": 8,
+        "Question:": 9,
+        "Answer:": 10,
+    }
+    backend = tokenizers.Tokenizer(tokenizers.models.WordLevel(vocab=vocab, unk_token="[UNK]"))
+    backend.pre_tokenizer = tokenizers.pre_tokenizers.Whitespace()
+    template = (
+        "{%- if messages[0]['role'] == 'user' %}"
+        "{{ '<|im_start|>user\\n' + messages[0]['content'] + '<|im_end|>\\n<|im_start|>assistant\\n' }}"
+        "{%- endif %}"
+        "{%- if enable_thinking is defined and enable_thinking is false %}"
+        "{{ '<think>\\n\\n</think>\\n\\n' }}"
+        "{%- endif %}"
+    )
+    tokenizer = transformers.PreTrainedTokenizerFast(
+        tokenizer_object=backend, chat_template=template
+    )
+    tokenizer.save_pretrained(str(root))
+    return transformers.AutoTokenizer.from_pretrained(str(root))
+
+
+def test_r_j18r_13_real_tokenizer_ids_match_the_direct_tokenize_path(monkeypatch) -> None:
+    """Le chemin texte→encodage donne **exactement** les ids de
+    `apply_chat_template(tokenize=True, return_dict=False)` (Qwen3, `transformers` 5.x)."""
+    monkeypatch.setattr(j18r, "_torch", lambda: _FakeTorch)
+    tokenizer = _local_chat_tokenizer()
+    messages = [{"role": "user", "content": "Question: Answer:"}]
+    direct = tokenizer.apply_chat_template(
+        messages,
+        tokenize=True,
+        return_dict=False,
+        add_generation_prompt=True,
+        enable_thinking=False,
+    )
+    ids = j18r.prompt_token_ids(tokenizer, "Question: Answer:", "cpu", chat_template=True)
+    assert ids == list(direct)
+
+
+def test_r_j18r_13_real_tokenizer_disables_thinking(monkeypatch) -> None:
+    """`enable_thinking=False` est effectif : le rendu porte le bloc de réflexion **vide**."""
+    monkeypatch.setattr(j18r, "_torch", lambda: _FakeTorch)
+    tokenizer = _local_chat_tokenizer()
+    rendered = tokenizer.apply_chat_template(
+        [{"role": "user", "content": "Question: Answer:"}],
+        tokenize=False,
+        add_generation_prompt=True,
+        enable_thinking=False,
+    )
+    assert "<think>" in rendered and "</think>" in rendered
+    thinking_block = rendered.split("<think>", 1)[1].split("</think>", 1)[0]
+    assert thinking_block.strip() == ""
+
+
+# ---------------------------------------------------------------------------
+# R-J18R-14 — N6 non décisionnel : budget, exception, ancrage INVALIDE vs STOP
+# ---------------------------------------------------------------------------
+
+
+def test_r_j18r_14_n6_budget_exceeded_publishes_partial_and_keeps_the_main_decision(
+    monkeypatch,
+) -> None:
+    """Plafond N6 atteint avec observations valides : publication partielle explicite,
+    décision principale conservée (C1–C10 inchangée)."""
+    env = _fake_execute_environment(monkeypatch)
+    original_run_arm = j18r.run_arm
+
+    def fake_run_arm(**kwargs):
+        arm = str(kwargs["arm"])
+        env["arms"].append(arm)
+        if arm != "n6_chat_template":
+            return original_run_arm(**kwargs)
+        observations = kwargs.get("observations_out")
+        if observations is not None:
+            observations.append(_observation_for(arm))
+        raise j18r.BudgetExceeded("time", "budget temps dépassé (1801.0 s > 1800.0 s)")
+
+    monkeypatch.setattr(j18r, "run_arm", fake_run_arm)
+    out = _scratch_output_dir("n6_budget")
+    argv = [
+        "--output-dir",
+        str(out),
+        "--blocks",
+        "2",
+        "--bootstrap-iterations",
+        "25",
+        "--n6-chat-template",
+    ]
+    outcome = j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    assert outcome["results_written"] is True
+    results = json.loads((j18r._REPO_ROOT / out / "results.json").read_text(encoding="utf-8"))
+    assert results["n6"]["status"] == "budget_exceeded"
+    assert results["n6"]["partial"] is True
+    assert results["n6"]["decisionnal"] is False
+    assert results["n6"]["error"]["kind"] == "time"
+    assert results["n6"]["n_observations"] == 1
+    # la décision principale ne dépend pas de N6
+    assert results["decision"]["status"] in ("INVALIDE", "NO-GO", "GO", "GO conditionnel", "STOP")
+    assert "n6_chat_template" not in results["criteria"]["C4"]["per_config"]
+
+
+def _observation_for(arm: str):
+    """Observation minimale (constructeur du harnais) pour un bras non décisionnel."""
+    return j18r.MarginalObservation(
+        arm=arm,
+        prompt="p01",
+        config_index="N4_V12",
+        block_index=0,
+        position=0,
+        noise=0.0,
+        visible_future=True,
+        causal_kl=0.5,
+        future_kl=0.4,
+        delta_kl=0.1,
+        full_kl=0.4,
+        reason=j18r.REASON_APPLIED,
+        n_candidates=4,
+    )
+
+
+def test_r_j18r_14_n6_exception_before_any_observation_invents_no_statistics(monkeypatch) -> None:
+    """Échec N6 **avant toute observation** : aucune statistique inventée, état consigné,
+    le run reste valide (bras requis complets)."""
+    env = _fake_execute_environment(monkeypatch)
+    original_run_arm = j18r.run_arm
+
+    def fake_run_arm(**kwargs):
+        arm = str(kwargs["arm"])
+        env["arms"].append(arm)
+        if arm != "n6_chat_template":
+            return original_run_arm(**kwargs)
+        raise RuntimeError("crash N6")
+
+    monkeypatch.setattr(j18r, "run_arm", fake_run_arm)
+    out = _scratch_output_dir("n6_crash")
+    argv = [
+        "--output-dir",
+        str(out),
+        "--blocks",
+        "2",
+        "--bootstrap-iterations",
+        "25",
+        "--n6-chat-template",
+    ]
+    outcome = j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    assert outcome["results_written"] is True
+    results = json.loads((j18r._REPO_ROOT / out / "results.json").read_text(encoding="utf-8"))
+    assert results["n6"]["status"] == "failed"
+    assert results["n6"]["n_observations"] == 0
+    assert results["arms"]["n6_chat_template"]["n"] == 0
+    assert results["decision"]["status"] != "INVALIDE" or "n6" not in str(results["decision"])
+
+
+def test_r_j18r_14_n6_observations_then_exception_are_diagnostic_only(monkeypatch) -> None:
+    """Observations puis exception : échec consigné, données **diagnostiques** seulement."""
+    env = _fake_execute_environment(monkeypatch)
+    original_run_arm = j18r.run_arm
+
+    def fake_run_arm(**kwargs):
+        arm = str(kwargs["arm"])
+        env["arms"].append(arm)
+        if arm != "n6_chat_template":
+            return original_run_arm(**kwargs)
+        observations = kwargs.get("observations_out")
+        if observations is not None:
+            observations.append(_observation_for(arm))
+        raise RuntimeError("crash N6 après observation")
+
+    monkeypatch.setattr(j18r, "run_arm", fake_run_arm)
+    out = _scratch_output_dir("n6_crash_after")
+    argv = [
+        "--output-dir",
+        str(out),
+        "--blocks",
+        "2",
+        "--bootstrap-iterations",
+        "25",
+        "--n6-chat-template",
+    ]
+    j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    results = json.loads((j18r._REPO_ROOT / out / "results.json").read_text(encoding="utf-8"))
+    assert results["n6"]["status"] == "failed"
+    assert results["n6"]["error"]["type"] == "RuntimeError"
+    assert results["n6"]["n_observations"] == 1
+    assert results["arms"]["n6_chat_template"]["partial"] is True
+    assert results["arms"]["n6_chat_template"]["diagnostic_only"] is True
+
+
+def test_r_j18r_14_anchor_execution_failure_is_invalide_not_stop(monkeypatch) -> None:
+    """Défaillance d'**exécution** de l'ancrage → INVALIDE (pas STOP) : l'écart C9 n'est pas
+    mesuré, le run n'est pas attribuable à une dérive du harnais."""
+    env = _fake_execute_environment(monkeypatch, returncode=1, write_raw=False)
+    out = _scratch_output_dir("anchor_failed_r14")
+    argv = ["--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25"]
+    outcome = j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    assert outcome["decision"]["status"] == "INVALIDE"
+    assert outcome["decision"]["priority"] == 2
+    assert "C9" in outcome["decision"]["failed_criteria"]
+    assert env["arms"] == ["control", "decision"]
+
+
+def _c9_reference_and_records(delta: float) -> tuple[dict, list[dict]]:
+    """Référence J15 minimale et lignes d'ancrage **alignées** sur la clé
+    `(prompt, config_index, block_index, position, noise)`."""
+    reference = {
+        "rows": [
+            {
+                "prompt": "p01",
+                "config_index": "N4_V6",
+                "block_index": 0,
+                "position": 0,
+                "noise": 0.0,
+                "delta_kl": j18r.C9_MEAN_REFERENCE,
+            }
+        ]
+    }
+    records = [_row("anchor", "p01", "N4_V6", 0, 0.0, delta)]
+    records[0]["position"] = 0
+    return reference, records
+
+
+def test_r_j18r_14_anchor_measured_drift_is_stop() -> None:
+    """Écart C9 **mesuré** sur un échantillon conforme au PRE (100 blocs) → STOP."""
+    reference, anchor_records = _c9_reference_and_records(j18r.C9_MEAN_REFERENCE + 0.5)
+    c9 = j18r.criterion_c9(
+        anchor_records, reference, blocks=j18r.CANONICAL_BLOCKS, anchor_executed=True
+    )
+    assert c9["evaluable"] is True
+    assert c9["evaluable_reason"] == "measured"
+    assert c9["holds"] is False
+    criteria = {key: True for key in j18r.CRITERIA_KEYS}
+    criteria["C9"] = False
+    criteria["C9_evaluable"] = True
+    criteria["arms_complete"] = True
+    decision = j18r.decide_j18r_issue(criteria, {"R_a": False, "R_b": False, "R_c": False})
+    assert decision["status"] == "STOP"
+    assert decision["priority"] == 1
+
+
+def test_r_j18r_14_smoke_blocks_are_not_a_measured_drift() -> None:
+    """Un vol d'essai (2 blocs) ne peut pas conclure à une dérive : C9 n'est pas évaluable
+    → l'issue reste INVALIDE (effectifs insuffisants), jamais STOP."""
+    reference, anchor_records = _c9_reference_and_records(j18r.C9_MEAN_REFERENCE + 0.5)
+    c9 = j18r.criterion_c9(anchor_records, reference, blocks=2, anchor_executed=True)
+    assert c9["evaluable"] is False
+    assert c9["evaluable_reason"] == "insufficient_blocks"
+    criteria = {key: True for key in j18r.CRITERIA_KEYS}
+    criteria["C9"] = False
+    criteria["C9_evaluable"] = False
+    criteria["arms_complete"] = True
+    decision = j18r.decide_j18r_issue(criteria, {"R_a": False, "R_b": False, "R_c": False})
+    assert decision["status"] == "INVALIDE"
+    assert decision["priority"] == 2
+
+
+def test_r_j18r_14_n6_does_not_enter_c4() -> None:
+    """N6 est hors C4 : un effectif N6 insuffisant n'invalide pas le run."""
+    records = [_row("decision", "p01", "N4_V12", index, 0.0, 0.1) for index in range(3)]
+    publications = {
+        "decision": j18r.arm_publications(
+            j18r.observations_from_records(records), arm="decision", bootstrap_seed=5, iterations=25
+        ),
+        "n6_chat_template": j18r.arm_publications(
+            j18r.observations_from_records(records[:1]),
+            arm="n6_chat_template",
+            bootstrap_seed=5,
+            iterations=25,
+        ),
+    }
+    c4 = j18r.criterion_c4(publications, blocks=2, n_prompts=20)
+    assert "n6_chat_template/N4_V12" not in c4["per_config"]
+    assert c4["holds"] is False  # le bras décision a moins de 2000 marginaux : C4 échoue bien
+
+
+def test_r_j18r_14_global_budget_is_paused_during_n6() -> None:
+    """Le budget global « hors N6 » ne court pas pendant N6 (PRE §7.8)."""
+    clock = [0.0]
+    guard = j18r.BudgetGuard(max_seconds=10.0, clock=lambda: clock[0], rss=lambda: 0.0)
+    clock[0] = 5.0
+    guard.pause()
+    clock[0] = 5000.0
+    assert guard.elapsed_seconds == 5.0
+    guard.resume()
+    assert guard.elapsed_seconds == 5.0
+    clock[0] = 5006.0
+    assert guard.elapsed_seconds == 11.0
+
+
+def test_r_j18r_14_n6_time_budget_is_typed_and_global_ones_are_not_intercepted() -> None:
+    """Le plafond propre de N6 est typé `"time"` ; les plafonds globaux (`rss`, `gpu`) et le
+    temps global (`"global_time"`) restent des arrêts du run."""
+    n6 = j18r.BudgetGuard(max_seconds=1.0, clock=lambda: 0.0, rss=lambda: 0.0, time_kind="time")
+    with pytest.raises(j18r.BudgetExceeded) as excinfo:
+        n6.check(now=2.0)
+    assert excinfo.value.kind == "time"
+
+    global_guard = j18r.BudgetGuard(
+        max_seconds=1.0, clock=lambda: 0.0, rss=lambda: 0.0, time_kind="global_time"
+    )
+    with pytest.raises(j18r.BudgetExceeded) as excinfo:
+        global_guard.check(now=2.0)
+    assert excinfo.value.kind == "global_time"
+
+    rss_guard = j18r.BudgetGuard(max_seconds=100.0, clock=lambda: 0.0, rss=lambda: 100 * 1024**3)
+    with pytest.raises(j18r.BudgetExceeded) as excinfo:
+        rss_guard.check(now=0.0)
+    assert excinfo.value.kind == "rss"

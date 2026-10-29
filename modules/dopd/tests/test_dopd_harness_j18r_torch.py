@@ -229,13 +229,22 @@ class _FakeBatchEncoding(dict):
 
 
 class FakeTokenizer:
-    """Tokenizer duck-typed : mêmes identifiants en base et sous gabarit de conversation."""
+    """Tokenizer duck-typed : mêmes identifiants en base et sous gabarit de conversation.
 
-    def __call__(self, text, return_tensors="pt"):
-        return _FakeBatchEncoding(input_ids=torch.tensor([[1, 2, 3, 4, 5]], dtype=torch.long))
+    R-J18R-13 : `apply_chat_template` rend un **texte** (`tokenize=False`) ; le rendu est
+    ensuite encodé par le tokenizer. La voie `tokenize=True` n'est plus employée.
+    """
 
-    def apply_chat_template(self, messages, add_generation_prompt=True, enable_thinking=False):
-        return [1, 2, 3, 4, 5, 6]
+    def __call__(self, text, return_tensors="pt", add_special_tokens=True):
+        if return_tensors == "pt":
+            return _FakeBatchEncoding(input_ids=torch.tensor([[1, 2, 3, 4, 5]], dtype=torch.long))
+        return _FakeBatchEncoding(input_ids=[1, 2, 3, 4, 5, 6])
+
+    def apply_chat_template(
+        self, messages, tokenize=False, add_generation_prompt=True, enable_thinking=False
+    ):
+        assert tokenize is False
+        return "<|im_start|>user\n" + messages[0]["content"] + "<|im_end|>\n<|im_start|>assistant\n"
 
 
 def _raw_rows(model, prompt_ids, arm: str, blocks: int) -> list[dict]:
@@ -311,11 +320,13 @@ def test_j18r_execute_full_run_on_tiny_gpu_model(monkeypatch) -> None:
     assert results["runtime"]["device"] == "cuda"
     assert results["runtime"]["gpu_peak_mib"] > 0.0
     assert results["runtime"]["dtypes"]["anchor"] == "bfloat16"
-    # C9 mesuré et en échec sur la fixture : priorité 1 (`STOP`), pas une décision sur l'effet
-    assert results["criteria"]["C9"]["evaluable"] is True
+    # C9 : le mini-modèle ne reproduit pas Qwen3-0.6B, mais le vol d'essai (1 bloc) ne peut
+    # **pas** conclure à une dérive (échantillon non conforme au PRE) → issue INVALIDE.
+    assert results["criteria"]["C9"]["evaluable"] is False
+    assert results["criteria"]["C9"]["evaluable_reason"] == "insufficient_blocks"
     assert results["criteria"]["C9"]["holds"] is False
-    assert results["decision"]["status"] == "STOP"
-    assert results["decision"]["priority"] == 1
+    assert results["decision"]["status"] == "INVALIDE"
+    assert results["decision"]["priority"] == 2
     # §7.2 : les bruts ne sont pas étiquetés, l'ancrage a son shard étiqueté, `results.json` hashé
     raw = json.loads((base / "arm_anchor_raw.json").read_text(encoding="utf-8"))
     assert raw["rows"] and not [row for row in raw["rows"] if "arm" in row]
