@@ -73,6 +73,23 @@
 - [ ] Aucun `.npy` de vecteur de tâche n'a été écrit par la bibliothèque (τ n'est jamais persisté)
 
 ### 4. État du repo git
+- [ ] **Gate pré-commit** (ajouté le 2026-10-30, cause de l'anomalie consignée en
+      `modules/dopd/docs/reports/J18R.md` §17 — commit `b12bbac` au contenu non
+      compilable) : avant **tout** commit, `python3 -m py_compile` sur chaque `.py`
+      modifié, `pytest` sur la suite concernée, `ruff check` sur les fichiers touchés.
+      Un commit dont l'arbre ne compile pas est une anomalie de **processus**.
+- [ ] **Jamais de squash de commits déjà poussés** : `git reset --soft HEAD~N` est
+      réservé aux commits **locaux non poussés**. Avant un squash, vérifier
+      `git rev-list --left-right --count origin/main...main` et que chaque commit
+      supprimé est absent de `origin/main` ; sinon divergence + fusion (histoire des
+      commits `b12bbac` → `abfc9f7` → `fe47cf0` → `88d981b`).
+- [ ] **Message de commit = fait observable de l'arbre** : nom du symbole réellement
+      touché (pas un symbole voisin), pas de duplication d'un message antérieur,
+      `wip` réservé au travail non validé.
+- [ ] **Un seul run de suite à la fois** : le verrou `_artefact/locks/j18r_measurement.lock`
+      est global au dépôt ; deux runs `pytest` concurrents se refusent mutuellement
+      (`MeasurementLockBusy` sur les tests d'`execute`), ce qui fabrique de faux échecs. Lancer
+      une suite, attendre la fin, puis la suivante.
 - [ ] `git status --short` est vide (working tree clean — `.gitignore` couvre `__pycache__/`, `*.pyc`, `.venv/`, `*.npy`)
 - [ ] `checkpoints/` et `_artefact/` sont bien dans `.gitignore`
 - [ ] Avant push : `git fetch` puis `git rev-list --left-right --count origin/main...main` → `0 0`
