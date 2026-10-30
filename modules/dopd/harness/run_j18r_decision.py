@@ -3154,7 +3154,7 @@ def versions_block() -> dict[str, object]:
     torch = _torch()
     transformers = _transformers()
     return {
-        \"python3\": sys.version.split()[0],
+        "python3": sys.version.split()[0],
         "numpy": np.__version__,
         "torch_version": torch.__version__,
         "transformers_version": transformers.__version__,
