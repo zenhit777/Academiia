@@ -301,7 +301,7 @@ CANONICAL_BLOCKS = 100
 
 def _j15_invocation(dtype: str, raw_name: str, output_dir: str, blocks: int) -> str:
     tokens = [
-        "python",
+        "python3",
         J15_HARNESS,
         "--model",
         DEFAULT_TEACHER_MODEL,
@@ -1769,6 +1769,12 @@ def delegated_memory_observation(group: Mapping[str, object] | None = None) -> d
         "group_rss_limit_bytes": (
             None if group.get("group_rss_max_bytes") is None else int(group["group_rss_max_bytes"])
         ),
+        "group_vm_peak_bytes": (
+            None if group.get("group_vm_peak_bytes") is None else int(group["group_vm_peak_bytes"])
+        ),
+        "group_vm_peak_gib": (
+            None if group.get("group_vm_peak_gib") is None else float(group["group_vm_peak_gib"])
+        ),
         "vram_watchdog": group.get("vram_watchdog"),
         "note": (
             "pic des enfants **attendus** par le harnais (`subprocess.run`) ; les "
@@ -2267,6 +2273,32 @@ def group_rss_bytes(pgid: int) -> int:
     return int(total)
 
 
+def group_vm_peak_bytes(pgid: int) -> int:
+    """Pic d'espace virtuel (`VmPeak`) **cumulé** du groupe `pgid`, en octets.
+
+    `VmPeak` est un **maximum par processus** : la somme des maxima du groupe
+    est une borne haute de l'espace virtuel cumulé. C'est la grandeur contre
+    laquelle le plafond `RLIMIT_AS` est comparé.
+    """
+    total = 0
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        if pid == os.getpid():
+            continue
+        try:
+            if os.getpgid(pid) != pgid:
+                continue
+            for line in (entry / "status").read_text(encoding="utf-8").splitlines():
+                if line.startswith("VmPeak:"):
+                    total += int(line.split()[1]) * 1024
+                    break
+        except (ProcessLookupError, PermissionError, OSError, IndexError, ValueError):
+            continue
+    return int(total)
+
+
 @contextlib.contextmanager
 def measurement_lock(repo_root: Path = _REPO_ROOT):
     """Exclusion mutuelle des mesures GPU (J18R-final, post-OOM 2026-10-29).
@@ -2351,6 +2383,7 @@ def run_arm_subprocess(
     stop_reason: str | None = None
     stop_event: dict[str, object] | None = None
     group_rss_peak = 0
+    group_vm_peak = 0
     deadline = started + float(stop_after_seconds)
 
     def kill_group(sig: signal.Signals) -> bool:
@@ -2404,6 +2437,9 @@ def run_arm_subprocess(
         rss = group_rss_bytes(pgid)
         if rss > group_rss_peak:
             group_rss_peak = rss
+        vm_peak = group_vm_peak_bytes(pgid)
+        if vm_peak > group_vm_peak:
+            group_vm_peak = vm_peak
         if group_rss_max_bytes and rss > group_rss_max_bytes:
             event = {
                 "reason": "group_rss_above_hard_threshold",
@@ -2434,6 +2470,8 @@ def run_arm_subprocess(
         "group_rss_peak_gib": float(group_rss_peak / 1024**3),
         "group_rss_max_bytes": int(group_rss_max_bytes),
         "group_rss_limit_applied": bool(group_rss_max_bytes),
+        "group_vm_peak_bytes": int(group_vm_peak),
+        "group_vm_peak_gib": float(group_vm_peak / 1024**3),
     }
     if watchdog is not None:
         group["vram_watchdog"] = watchdog.to_dict()
@@ -3116,7 +3154,7 @@ def versions_block() -> dict[str, object]:
     torch = _torch()
     transformers = _transformers()
     return {
-        "python": sys.version.split()[0],
+        \"python3\": sys.version.split()[0],
         "numpy": np.__version__,
         "torch_version": torch.__version__,
         "transformers_version": transformers.__version__,
