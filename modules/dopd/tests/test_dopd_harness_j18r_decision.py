@@ -2568,3 +2568,29 @@ def test_j18r_final_execute_publishes_the_watchdog_and_lock_facts(monkeypatch) -
     assert verification["vram_watchdog"] == runtime["vram_watchdog"]
     assert verification["measurement_lock"] == runtime["measurement_lock"]
     assert verification["delegated_rlimit_as"] == runtime["delegated_rlimit_as"]
+
+
+def test_j18r_final_frozen_invocation_launches_sys_executable_when_python_is_absent(monkeypatch) -> None:
+    """La chaîne figée §7.3b commence par `python` (PRE §7.3b). Si le binaire
+    `python` est absent du poste, le child est lancé avec `sys.executable` et la
+    **substitution** est consignée ; la chaîne figée comparée au PRE n'est **pas**
+    modifiée (C6)."""
+    out = _scratch_output_dir("interpreter_substitution")
+    root = j18r._REPO_ROOT
+    probe = root / out / "probe.py"
+    marker = root / out / "marker.txt"
+    probe.parent.mkdir(parents=True, exist_ok=True)
+    probe.write_text(
+        "import pathlib, sys\n"
+        "pathlib.Path(sys.argv[1]).write_text('ok', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(j18r.shutil, "which", lambda command: None)
+    invocation = f"python {probe} {marker}"
+    res = j18r.run_arm_subprocess(invocation, root, limit_mib=64, stop_after_seconds=30.0)
+    assert res["returncode"] == 0
+    assert marker.read_text(encoding="utf-8") == "ok"
+    assert res["interpreter"]["substituted"] is True
+    assert res["interpreter"]["invocation_token"] == "python"
+    assert res["interpreter"]["executed_token"] == sys.executable
+    assert j18r.anchor_invocation(j18r.DEFAULT_OUTPUT_DIR).startswith("python ")

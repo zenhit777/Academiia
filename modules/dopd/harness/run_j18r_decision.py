@@ -27,6 +27,7 @@ import json
 import math
 import os
 import resource
+import shutil
 import shlex
 import signal
 import subprocess
@@ -301,7 +302,7 @@ CANONICAL_BLOCKS = 100
 
 def _j15_invocation(dtype: str, raw_name: str, output_dir: str, blocks: int) -> str:
     tokens = [
-        "python3",
+        "python",
         J15_HARNESS,
         "--model",
         DEFAULT_TEACHER_MODEL,
@@ -2362,8 +2363,26 @@ def run_arm_subprocess(
       `SIGTERM` au groupe puis `SIGKILL` 2 s après ; si des membres **résistent**
       (signal refusé, survivants après `SIGKILL`), `GroupStopResisted` — le bras
       n'est **pas** consigné comme complet.
+    - **interpréteur** : la chaîne figée §7.3b commence par `python` ; si cet
+      interpréteur est absent du poste, le child est lancé avec `sys.executable`
+      et la substitution est **consignée** (`interpreter.substituted`) — la chaîne
+      comparée au PRE reste la chaîne figée.
     """
     argv = shlex.split(invocation)
+    # J18R-final — l'invocation figée (PRE §7.3b) porte le préfixe `python`.
+    # Si `python` n'existe pas sur le poste, le child est lancé avec
+    # `sys.executable` ; la substitution est consignée, la chaîne figée reste
+    # celle comparée au PRE (C6).
+    invocation_token = argv[0]
+    executed_token = argv[0]
+    if shutil.which(argv[0]) is None:
+        argv[0] = sys.executable
+        executed_token = sys.executable
+    interpreter = {
+        "invocation_token": invocation_token,
+        "executed_token": executed_token,
+        "substituted": bool(executed_token != invocation_token),
+    }
     limit_bytes = int(limit_mib) * 1024**2
 
     def preexec() -> None:
@@ -2495,6 +2514,7 @@ def run_arm_subprocess(
         "returncode": int(proc.returncode),
         "group": group,
         "resisted": bool(resisted),
+        "interpreter": interpreter,
     }
 
 
@@ -3402,6 +3422,10 @@ def _execute_locked(
             "elapsed_seconds": delegated_elapsed,
             "n_observations": len(records),
             "group": group,
+            # J18R-final : la chaîne figée porte `python` ; si l'interpréteur du
+            # poste est `python3`, la **substitution** est consignée (la chaîne
+            # comparée au PRE reste la chaîne figée, C6).
+            "interpreter": dict(delegated.get("interpreter") or {}),
             # R-J18R-18 (constat D9) : le plafond RLIMIT_AS est posé **avant** `exec`
             # sur le child **et ses descendants** (groupe) ; le **pic v1** du groupe est
             # mesuré **pendant** la vie du sous-processus. Les descendants et la mémoire

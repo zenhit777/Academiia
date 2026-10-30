@@ -282,6 +282,16 @@ def test_j18r_execute_full_run_on_tiny_gpu_model(monkeypatch) -> None:
     écrites (§7.2)."""
     if not torch.cuda.is_available():
         pytest.skip("pas de GPU sur ce poste")
+    try:
+        reading = j18r.VramWatchdog.query()
+    except j18r.VramWatchdogUnavailable as exc:
+        pytest.skip(f"instrument VRAM indisponible sur ce poste : {exc}")
+    if reading["free_mib"] < j18r.VRAM_PREFLIGHT_MIN_FREE_MIB:
+        pytest.skip(
+            f"VRAM libre {reading['free_mib']} MiB < seuil de préflight "
+            f"{j18r.VRAM_PREFLIGHT_MIN_FREE_MIB} MiB : le harnais **refuse** le run "
+            "GPU (règle 6), la fixture T5 ne s'exécute pas sur ce poste"
+        )
     transformers = pytest.importorskip("transformers")
     model = FakeModel()
     monkeypatch.setattr(j18r, "load_scorer_module", lambda: scorer_module)
