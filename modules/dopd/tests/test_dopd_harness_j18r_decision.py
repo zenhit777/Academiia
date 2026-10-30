@@ -677,6 +677,13 @@ def _fake_execute_environment(
         "verify_model_source_in_repo",
         lambda model, root: {"model_source_in_repo": True, "model_snapshot": "fake", "model_revision": "fake"},
     )
+    # J18R-final : le watchdog VRAM et le preflight sont **simulés** (pas de
+    # `nvidia-smi` en CI) ; la lecture est **factice mais mesurée** par le fake.
+    monkeypatch.setattr(
+        j18r.VramWatchdog,
+        "query",
+        staticmethod(lambda: {"used_mib": 1_292, "free_mib": 30_896, "total_mib": 32_607}),
+    )
 
     def raw_rows(arm: str) -> list[dict]:
         rows = [_row(arm, f"p{p + 1:02d}", "N4_V6", b, 0.0, 0.05) for p in range(2) for b in range(3)]
@@ -2253,25 +2260,31 @@ def test_r_j18r_19_manifest_carries_training_and_the_faithful_trace(monkeypatch)
 
 def test_r_j18r_19_plan_declares_delegated_limits_and_scope() -> None:
     """D9 : le plan dry-run consigne le plafond RLIMIT_AS délégué, le plafond de stop
-    et la **portée réelle** (groupe, descendants, GPU non couvert)."""
+    et la **portée réelle** (groupe, descendants, GPU couvert par le watchdog)."""
     plan = j18r.dry_run_plan(["--output-dir", "_artefact/j18r_decision_tests/plan_d9", "--blocks", "2"])
     budgets = plan["budgets"]
     assert budgets["budget_rss_mib"] == int(budgets["max_rss_gib"] * 1024)
-    assert budgets["delegated_memory_limit_mib"] == budgets["budget_rss_mib"]
+    # J18R-final : le plafond RLIMIT_AS délégué est **virtuel** et mesuré ; il est
+    # distinct du plafond RSS du processus du harnais. Le plan ne doit plus
+    # publier une valeur qui diverge de celle appliquée par le code.
+    assert budgets["delegated_memory_limit_mib"] == j18r.memory_limit_mib(
+        j18r.build_parser().parse_args(["--output-dir", "x"])
+    )
+    assert budgets["delegated_memory_limit_mib"] == int(j18r.DELEGATED_RLIMIT_AS_GIB * 1024)
+    assert budgets["delegated_memory_limit_mib"] != budgets["budget_rss_mib"]
     assert budgets["delegated_stop_after_seconds"] == budgets["max_seconds"]
     scope = budgets["rss_budget_scope"]
     assert "RLIMIT_AS" in scope
     assert "processus du harnais" in scope
-    assert "n'est pas couverte" in scope
+    assert "watchdog VRAM" in scope
 
 
 def test_r_j18r_19_memory_limit_mechanism_is_available() -> None:
     """D9 : le mécanisme du plafond est **mesuré**, pas deviné (child qui pose et
     relit RLIMIT_AS avant `exec`)."""
     assert j18r.memory_limit_available() >= 64
-    assert j18r.memory_limit_mib(j18r.build_parser().parse_args(["--output-dir", "x"])) == int(
-        j18r.build_parser().parse_args(["--output-dir", "x"]).max_rss_gib * 1024
-    )
+    args = j18r.build_parser().parse_args(["--output-dir", "x"])
+    assert j18r.memory_limit_mib(args) == int(j18r.DELEGATED_RLIMIT_AS_GIB * 1024)
 
 
 def test_r_j18r_19_rlimit_is_applied_before_exec_in_the_group() -> None:
@@ -2375,3 +2388,183 @@ def test_r_j18r_19_group_observation_publishes_limit_stop_and_verification() -> 
     assert obs["group_verified_after_stop"] is True
     assert obs["cgroup_memory_peak_bytes"] == 12345.0
     assert "RLIMIT_AS" in obs["measured_by"]
+
+
+# ---------------------------------------------------------------------------
+# J18R-final — reprise post-OOM : watchdog VRAM, exclusion mutuelle, RLIMIT
+# ---------------------------------------------------------------------------
+
+
+def test_j18r_final_vram_watchdog_records_the_hard_threshold_event(monkeypatch) -> None:
+    """Watchdog : au-delà du **seuil dur**, l'événement est consigné (seuil, observé,
+    free, total, index d'échantillon) ; le watchdog ne lève rien par lui-même."""
+    readings = [
+        {"used_mib": 1_000, "free_mib": 31_000, "total_mib": 32_000},
+        {"used_mib": 28_673, "free_mib": 3_327, "total_mib": 32_000},
+    ]
+    monkeypatch.setattr(j18r.VramWatchdog, "query", staticmethod(lambda: readings.pop(0)))
+    watchdog = j18r.VramWatchdog(max_used_mib=28_672, sample_seconds=0.0)
+    watchdog.sample()
+    assert watchdog.exceeded is False
+    watchdog.sample()
+    assert watchdog.exceeded is True
+    event = watchdog.event
+    assert event is not None
+    assert event["reason"] == "vram_used_above_hard_threshold"
+    assert event["threshold_used_mib"] == 28_672
+    assert event["observed_used_mib"] == 28_673
+    assert event["observed_free_mib"] == 3_327
+    assert event["observed_total_mib"] == 32_000
+    assert event["sample_index"] == 2
+    trace = watchdog.to_dict()
+    assert trace["exceeded"] is True
+    assert trace["peak_used_mib"] == 28_673
+    assert trace["min_free_mib"] == 3_327
+    assert trace["threshold_used_mib"] == 28_672
+
+
+def test_j18r_final_vram_watchdog_unavailable_is_refused(monkeypatch) -> None:
+    """Instrument indisponible ⇒ **refus** (pas de supposition de budget)."""
+    def boom() -> dict[str, int]:
+        raise j18r.VramWatchdogUnavailable("nvidia-smi absent")
+
+    monkeypatch.setattr(j18r.VramWatchdog, "query", staticmethod(boom))
+    watchdog = j18r.VramWatchdog()
+    with pytest.raises(j18r.VramWatchdogUnavailable):
+        watchdog.sample()
+
+
+def test_j18r_final_vram_preflight_refuses_when_free_vram_is_below_threshold(monkeypatch) -> None:
+    """PRE §7.8 : VRAM libre < 17 GiB ⇒ STOP, aucun run lancé."""
+    monkeypatch.setattr(
+        j18r.VramWatchdog,
+        "query",
+        staticmethod(lambda: {"used_mib": 20_000, "free_mib": 10_000, "total_mib": 32_607}),
+    )
+    with pytest.raises(j18r.VramPreflightRefused):
+        j18r.vram_preflight()
+
+
+def test_j18r_final_vram_preflight_accepts_sufficient_free_vram(monkeypatch) -> None:
+    """PRE §7.8 : VRAM libre suffisante ⇒ le preflight rend la mesure mesurée."""
+    monkeypatch.setattr(
+        j18r.VramWatchdog,
+        "query",
+        staticmethod(lambda: {"used_mib": 1_292, "free_mib": 30_896, "total_mib": 32_607}),
+    )
+    reading = j18r.vram_preflight()
+    assert reading["free_mib"] == 30_896
+    assert reading["total_mib"] == 32_607
+
+
+def test_j18r_final_vram_watchdog_kills_the_process_group(monkeypatch) -> None:
+    """Watchdog branché : le dépassement du seuil **tue le groupe** et l'arrêt est
+    typé (`BudgetExceeded.kind == "gpu_vram"`) avec le fait mesuré."""
+    monkeypatch.setattr(
+        j18r.VramWatchdog,
+        "query",
+        staticmethod(lambda: {"used_mib": 30_000, "free_mib": 2_000, "total_mib": 32_000}),
+    )
+    watchdog = j18r.VramWatchdog(max_used_mib=28_672, sample_seconds=0.0)
+    with pytest.raises(j18r.BudgetExceeded) as excinfo:
+        j18r.run_arm_subprocess(
+            f"{sys.executable} -c \"import time; time.sleep(30)\"",
+            j18r._REPO_ROOT,
+            limit_mib=64,
+            stop_after_seconds=30.0,
+            watchdog=watchdog,
+            group_rss_max_bytes=0,
+        )
+    assert excinfo.value.kind == "gpu_vram"
+    assert excinfo.value.event is not None
+    assert excinfo.value.event["reason"] == "vram_used_above_hard_threshold"
+    assert excinfo.value.event["observed_used_mib"] == 30_000
+
+
+def test_j18r_final_group_rss_limit_kills_the_process_group(monkeypatch) -> None:
+    """Plafond RSS de groupe : dépassement ⇒ kill du groupe, `kind == "memory"`."""
+    with pytest.raises(j18r.BudgetExceeded) as excinfo:
+        j18r.run_arm_subprocess(
+            f"{sys.executable} -c \"import time; time.sleep(30)\"",
+            j18r._REPO_ROOT,
+            limit_mib=64,
+            stop_after_seconds=30.0,
+            watchdog=None,
+            group_rss_max_bytes=1,
+        )
+    assert excinfo.value.kind == "memory"
+    assert excinfo.value.event is not None
+    assert excinfo.value.event["reason"] == "group_rss_above_hard_threshold"
+    assert excinfo.value.event["threshold_bytes"] == 1
+
+
+def test_j18r_final_measurement_lock_refuses_a_second_concurrent_job() -> None:
+    """Sérialisation : le second lancement est **refusé** (pas mis en file)."""
+    with j18r.measurement_lock(j18r._REPO_ROOT):
+        with pytest.raises(j18r.MeasurementLockBusy):
+            with j18r.measurement_lock(j18r._REPO_ROOT):
+                pass
+    # le verrou est relâché : un lancement suivant passe.
+    with j18r.measurement_lock(j18r._REPO_ROOT):
+        pass
+
+
+def test_j18r_final_measurement_lock_refuses_a_second_job_from_another_process() -> None:
+    """Sérialisation inter-processus : un second processus est refusé."""
+    holder = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import fcntl, os, sys, time;"
+                " path = sys.argv[1];"
+                " fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644);"
+                " fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB);"
+                " print('locked', flush=True);"
+                " time.sleep(30)"
+            ),
+            str(j18r._REPO_ROOT / j18r.MEASUREMENT_LOCK_RELATIVE_PATH),
+        ],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert holder.stdout is not None
+        assert holder.stdout.readline().strip() == "locked"
+        with pytest.raises(j18r.MeasurementLockBusy):
+            with j18r.measurement_lock(j18r._REPO_ROOT):
+                pass
+    finally:
+        holder.kill()
+        holder.wait(timeout=30)
+
+
+def test_j18r_final_rlimit_is_recalibrated_on_the_measured_virtual_peak() -> None:
+    """RLIMIT_AS recalé : 128 GiB, supérieur au `VmPeak` mesuré (109,73 GiB), et
+    la dérive 160 → 128 GiB est documentée (pas de plafond « à vue de nez »)."""
+    assert j18r.DELEGATED_RLIMIT_AS_GIB == 128
+    derivation = j18r.DELEGATED_RLIMIT_AS_DERIVATION
+    assert "109,73 GiB" in derivation
+    assert "16,6 %" in derivation
+    assert "48–64 GiB est écartée" in derivation
+
+
+def test_j18r_final_execute_publishes_the_watchdog_and_lock_facts(monkeypatch) -> None:
+    """Le watchdog branché, le preflight, le verrou et les plafonds délégués sont
+    publiés dans `results.runtime` **et** dans le manifeste."""
+    _fake_execute_environment(monkeypatch)
+    out = _scratch_output_dir("watchdog_published")
+    argv = ["--output-dir", str(out), "--blocks", "2", "--bootstrap-iterations", "25"]
+    outcome = j18r.execute(j18r.build_parser().parse_args(argv), argv)
+    results = json.loads((j18r._REPO_ROOT / out / "results.json").read_text(encoding="utf-8"))
+    runtime = results["runtime"]
+    assert runtime["vram_watchdog"]["threshold_used_mib"] == j18r.VRAM_WATCHDOG_MAX_USED_MIB
+    assert runtime["vram_watchdog"]["exceeded"] is False
+    assert runtime["vram_preflight"]["free_mib"] >= j18r.VRAM_PREFLIGHT_MIN_FREE_MIB
+    assert runtime["measurement_lock"]["exclusive"] is True
+    assert runtime["delegated_rlimit_as"]["limit_gib"] == 128
+    assert runtime["delegated_group_rss_limit"]["limit_gib"] == 24
+    verification = outcome["manifest"]["verification"]
+    assert verification["vram_watchdog"] == runtime["vram_watchdog"]
+    assert verification["measurement_lock"] == runtime["measurement_lock"]
+    assert verification["delegated_rlimit_as"] == runtime["delegated_rlimit_as"]

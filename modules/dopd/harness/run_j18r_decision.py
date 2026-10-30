@@ -18,7 +18,9 @@ exactitude numerique §5, bras N6 §6, gouvernance §7.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import errno
+import fcntl
 import hashlib
 import importlib.util
 import json
@@ -183,20 +185,50 @@ VRAM_WATCHDOG_DERIVATION = (
 #:   **succès à partir de 40 GiB** (`forward_ok`, VmPeak 40 287 348 kB) ;
 #: * exécution réelle du harnais J15 délégué (`--blocks 2`, BF16) : **VmPeak
 #:   mesuré 109,73 GiB** (RSS de groupe 21,06 GiB) sous une limite de 160 GiB ;
-#: * la limite retenue est donc le **plus petit multiple de 32 GiB** au-dessus du
-#:   pic virtuel mesuré majoré de 25 % : ceil(109,73 × 1,25 / 32) × 32 = 160 GiB.
+#:   la taille virtuelle franchit déjà 86 GiB à t = 6,9 s (pendant le
+#:   chargement) : toute limite sous ~112 GiB tue le child **avant** la mesure.
+#:
+#: Valeur retenue : **128 GiB**, plus petit multiple de 32 GiB au-dessus du pic
+#: virtuel mesuré majoré de 15 % : ceil(109,73 × 1,15 / 32) × 32 = 128 GiB
+#: (marge 16,6 % sur le pic BF16 mesuré).
+#:
+#: **Plage 48–64 GiB écartée** : elle est incompatible avec le `VmPeak` mesuré
+#: (109,73 GiB) — le child J15 serait tué par `MemoryError` pendant le
+#: chargement, pas protégé. RLIMIT_AS ne protège d'ailleurs **pas** la RAM
+#: résidente : la protection RAM est portée par le **watchdog de RSS de groupe**
+#: (`DELEGATED_GROUP_RSS_MAX_GIB`) et par la **sérialisation** des mesures.
 #:
 #: Portée : plafond virtuel du **groupe** délégué (child + descendants). Il ne
 #: couvre pas la VRAM (mesurée par le watchdog VRAM) ni la RSS (mesurée par
-#: `RUSAGE_CHILDREN` / cgroup).
-DELEGATED_RLIMIT_AS_GIB = 160
+#: `group_rss_bytes` / `RUSAGE_CHILDREN` / cgroup).
+DELEGATED_RLIMIT_AS_GIB = 128
 DELEGATED_RLIMIT_AS_DERIVATION = (
-    "RLIMIT_AS = 160 GiB, mesuré : VmPeak réel du harnais J15 délégué (--blocks 2, "
-    "BF16) = 109,73 GiB sous limite 160 GiB ; initialisation CUDA + chargement "
-    "modèle BF16 + forward : échec à 24 GiB (AcceleratorError) et à 32 GiB (mmap "
-    "ENOMEM), succès à 40 GiB ; limite = ceil(109,73 × 1,25 / 32) × 32 = 160 GiB ; "
-    "plafond virtuel, distinct du plafond RSS 24 GiB et du watchdog VRAM"
+    "RLIMIT_AS = 128 GiB, mesuré : VmPeak réel du harnais J15 délégué (--blocks 2, "
+    "BF16) = 109,73 GiB (86,14 GiB déjà franchis à t=6,9 s, pendant le chargement) ; "
+    "initialisation CUDA + chargement modèle BF16 + forward : échec à 24 GiB "
+    "(AcceleratorError) et à 32 GiB (mmap ENOMEM), succès à 40 GiB ; limite = "
+    "ceil(109,73 × 1,15 / 32) × 32 = 128 GiB (marge 16,6 %) ; plafond virtuel, "
+    "distinct du plafond RSS 24 GiB et du watchdog VRAM ; la plage 48–64 GiB est "
+    "écartée (incompatible avec le VmPeak mesuré)"
 )
+
+#: J18R-final — plafond **RSS du groupe délégué** (child + descendants), en octets.
+#:
+#: C'est le garde qui protège réellement la RAM du guest WSL : `RLIMIT_AS` ne
+#: borne pas la RSS. La valeur est le plafond RSS **du PRE** (§7.8, 24 GiB),
+#: appliqué au **groupe** delegates : le pic mesuré au vol d'essai §12 est de
+#: 22 385,8 MiB (FP32) / 21 584,8 MiB (BF16), soit 21,86 / 21,08 GiB — sous le
+#: plafond avec 2,14 GiB de marge. Le groupe est tué (SIGTERM puis SIGKILL) au
+#: dépassement : `BudgetExceeded.kind = "memory"`.
+DELEGATED_GROUP_RSS_MAX_GIB = MAX_RSS_GIB
+
+#: J18R-final — VRAM libre minimale exigée **avant** tout lancement GPU
+#: (PRE §7.8 : « si `memory.free` < 17 GiB : STOPPER »). 17 GiB = 17 408 MiB.
+VRAM_PREFLIGHT_MIN_FREE_MIB = 17 * 1024
+
+#: J18R-final — fichier de verrou d'**exclusion mutuelle** des mesures GPU.
+#: Sous `_artefact/` (règle 9) : jamais versionné, jamais hors du dépôt.
+MEASUREMENT_LOCK_RELATIVE_PATH = "_artefact/locks/j18r_measurement.lock"
 
 #: §9.2 — hashes des sources figées au moment du gel du PRE (vérifiés en phase 1).
 FROZEN_HASHES: dict[str, str] = {
@@ -1720,7 +1752,24 @@ def delegated_memory_observation(group: Mapping[str, object] | None = None) -> d
             None if group.get("stop_after_seconds") is None else float(group["stop_after_seconds"])
         ),
         "group_stop_signal": group.get("stop_signal"),
+        # J18R-final : **raison** de l'arrêt (temps / VRAM / RSS de groupe) et
+        # **fait mesuré** associé.
+        "group_stop_reason": group.get("stop_reason"),
+        "group_stop_event": group.get("stop_event"),
         "group_verified_after_stop": bool(group.get("verified_after_stop", False)),
+        # J18R-final : pic RSS **du groupe délégué** (child + descendants), mesuré
+        # à 1 Hz pendant la vie du sous-processus ; c'est le garde qui protège la
+        # RAM du guest (RLIMIT_AS ne borne pas la RSS).
+        "group_rss_peak_bytes": (
+            None if group.get("group_rss_peak_bytes") is None else int(group["group_rss_peak_bytes"])
+        ),
+        "group_rss_peak_gib": (
+            None if group.get("group_rss_peak_gib") is None else float(group["group_rss_peak_gib"])
+        ),
+        "group_rss_limit_bytes": (
+            None if group.get("group_rss_max_bytes") is None else int(group["group_rss_max_bytes"])
+        ),
+        "vram_watchdog": group.get("vram_watchdog"),
         "note": (
             "pic des enfants **attendus** par le harnais (`subprocess.run`) ; les "
             "descendants de ces sous-processus et leur mémoire GPU ne sont **pas** "
@@ -1738,17 +1787,37 @@ class BudgetExceeded(RuntimeError):
 
     `kind` distingue le plafond **propre à N6** (`"time"`, 1800 s, arrêt du seul
     bras N6 avec publication partielle explicite) des dépassements **globaux**
-    (`"rss"`, `"gpu"`, `"gpu_vram"`), qui restent des arrêts du run entier.
+    (`"rss"`, `"gpu"`, `"gpu_vram"`, `"memory"`), qui restent des arrêts du run
+    entier.
+
+    `event` porte le **fait mesuré** du dépassement (watchdog VRAM, RSS de
+    groupe) : il est publié dans le manifeste ou dans l'artefact d'abandon, et
+    jamais reconstruit après coup.
     """
 
-    def __init__(self, kind: str, message: str) -> None:
+    def __init__(self, kind: str, message: str, event: Mapping[str, object] | None = None) -> None:
         super().__init__(message)
         self.kind = str(kind)
+        self.event: dict[str, object] | None = (
+            None if event is None else {str(key): value for key, value in event.items()}
+        )
 
 
 class VramWatchdogUnavailable(RuntimeError):
     """Le watchdog VRAM n'a pas pu mesurer la VRAM (`nvidia-smi` indisponible ou
     illisible). Le harnais **refuse** d'exécuter : pas de supposition de budget."""
+
+
+class VramPreflightRefused(RuntimeError):
+    """VRAM libre insuffisante **avant** le lancement (PRE §7.8) : refus, aucun run."""
+
+
+class MeasurementLockBusy(RuntimeError):
+    """Une autre mesure GPU detient le verrou d'exclusion mutuelle (J18R-final).
+
+    Le second lancement est **refusé** (jamais mis en file) : le protocole
+    post-OOM impose une seule exécution lourde à la fois.
+    """
 
 
 class VramWatchdog:
@@ -1892,6 +1961,7 @@ class BudgetGuard:
         rss: Callable[[], float] = current_rss_bytes,
         gpu_peak_bytes: Callable[[], float] = lambda: 0.0,
         time_kind: str = "time",
+        vram_watchdog: VramWatchdog | None = None,
     ) -> None:
         self.time_kind = str(time_kind)
         self.max_seconds = float(max_seconds)
@@ -1900,6 +1970,7 @@ class BudgetGuard:
         self._clock = clock
         self._rss = rss
         self._gpu_peak_bytes = gpu_peak_bytes
+        self.vram_watchdog = vram_watchdog
         self.started = clock()
         self.last_check = 0.0
         self.checks = 0
@@ -1939,6 +2010,7 @@ class BudgetGuard:
 
     def check(self, now: float | None = None) -> dict[str, float]:
         now = self._clock() if now is None else float(now)
+        self.check_vram_watchdog()
         if self.checks and now - self.last_check < RSS_CHECK_PERIOD_SECONDS:
             # R-J18R-19 (A5) : le throttle de 1 Hz porte sur l'échantillonnage
             # RSS / GPU, **pas** sur le plafond de temps global. Toute `check()`
@@ -1969,6 +2041,23 @@ class BudgetGuard:
                 "gpu", f"pic GPU dépassé ({gpu_mib:.1f} MiB > {self.max_gpu_mib} MiB)"
             )
         return {"elapsed_seconds": elapsed, "rss_gib": rss_gib, "gpu_peak_mib": gpu_mib}
+
+    def check_vram_watchdog(self) -> None:
+        """Watchdog VRAM : échantillonnage et arrêt **dur** au seuil.
+
+        Le dépassement lève `BudgetExceeded("gpu_vram", …)` avec le fait mesuré
+        ; un instrument indisponible lève `VramWatchdogUnavailable` (refus).
+        """
+        if self.vram_watchdog is None:
+            return
+        self.vram_watchdog.sample()
+        if self.vram_watchdog.exceeded:
+            event = dict(self.vram_watchdog.event or {})
+            raise BudgetExceeded(
+                "gpu_vram",
+                f"plafond VRAM du watchdog dépassé ({event})",
+                event=event,
+            )
 
     def guard_time(self, label: str) -> float:
         """R-J18R-19 (A5) : vérification du plafond global par l'horloge injectée.
@@ -2133,6 +2222,86 @@ def _group_survivors(pgid: int) -> int:
     return count
 
 
+def vram_preflight(
+    *,
+    min_free_mib: int = VRAM_PREFLIGHT_MIN_FREE_MIB,
+    watchdog: VramWatchdog | None = None,
+) -> dict[str, int]:
+    """Vérifie la VRAM **libre** avant tout lancement GPU (PRE §7.8).
+
+    Refus dur (`VramPreflightRefused`) si la mémoire libre est inférieure au
+    seuil : aucun run n'est lancé. Le contrôle est **actif** (aucun processus
+    LM Studio n'est déchargé, aucun processus n'est tué).
+    """
+    reading = (watchdog.query() if watchdog is not None else VramWatchdog.query())
+    if reading["free_mib"] < int(min_free_mib):
+        raise VramPreflightRefused(
+            f"VRAM libre insuffisante avant lancement GPU : {reading['free_mib']} MiB libres "
+            f"< seuil {int(min_free_mib)} MiB (total {reading['total_mib']} MiB, "
+            f"utilisé {reading['used_mib']} MiB) : STOP, aucun run lancé"
+        )
+    return reading
+
+
+def group_rss_bytes(pgid: int) -> int:
+    """RSS **cumulée** des processus du groupe `pgid` (en octets), vue `/proc`.
+
+    C'est la mesure qui protège réellement la RAM du guest WSL : `RLIMIT_AS`
+    borne l'espace virtuel, pas la RSS. Lecture best-effort : un processus qui
+    disparaît pendant la lecture est ignoré (`/proc` non lisible).
+    """
+    total = 0
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        if pid == os.getpid():
+            continue
+        try:
+            if os.getpgid(pid) != pgid:
+                continue
+            statm = (entry / "statm").read_text(encoding="utf-8").split()
+            total += int(statm[1]) * os.sysconf("SC_PAGE_SIZE")
+        except (ProcessLookupError, PermissionError, OSError, IndexError, ValueError):
+            continue
+    return int(total)
+
+
+@contextlib.contextmanager
+def measurement_lock(repo_root: Path = _REPO_ROOT):
+    """Exclusion mutuelle des mesures GPU (J18R-final, post-OOM 2026-10-29).
+
+    Verrou `flock` **exclusif et non bloquant** sur un fichier sous `_artefact/`.
+    Le second lancement est **refusé** (`MeasurementLockBusy`), jamais mis en
+    file : le protocole impose une seule exécution lourde à la fois. Le verrou
+    est relâché à la sortie du bloc, y compris en cas d'exception.
+
+    Le descripteur est **conservé ouvert** pendant toute la durée du bloc :
+    `flock` est lié au descripteur, pas au processus.
+    """
+    lock_path = repo_root / MEASUREMENT_LOCK_RELATIVE_PATH
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            if exc.errno not in (errno.EACCES, errno.EAGAIN):
+                raise
+            raise MeasurementLockBusy(
+                "une autre mesure GPU detient le verrou d'exclusion mutuelle "
+                f"({lock_path}) : lancement refusé (une seule exécution lourde à la fois)"
+            ) from exc
+        os.ftruncate(fd, 0)
+        os.write(fd, f"{os.getpid()} {time.monotonic():.3f}\n".encode("utf-8"))
+        try:
+            yield {"path": str(lock_path), "pid": os.getpid()}
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
+
+
 def run_arm_subprocess(
     invocation: str,
     repo_root: Path = _REPO_ROOT,
@@ -2140,15 +2309,23 @@ def run_arm_subprocess(
     limit_mib: int,
     stop_after_seconds: float,
     clock: Callable[[], float] = time.monotonic,
+    watchdog: VramWatchdog | None = None,
+    group_rss_max_bytes: int = int(DELEGATED_GROUP_RSS_MAX_GIB) * 1024**3,
 ) -> dict[str, object]:
     """§7.3b : invocation du harnais J15 gelé, chaîne exactement figée, **sous
-    surveillance mémoire + groupe** (R-J18R-19, constat D9).
+    surveillance mémoire + VRAM + groupe** (R-J18R-19 D9 + J18R-final).
 
     - `start_new_session=True` : le child **et** ses descendants sont dans le
       **groupe** du harnais ;
     - plafond RLIMIT_AS posé en `preexec_fn` **avant** `exec` (limite dure). Un
       `preexec_fn` qui échoue lève `MemoryLimitEnforced` : refus **sortie 2** du
       harnais **avant** le run complet, `results.json` **non écrit** ;
+    - **watchdog VRAM** (J18R-final) : la VRAM **totale** est échantillonnée à
+      1 Hz pendant la vie du child ; au-delà du **seuil dur**, le **groupe** est
+      tué (SIGTERM puis SIGKILL) et l'arrêt est consigné (`kind = "gpu_vram"`) ;
+    - **plafond RSS de groupe** (J18R-final) : la RSS cumulée du groupe est
+      échantillonnée à 1 Hz ; au-delà du plafond, le groupe est tué et l'arrêt
+      est consigné (`kind = "memory"`) ;
     - au-delà du plafond de **temps** de ce sous-processus (`stop_after_seconds`),
       `SIGTERM` au groupe puis `SIGKILL` 2 s après ; si des membres **résistent**
       (signal refusé, survivants après `SIGKILL`), `GroupStopResisted` — le bras
@@ -2171,42 +2348,114 @@ def run_arm_subprocess(
     pgid = int(proc.pid)
     stop_signal: str | None = None
     resisted = False
+    stop_reason: str | None = None
+    stop_event: dict[str, object] | None = None
+    group_rss_peak = 0
     deadline = started + float(stop_after_seconds)
+
+    def kill_group(sig: signal.Signals) -> bool:
+        """Envoie `sig` au **groupe** ; faux si le signal n'a pas pu être délivré."""
+        try:
+            os.killpg(pgid, sig)
+        except OSError:
+            return False
+        return True
+
+    def stop_group(reason: str, event: dict[str, object] | None) -> bool:
+        """Arrêt **dur** du groupe : SIGTERM puis SIGKILL 2 s après.
+
+        Renvoie faux si un signal n'a pas pu être délivré (groupe résistant).
+        """
+        nonlocal stop_reason, stop_event, stop_signal
+        stop_reason = reason
+        stop_event = event
+        stop_signal = "SIGTERM"
+        if not kill_group(signal.SIGTERM):
+            return False
+        term_deadline = clock() + 2.0
+        while proc.poll() is None and clock() < term_deadline:
+            time.sleep(0.05)
+        if proc.poll() is None:
+            stop_signal = "SIGKILL"
+            if not kill_group(signal.SIGKILL):
+                return False
+        return True
+
     while proc.poll() is None:
         now = clock()
         if now >= deadline:
-            stop_signal = "SIGTERM"
-            try:
-                os.killpg(pgid, signal.SIGTERM)
-            except OSError:
+            if not stop_group("time", None):
                 resisted = True
-                break
-            term_deadline = clock() + 2.0
-            while proc.poll() is None and clock() < term_deadline:
-                time.sleep(0.05)
-            if proc.poll() is None:
-                stop_signal = "SIGKILL"
-                try:
-                    os.killpg(pgid, signal.SIGKILL)
-                except OSError:
+            break
+        # --- watchdog VRAM (seuil dur) -------------------------------------
+        if watchdog is not None:
+            try:
+                watchdog.sample()
+            except VramWatchdogUnavailable as exc:
+                # Instrument indisponible : refus (pas de supposition de budget).
+                if not stop_group("vram_watchdog_unavailable", {"reason": "vram_watchdog_unavailable", "error": str(exc)}):
                     resisted = True
+                break
+            if watchdog.exceeded:
+                if not stop_group("vram", dict(watchdog.event or {})):
+                    resisted = True
+                break
+        # --- plafond RSS de groupe -----------------------------------------
+        rss = group_rss_bytes(pgid)
+        if rss > group_rss_peak:
+            group_rss_peak = rss
+        if group_rss_max_bytes and rss > group_rss_max_bytes:
+            event = {
+                "reason": "group_rss_above_hard_threshold",
+                "threshold_bytes": int(group_rss_max_bytes),
+                "observed_bytes": int(rss),
+                "observed_gib": float(rss / 1024**3),
+                "pgid": int(pgid),
+            }
+            if not stop_group("memory", event):
+                resisted = True
             break
         time.sleep(0.05)
     proc.wait()
     survivors = _group_survivors(pgid)
     resisted = bool(resisted or survivors > 0)
+    group: dict[str, object] = {
+        "pgid": pgid,
+        "limit_mib": int(limit_mib),
+        "limit_applied": True,
+        "stop_after_seconds": float(stop_after_seconds),
+        "stop_signal": stop_signal,
+        "stop_reason": stop_reason,
+        "stop_event": stop_event,
+        "survivors_after_stop": int(survivors),
+        "verified_after_stop": bool(not resisted),
+        "elapsed_seconds": float(clock() - started),
+        "group_rss_peak_bytes": int(group_rss_peak),
+        "group_rss_peak_gib": float(group_rss_peak / 1024**3),
+        "group_rss_max_bytes": int(group_rss_max_bytes),
+        "group_rss_limit_applied": bool(group_rss_max_bytes),
+    }
+    if watchdog is not None:
+        group["vram_watchdog"] = watchdog.to_dict()
+    if stop_reason == "vram":
+        raise BudgetExceeded(
+            "gpu_vram",
+            f"plafond VRAM du watchdog dépassé ({stop_event}) : groupe {pgid} arrêté",
+            event=stop_event,
+        )
+    if stop_reason == "memory":
+        raise BudgetExceeded(
+            "memory",
+            f"plafond RSS du groupe dépassé ({stop_event}) : groupe {pgid} arrêté",
+            event=stop_event,
+        )
+    if stop_reason == "vram_watchdog_unavailable":
+        raise VramWatchdogUnavailable(
+            f"watchdog VRAM indisponible pendant le sous-processus §7.3b : {stop_event}"
+        )
     return {
         "returncode": int(proc.returncode),
-        "group": {
-            "pgid": pgid,
-            "limit_mib": int(limit_mib),
-            "limit_applied": True,
-            "stop_after_seconds": float(stop_after_seconds),
-            "stop_signal": stop_signal,
-            "survivors_after_stop": int(survivors),
-            "verified_after_stop": bool(not resisted),
-            "elapsed_seconds": float(clock() - started),
-        },
+        "group": group,
         "resisted": bool(resisted),
     }
 
@@ -2958,12 +3207,44 @@ def _n6_status_block(
 
 
 def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
-    """Run complet : garde-fou avant chargement, bras, critères, décision, shards, sidecar."""
-    torch = _torch()
-    transformers = _transformers()
+    """Run complet : garde-fou avant chargement, bras, critères, décision, shards, sidecar.
+
+    J18R-final : le run est exécuté **sous** le verrou d'exclusion mutuelle des
+    mesures GPU (une seule exécution lourde à la fois) et **après** le preflight
+    VRAM. Un verrou déjà pris ou une VRAM libre insuffisante ⇒ **refus**
+    (sortie 2), aucun chargement, aucun artefact de résultat.
+    """
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    try:
+        with measurement_lock(_REPO_ROOT) as lock:
+            # J18R-final — **preflight VRAM** (PRE §7.8) : VRAM libre mesurée
+            # **avant** tout chargement ; refus si la mémoire libre est sous le
+            # seuil. Aucun processus n'est déchargé, aucun processus n'est tué.
+            watchdog = VramWatchdog()
+            preflight = vram_preflight(watchdog=watchdog)
+            torch = _torch()
+            transformers = _transformers()
+            return _execute_locked(
+                args, argv, torch, transformers, output_dir, watchdog, preflight, lock
+            )
+    except (MeasurementLockBusy, VramPreflightRefused, VramWatchdogUnavailable) as exc:
+        print(f"J18R : {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
+
+
+def _execute_locked(
+    args: argparse.Namespace,
+    argv: Sequence[str],
+    torch,
+    transformers,
+    output_dir: Path,
+    watchdog: VramWatchdog,
+    preflight: Mapping[str, int],
+    lock: Mapping[str, object],
+) -> dict[str, object]:
+    """Corps du run, exécuté **sous** le verrou d'exclusion mutuelle (J18R-final)."""
     # §7.7 : vérification d'appartenance au dépôt AVANT tout chargement (C8).
     guard = verify_model_source_in_repo(args.model, _REPO_ROOT)
     scorer_module = load_scorer_module()
@@ -2997,6 +3278,7 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
         max_rss_gib=args.max_rss_gib,
         gpu_peak_bytes=gpu_peak_bytes,
         time_kind="global_time",
+        vram_watchdog=watchdog,
     )
     n6_budget = BudgetGuard(
         max_seconds=args.n6_max_seconds,
@@ -3004,6 +3286,7 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
         max_rss_gib=args.max_rss_gib,
         gpu_peak_bytes=gpu_peak_bytes,
         time_kind="time",
+        vram_watchdog=watchdog,
     )
     prompts = load_prompt_set(_REPO_ROOT / args.prompt_file)
     arms: dict[str, dict[str, object]] = {}
@@ -3020,20 +3303,40 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             else sensitivity_invocation(str(args.output_dir), args.blocks)
         )
         try:
-            # R-J18R-19 (D9) : sous-processus **dans le groupe** du harnais, plafond
-            # RLIMIT_AS posé **avant** `exec` (`budget_rss_mib` de la config), stop
-            # SIGTERM→SIGKILL à son propre plafond de **temps** (global).
+            # R-J18R-19 (D9) + J18R-final : sous-processus **dans le groupe** du
+            # harnais, plafond RLIMIT_AS posé **avant** `exec`, stop
+            # SIGTERM→SIGKILL à son plafond de **temps** (global), **watchdog VRAM**
+            # branché (seuil dur, kill du groupe) et **plafond RSS de groupe**.
             delegated = run_arm_subprocess(
                 invocation,
                 _REPO_ROOT,
                 limit_mib=memory_limit_mib(args),
                 stop_after_seconds=float(args.max_seconds),
+                watchdog=watchdog,
+                group_rss_max_bytes=int(DELEGATED_GROUP_RSS_MAX_GIB) * 1024**3,
             )
         except MemoryLimitEnforced as exc:
             # Mécanisme du plafond **non appliqué** : refus **avant** le run complet,
             # `results.json` **non écrit** (sortie 2).
             print(f"J18R : {exc}", file=sys.stderr)
             raise SystemExit(2)
+        except BudgetExceeded as exc:
+            # J18R-final : dépassement VRAM / RSS du groupe — arrêt **dur** du run.
+            # Le fait mesuré est écrit dans un artefact d'abandon (hors `results.json`,
+            # qui ne doit porter que des données de run valides).
+            write_json(
+                output_dir / "budget_abort.json",
+                {
+                    "kind": exc.kind,
+                    "message": str(exc),
+                    "event": exc.event,
+                    "arm": arm,
+                    "invocation": invocation,
+                    "vram_watchdog": watchdog.to_dict(),
+                },
+            )
+            print(f"J18R : {exc}", file=sys.stderr)
+            raise
         group = dict(delegated.get("group") or {})
         returncode = int(delegated["returncode"])
         resisted = bool(delegated.get("resisted"))
@@ -3185,6 +3488,41 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
         "rss_peak_children_gib": float(children_peak / 1024**3),
         "cgroup_memory_peak_gib": (None if cgroup_peak is None else float(cgroup_peak / 1024**3)),
         "delegated_memory": {arm: arms[arm].get("delegated_memory") for arm in ("anchor", "sensitivity_fp32")},
+        # J18R-final — trace du **watchdog VRAM** (branché), du **preflight** et du
+        # **verrou d'exclusion mutuelle** : faits mesurés, jamais reconstruits.
+        "vram_watchdog": watchdog.to_dict(),
+        "vram_preflight": {
+            "used_mib": int(preflight["used_mib"]),
+            "free_mib": int(preflight["free_mib"]),
+            "total_mib": int(preflight["total_mib"]),
+            "min_free_mib_required": int(VRAM_PREFLIGHT_MIN_FREE_MIB),
+        },
+        "measurement_lock": {
+            "path": str(lock.get("path")),
+            "pid": int(lock.get("pid", os.getpid())),
+            "exclusive": True,
+            "scope": (
+                "une seule exécution lourde à la fois (post-OOM 2026-10-29) ; le "
+                "second lancement est refusé, jamais mis en file"
+            ),
+        },
+        "delegated_rlimit_as": {
+            "limit_mib": int(memory_limit_mib(args)),
+            "limit_gib": int(DELEGATED_RLIMIT_AS_GIB),
+            "derivation": DELEGATED_RLIMIT_AS_DERIVATION,
+            "scope": (
+                "plafond d'espace virtuel du groupe délégué (child + descendants), "
+                "posé avant exec ; ne borne PAS la RSS résidente"
+            ),
+        },
+        "delegated_group_rss_limit": {
+            "limit_gib": int(DELEGATED_GROUP_RSS_MAX_GIB),
+            "scope": (
+                "plafond RSS cumulée du groupe délégué (child + descendants), "
+                "échantillonnée à 1 Hz ; dépassement => kill du groupe, "
+                "BudgetExceeded.kind = 'memory'"
+            ),
+        },
         # R-J18R-19 (A5) : le plafond global est vérifié par l'horloge injectée
         # **avant** l'écriture de `results.json` ; la garde est consignée.
         "budget_time_guarded_before_write": True,
@@ -3272,6 +3610,13 @@ def execute(args: argparse.Namespace, argv: Sequence[str]) -> dict[str, object]:
             # au manifeste, avec la garde de temps **avant** écriture.
             "training": results["training"],
             "time_guarded_before_write": bool(runtime["budget_time_guarded_before_write"]),
+            # J18R-final : événement du watchdog VRAM (branché), préflight, verrou
+            # d'exclusion mutuelle et plafonds délégués — faits mesurés.
+            "vram_watchdog": runtime["vram_watchdog"],
+            "vram_preflight": runtime["vram_preflight"],
+            "measurement_lock": runtime["measurement_lock"],
+            "delegated_rlimit_as": runtime["delegated_rlimit_as"],
+            "delegated_group_rss_limit": runtime["delegated_group_rss_limit"],
         },
         command=reconstruct_command(list(argv)),
     )
@@ -3370,14 +3715,22 @@ def dry_run_plan(argv: Sequence[str]) -> dict[str, object]:
             "rss_budget_scope": (
                 "appliqué à la RSS du processus du harnais ; les invocations d'ancrage "
                 "§7.3b sont des sous-processus **limités par RLIMIT_AS** (posé avant "
-                "exec, child et descendants dans le groupe du harnais) ; leur mémoire "
-                "GPU n'est pas couverte par cette mesure"
+                "exec, child et descendants dans le groupe du harnais) et par un "
+                "**plafond RSS de groupe** ; leur mémoire GPU n'est pas couverte par "
+                "cette mesure mais l'est par le **watchdog VRAM**"
             ),
-            # R-J18R-19 (D9) : plafond posé **avant** `exec` sur le groupe ; le stop
-            # SIGTERM→SIGKILL est le plafond de **temps** global.
+            # R-J18R-19 (D9) + J18R-final : plafond RLIMIT_AS **virtuel** du groupe
+            # délégué — mesuré, distinct du plafond RSS du processus du harnais.
             "budget_rss_mib": int(args.max_rss_gib * 1024),
-            "delegated_memory_limit_mib": int(args.max_rss_gib * 1024),
+            "delegated_memory_limit_mib": memory_limit_mib(args),
+            "delegated_memory_limit_derivation": DELEGATED_RLIMIT_AS_DERIVATION,
+            "delegated_group_rss_limit_mib": int(DELEGATED_GROUP_RSS_MAX_GIB * 1024),
             "delegated_stop_after_seconds": args.max_seconds,
+            # J18R-final : watchdog VRAM branché (seuil dur) + exclusion mutuelle.
+            "vram_watchdog_max_used_mib": int(VRAM_WATCHDOG_MAX_USED_MIB),
+            "vram_watchdog_derivation": VRAM_WATCHDOG_DERIVATION,
+            "vram_preflight_min_free_mib": int(VRAM_PREFLIGHT_MIN_FREE_MIB),
+            "measurement_lock": MEASUREMENT_LOCK_RELATIVE_PATH,
         },
     }
 
